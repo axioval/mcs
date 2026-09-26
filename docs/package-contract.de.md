@@ -96,6 +96,22 @@ typen und Eigenschaftskonzepte über die geladenen Definitionspakete auf.
 Unbekannte Konzepte, fehlerhafte Operanden und nicht unterstützte
 Wertkombinationen werden geschlossen abgelehnt.
 
+## Fähigkeitsselektoren
+
+Ein `MeetsSelector` wählt die Objekte aus, die für sich allein die Anforderung
+einer vertrauenswürdigen Fähigkeit erfüllen. Er nennt die Fähigkeit über ihre
+qualifizierte ID und bindet ihre Parameter mit denselben typisierten Werten wie
+eine Regel. So grenzt eine Bedingung jenseits des Objekttyps, etwa ein
+Eigenschaftswert oder eine Klassifikation, eine Population ein.
+
+Der Binder prüft die Wertvarianten und löst alle referenzierten Eigenschafts-,
+Eigenschaftsgruppen- und Objekttypkonzepte auf. Die Anwendung prüft die
+Fähigkeit selbst: Sie wertet nur Fähigkeiten aus, die sie bereits implementiert
+und als auswählbar deklariert, und lehnt unbekannte Fähigkeiten, nicht
+auswählbare wie Populationszählungen sowie unbekannte oder falsch typisierte
+Parameter ab. Ein Objekt mit unentschiedenem Ergebnis wird weder ausgewählt
+noch ausgeschlossen.
+
 ## Vertrag für Quellenangaben
 
 Jedes Regelsatz- und Definitionsdokument deklariert einen eigenen

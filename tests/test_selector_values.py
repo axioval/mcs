@@ -53,6 +53,11 @@ class SelectorParameterTests(unittest.TestCase):
         )
         self.assertEqual(evaluated["value"]["type"], "selector")
         self.assertEqual(evaluated["value"]["value"]["kind"], "allOf")
+        meets = evaluated["value"]["value"]["operands"][1]
+        self.assertEqual(meets["kind"], "meets")
+        self.assertEqual(
+            meets["parameters"]["patterns"], {"type": "stringList", "value": ["W-.*"]}
+        )
 
     def test_documented_selector_examples_are_executable(self) -> None:
         for relative in ("docs/package-contract.md", "docs/package-contract.de.md"):
@@ -110,8 +115,37 @@ class SelectorParameterTests(unittest.TestCase):
                     asset_root=validate.ROOT / "examples/minimal",
                 )
 
+    def test_accepts_meets_selector(self) -> None:
+        ruleset, definitions = self.candidate()
+        ruleset["root"]["rules"][0]["parameters"]["compared"]["value"] = self.meets(
+            {"type": "propertyReference", "property": "axioval:example.ifc.reference"}
+        )
+        validate.bind_ruleset(
+            ruleset,
+            [definitions],
+            "test",
+            asset_root=validate.ROOT / "examples/minimal",
+        )
+
+    @staticmethod
+    def meets(reference: dict) -> dict:
+        return {
+            "kind": "meets",
+            "capability": "axioval:capability.property-value",
+            "parameters": {
+                "property": reference,
+                "min_inclusive": {"type": "number", "value": 1.5},
+            },
+        }
+
     def test_rejects_malformed_or_unbound_nested_selector(self) -> None:
         for selector in (
+            self.meets(
+                {"type": "propertyReference", "property": "axioval:unknown.property"}
+            ),
+            self.meets({"type": "string"}),
+            {**self.meets({"type": "boolean", "value": True}), "capability": "bare"},
+            {"kind": "meets", "capability": "axioval:capability.entity"},
             {"kind": "unknown"},
             {
                 "kind": "entityType",

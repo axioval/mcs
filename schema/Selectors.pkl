@@ -39,6 +39,16 @@ class ClassificationSelector extends Selector {
   includeDescendants: Boolean = false
 }
 
+/// Select entities that on their own meet the requirement of a trusted
+/// capability. Applications evaluate only capabilities they already
+/// implement and declare selectable; an unknown or unselectable capability
+/// fails closed, and an undecided outcome leaves membership undecided.
+class MeetsSelector extends Selector {
+  kind: "meets" = "meets"
+  capability: Types.QualifiedIdentifier
+  parameters: Mapping<String, Values.ParameterValue>
+}
+
 class AllOfSelector extends Selector {
   kind: "allOf" = "allOf"
   operands: Listing<Selector>(length > 0)

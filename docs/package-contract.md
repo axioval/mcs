@@ -101,6 +101,21 @@ binder recursively validates that object and resolves every object-type and
 property concept through the loaded definition packages. Unknown concepts,
 malformed operands, and unsupported value combinations fail closed.
 
+## Capability selectors
+
+A `MeetsSelector` selects the objects that, on their own, meet the requirement
+of a trusted capability. It names the capability by qualified ID and binds its
+parameters with the same typed values as a rule. It is how a condition other
+than the object type, such as a property value or a classification, narrows a
+population.
+
+The binder checks the value variants and resolves every referenced property,
+property-set, and object-type concept. The application checks the capability
+itself: it evaluates only capabilities it already implements and declares
+selectable, and it refuses unknown capabilities, unselectable ones such as
+population counts, and unknown or mistyped parameters. An object whose outcome
+is undecided is neither selected nor excluded.
+
 ## Citation contract
 
 Every ruleset and definition document declares its own source catalog. Citations
