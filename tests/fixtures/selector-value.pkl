@@ -2,12 +2,22 @@ module selectorValue
 
 import "../../schema/Selectors.pkl"
 import "../../schema/SelectorValues.pkl"
+import "../../schema/Values.pkl"
 
 value = new SelectorValues.SelectorValue {
   value = new Selectors.AllOfSelector {
     operands {
       new Selectors.EntityTypeSelector {
         objectType = "axioval:example.ifc.wall"
+      }
+      new Selectors.MeetsSelector {
+        capability = "axioval:capability.property-value"
+        parameters {
+          ["property"] = new Values.PropertyReferenceValue {
+            property = "axioval:example.ifc.reference"
+          }
+          ["patterns"] = new Values.StringListValue { value { "W-.*" } }
+        }
       }
       new Selectors.NotSelector {
         operand = new Selectors.ClassificationSelector {

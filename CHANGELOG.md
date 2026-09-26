@@ -10,6 +10,10 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- `MeetsSelector` (`kind: "meets"`), which selects the objects meeting a trusted,
+  selectable capability's requirement on their own. The binder validates its
+  qualified capability ID, parameter identifiers, value variants, and referenced
+  concepts.
 - Authoring adapters for version-bound `openbim.ifc` references and closed
   `openbim.geometry` capability IDs, plus an IFC4X3 directional-clearance example.
 - MCS source-closure support for checksum-locked Pkl package imports, with

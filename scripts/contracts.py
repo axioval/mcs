@@ -669,6 +669,33 @@ def validate_selector(
             or type(value["includeDescendants"]) is not bool
         ):
             fail(context, "invalid classification selector")
+    elif kind == "meets":
+        exact_keys(value, {"kind", "capability", "parameters"}, set(), context)
+        if type(value["capability"]) is not str or not QUALIFIED_ID.fullmatch(
+            value["capability"]
+        ):
+            fail(context, "capability must be a qualified identifier")
+        parameters = object_value(value["parameters"], f"{context}.parameters")
+        for key, parameter in parameters.items():
+            parameter_context = f"{context}.parameters[{key!r}]"
+            if not IDENTIFIER.fullmatch(key):
+                fail(parameter_context, "invalid parameter identifier")
+            checked = parameter_value(parameter, None, parameter_context)
+            if checked["type"] == "propertyReference":
+                if properties is not None and checked["property"] not in properties:
+                    fail(parameter_context, "unknown property concept")
+                if (
+                    property_sets is not None
+                    and "propertySet" in checked
+                    and checked["propertySet"] not in property_sets
+                ):
+                    fail(parameter_context, "unknown property-set concept")
+            elif (
+                checked["type"] == "objectTypeReference"
+                and object_types is not None
+                and checked["objectType"] not in object_types
+            ):
+                fail(parameter_context, "unknown object-type concept")
     elif kind in {"allOf", "anyOf"}:
         exact_keys(value, {"kind", "operands"}, set(), context)
         operands = list_value(value["operands"], f"{context}.operands")
