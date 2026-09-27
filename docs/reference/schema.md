@@ -15,7 +15,7 @@ folded by default so you can scan the concepts first.
 | `Types.pkl` | identifiers, semantic versions, localized text, package metadata |
 | `Citations.pkl` | bibliographic sources, locators, citations, parameter targets |
 | `Values.pkl` | tagged scalar/list values plus object/property references |
-| `Selectors.pkl` | object type, property, classification, boolean-composition selectors |
+| `Selectors.pkl` | object type, property, classification, related-object, boolean-composition selectors |
 | `Definitions.pkl` | vocabularies and reusable capability templates |
 | `RuleSets.pkl` | concrete rule instances and cosmetic folders |
 
@@ -176,6 +176,7 @@ Selectors are declarative and recursively validated:
 - `entityType` using a canonical object-type ID
 - `property` using a canonical property ID and optional set qualifier
 - `classification`
+- `related`, testing the objects a relationship path reaches
 - `allOf`, `anyOf`, and `not`
 
 A comparison value on a property selector must match the referenced property's
@@ -243,6 +244,43 @@ with `"all"`.
       operator = "oneOf"
       value = new Values.StringListValue { value { "A-WALL"; "A-DOOR" } }
       quantifier = "all"
+    }
+    ```
+
+### Related selectors
+
+A `related` selector selects an object by the objects a relationship `path`
+reaches from it. Each step is `Relationship` or `Relationship:direction`, with
+direction `forward` (the default), `backward`, or `either`. The steps are
+walked one after another and never reach the object itself. Relationship names
+are the source's own names, such as IFC relationship entity names, not concepts;
+the nested `selector` names concepts like any other selector and binds against
+the same catalogs.
+
+| `quantifier` | Selects when |
+| --- | --- |
+| `any` (default) | at least one reached object matches |
+| `all` | every reached object matches, and at least one is reached |
+| `none` | no reached object matches, also when none is reached |
+
+Normalized JSON omits the default `any`, and the nested selector keeps its own
+normalization. The binder rejects an empty `path`, a step with whitespace, an
+empty name, or another direction, and any other `quantifier` value.
+
+??? example "Show a selector for doors in compartment walls"
+    ```pkl
+    new Selectors.AllOfSelector {
+      operands {
+        new Selectors.EntityTypeSelector { objectType = "axioval:example.door" }
+        new Selectors.RelatedSelector {
+          path { "IfcRelFillsElement:backward"; "IfcRelVoidsElement:backward" }
+          selector = new Selectors.PropertySelector {
+            property = "axioval:example.compartmentation"
+            operator = "equals"
+            value = new Values.BooleanValue { value = true }
+          }
+        }
+      }
     }
     ```
 

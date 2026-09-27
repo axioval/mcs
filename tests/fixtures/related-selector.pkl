@@ -1,0 +1,76 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Selectors.pkl"
+import "../../schema/SelectorValues.pkl"
+import "../../schema/Values.pkl"
+
+package {
+  id = "axioval:example.related-selector"
+  version = "0.1.0"
+  name { default = "Related selector" }
+  description { default = "Related selectors and their quantifiers." }
+}
+objectTypes {
+  ["axioval:example.door"] {
+    id = "axioval:example.door"
+    name { default = "Door" }
+    externalNames {
+      new { typeSystem = "axioval:example.bim"; name = "Door" }
+    }
+  }
+}
+properties {
+  ["axioval:example.compartmentation"] {
+    id = "axioval:example.compartmentation"
+    name { default = "Compartmentation" }
+    valueKind = "boolean"
+    externalNames {
+      new { typeSystem = "axioval:example.bim"; name = "Compartmentation" }
+    }
+  }
+}
+definitions {
+  ["axioval:example.selected"] {
+    id = "axioval:example.selected"
+    name { default = "Selected objects" }
+    capability = "axioval:example.selected"
+    parameters {
+      ["compared"] {
+        id = "compared"
+        name { default = "Compared objects" }
+        kind = "selector"
+        defaultValue = new SelectorValues.SelectorValue {
+          value = new Selectors.AllOfSelector {
+            operands {
+              new Selectors.RelatedSelector {
+                path { "IfcRelFillsElement:backward"; "IfcRelVoidsElement:backward" }
+                selector = new Selectors.PropertySelector {
+                  property = "axioval:example.compartmentation"
+                  operator = "equals"
+                  value = new Values.BooleanValue { value = true }
+                }
+              }
+              new Selectors.RelatedSelector {
+                path { "IfcRelVoidsElement"; "IfcRelFillsElement:forward" }
+                quantifier = "all"
+                selector = new Selectors.EntityTypeSelector {
+                  objectType = "axioval:example.door"
+                }
+              }
+              new Selectors.RelatedSelector {
+                path { "IfcRelAggregates:either" }
+                quantifier = "none"
+                selector = new Selectors.NotSelector {
+                  operand = new Selectors.PropertySelector {
+                    property = "axioval:example.compartmentation"
+                    operator = "exists"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

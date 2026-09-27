@@ -13,7 +13,7 @@ Die Quelltextbeispiele bleiben eingeklappt, bis Sie sie bewusst öffnen.
 | `Types.pkl` | Bezeichner, semantische Versionen, lokalisierter Text, Paketmetadaten |
 | `Citations.pkl` | bibliografische Quellen, Fundstellen, Zitate und Parameterziele |
 | `Values.pkl` | Markierte Skalar- und Listenwerte sowie Objekt- und Eigenschaftsreferenzen |
-| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Klassifikation und boolesche Zusammensetzung |
+| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Klassifikation, verbundene Objekte und boolesche Zusammensetzung |
 | `Definitions.pkl` | Vokabulare und wiederverwendbare Fähigkeitsvorlagen |
 | `RuleSets.pkl` | Konkrete Regelinstanzen und rein kosmetische Ordner |
 
@@ -171,6 +171,7 @@ Selektoren sind deklarativ und werden rekursiv validiert:
 - `entityType` mit einer kanonischen Objekttyp-ID
 - `property` mit kanonischer Eigenschafts-ID und optionalem Set-Qualifizierer
 - `classification`
+- `related`, der die über einen Beziehungspfad erreichten Objekte prüft
 - `allOf`, `anyOf` und `not`
 
 Ein Vergleichswert auf einem Eigenschaftsselektor muss zur katalogisierten `valueKind` der referenzierten Eigenschaft passen. `exists` lehnt einen Vergleichswert ab. Jeder andere Operator benötigt einen.
@@ -240,6 +241,44 @@ verboten“ `noneOf` mit `"all"`.
       operator = "oneOf"
       value = new Values.StringListValue { value { "A-WALL"; "A-DOOR" } }
       quantifier = "all"
+    }
+    ```
+
+### Verbundene Objekte
+
+Ein `related`-Selektor wählt ein Objekt anhand der Objekte aus, die ein
+Beziehungspfad `path` von ihm aus erreicht. Jeder Schritt ist `Beziehung` oder
+`Beziehung:Richtung`, mit der Richtung `forward` (Standard), `backward` oder
+`either`. Die Schritte werden nacheinander durchlaufen und erreichen nie das
+Objekt selbst. Beziehungsnamen sind die eigenen Namen der Quelle, etwa
+IFC-Beziehungsentitäten, keine Konzepte; der verschachtelte `selector` nennt
+Konzepte wie jeder andere Selektor und wird gegen dieselben Kataloge gebunden.
+
+| `quantifier` | Wählt aus, wenn |
+| --- | --- |
+| `any` (Standard) | mindestens ein erreichtes Objekt passt |
+| `all` | jedes erreichte Objekt passt und mindestens eines erreicht wird |
+| `none` | kein erreichtes Objekt passt, auch wenn keines erreicht wird |
+
+Normalisiertes JSON lässt den Standardwert `any` weg, und der verschachtelte
+Selektor behält seine eigene Normalisierung. Der Binder lehnt einen leeren
+`path`, einen Schritt mit Leerraum, einen leeren Namen oder eine andere Richtung
+sowie jeden anderen Wert für `quantifier` ab.
+
+??? example "Selektor für Türen in Brandwänden anzeigen"
+    ```pkl
+    new Selectors.AllOfSelector {
+      operands {
+        new Selectors.EntityTypeSelector { objectType = "axioval:example.door" }
+        new Selectors.RelatedSelector {
+          path { "IfcRelFillsElement:backward"; "IfcRelVoidsElement:backward" }
+          selector = new Selectors.PropertySelector {
+            property = "axioval:example.compartmentation"
+            operator = "equals"
+            value = new Values.BooleanValue { value = true }
+          }
+        }
+      }
     }
     ```
 

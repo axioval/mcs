@@ -1288,5 +1288,183 @@ class QuantifiedPropertySelectorTests(unittest.TestCase):
         self.assertEqual(present, property_selector("axioval:example.layers", "exists"))
 
 
+def related_selector(path, selector=None, **fields) -> dict:
+    related = {
+        "kind": "related",
+        "path": path,
+        "selector": selector if selector is not None else {"kind": "all"},
+    }
+    related.update(fields)
+    return related
+
+
+class RelatedSelectorTests(unittest.TestCase):
+    """Related selectors test the objects a relationship path reaches."""
+
+    object_types = {"axioval:example.door": {}}
+    properties = {
+        property_id: {"valueKind": kind} for property_id, kind in PROPERTY_KINDS.items()
+    }
+
+    def check(self, selector: dict) -> None:
+        from scripts.contracts import validate_selector
+
+        validate_selector(selector, "test", self.object_types, self.properties, {})
+
+    def assert_rejected(self, selector: dict) -> None:
+        with self.subTest(selector=selector), self.assertRaises(SystemExit):
+            self.check(selector)
+
+    def test_accepts_paths_quantifiers_and_nested_selectors(self) -> None:
+        for selector in (
+            related_selector(
+                ["IfcRelFillsElement:backward", "IfcRelVoidsElement:backward"],
+                property_selector(
+                    "axioval:example.flag", "equals", {"type": "boolean", "value": True}
+                ),
+            ),
+            related_selector(["IfcRelAggregates"]),
+            related_selector(["IfcRelAggregates:forward"], quantifier="any"),
+            related_selector(
+                ["IfcRelVoidsElement", "IfcRelFillsElement:either"],
+                {
+                    "kind": "entityType",
+                    "objectType": "axioval:example.door",
+                    "includeSubtypes": True,
+                },
+                quantifier="all",
+            ),
+            related_selector(
+                ["IfcRelContainedInSpatialStructure:backward"],
+                {
+                    "kind": "not",
+                    "operand": related_selector(
+                        ["IfcRelAggregates"],
+                        property_selector("axioval:example.text", "exists"),
+                        quantifier="none",
+                    ),
+                },
+                quantifier="none",
+            ),
+        ):
+            with self.subTest(selector=selector):
+                self.check(selector)
+
+    def test_rejects_malformed_related_selectors(self) -> None:
+        valid = related_selector(["IfcRelAggregates"])
+        for selector in (
+            {key: value for key, value in valid.items() if key != "path"},
+            {key: value for key, value in valid.items() if key != "selector"},
+            {**valid, "operand": {"kind": "all"}},
+            {**valid, "direction": "forward"},
+            related_selector([]),
+            related_selector("IfcRelAggregates"),
+            related_selector([""]),
+            related_selector([None]),
+            related_selector([["IfcRelAggregates"]]),
+            related_selector(["IfcRelAggregates:"]),
+            related_selector(["IfcRelAggregates:up"]),
+            related_selector(["IfcRelAggregates:Forward"]),
+            related_selector(["IfcRelAggregates:forward:backward"]),
+            related_selector([":forward"]),
+            related_selector(["Ifc Rel"]),
+            related_selector(["IfcRelAggregates "]),
+            related_selector({"kind": "unknown"}),
+            related_selector(None),
+        ):
+            self.assert_rejected(selector)
+
+    def test_rejects_unknown_quantifiers(self) -> None:
+        for quantifier in ("some", "ALL", "exists", "", None, True, ["all"]):
+            self.assert_rejected(
+                related_selector(["IfcRelAggregates"], quantifier=quantifier)
+            )
+
+    def test_nested_selectors_bind_against_the_concept_catalogs(self) -> None:
+        for nested in (
+            property_selector("axioval:example.unknown", "exists"),
+            property_selector("axioval:example.flag", "equals", text("yes")),
+            {
+                "kind": "entityType",
+                "objectType": "axioval:example.window",
+                "includeSubtypes": True,
+            },
+            related_selector(
+                ["IfcRelAggregates"],
+                property_selector("axioval:example.tags", "oneOf", texts("a")),
+            ),
+        ):
+            self.assert_rejected(related_selector(["IfcRelAggregates"], nested))
+
+    def test_pkl_rejects_malformed_related_selectors(self) -> None:
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+        for fields in (
+            "path {}",
+            'path { "" }',
+            'path { "IfcRelAggregates" }\n  quantifier = "some"',
+        ):
+            with (
+                self.subTest(fields=fields),
+                tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp,
+            ):
+                module = Path(tmp) / "related.pkl"
+                module.write_text(
+                    f'import "{selectors}"\n\n'
+                    "value = new Selectors.RelatedSelector {\n"
+                    f"  {fields}\n"
+                    "  selector = new Selectors.AllSelector {}\n"
+                    "}\n",
+                    encoding="utf-8",
+                )
+                with self.assertRaises(SystemExit):
+                    validate.evaluate(module)
+
+    def test_pkl_omits_the_default_quantifier(self) -> None:
+        evaluated = validate.evaluate(
+            validate.ROOT / "tests/fixtures/related-selector.pkl"
+        )
+        validate.validate_definition_document(evaluated, "fixture")
+        defaulted, every, none = evaluated["definitions"]["axioval:example.selected"][
+            "parameters"
+        ]["compared"]["defaultValue"]["value"]["operands"]
+        # The nested property selector still omits its default text flags.
+        self.assertEqual(
+            defaulted,
+            related_selector(
+                ["IfcRelFillsElement:backward", "IfcRelVoidsElement:backward"],
+                property_selector(
+                    "axioval:example.compartmentation",
+                    "equals",
+                    {"type": "boolean", "value": True},
+                ),
+            ),
+        )
+        self.assertEqual(
+            every,
+            related_selector(
+                ["IfcRelVoidsElement", "IfcRelFillsElement:forward"],
+                {
+                    "kind": "entityType",
+                    "objectType": "axioval:example.door",
+                    "includeSubtypes": True,
+                },
+                quantifier="all",
+            ),
+        )
+        self.assertEqual(
+            none,
+            related_selector(
+                ["IfcRelAggregates:either"],
+                {
+                    "kind": "not",
+                    "operand": property_selector(
+                        "axioval:example.compartmentation", "exists"
+                    ),
+                },
+                quantifier="none",
+            ),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

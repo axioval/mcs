@@ -10,6 +10,12 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- A `related` selector that selects an object by the objects a relationship
+  `path` reaches from it: steps `Relationship` or `Relationship:direction`
+  (`forward`, `backward`, or `either`), a nested `selector`, and a `quantifier`
+  `any` (default, omitted from normalized JSON), `all`, or `none`. The binder
+  checks exact keys, a non-empty path of well-formed steps, the quantifier, and
+  binds the nested selector against the concept catalogs.
 - Table-valued rule parameters: a `table` parameter declares named `columns`,
   each with a kind (`string`, `textPattern`, `number`, `quantity` with a
   `unitDimension`, `integer`, `boolean`, `selector`, or `reference`) and a

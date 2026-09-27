@@ -79,6 +79,10 @@ QUANTIFIERS = {"any", "all"}
 # List-valued property kinds and the kind of each element a quantified
 # comparison tests.
 LIST_ELEMENT_KINDS = {"stringList": "string", "referenceList": "reference"}
+RELATED_QUANTIFIERS = {"any", "all", "none"}
+# A related-selector path step: a source relationship name, optionally
+# followed by its direction.
+RELATED_PATH_STEP = re.compile(r"[^:\s]+(:(forward|backward|either))?")
 IMAGE_MEDIA_TYPES = {
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",
@@ -877,6 +881,30 @@ def validate_selector(
         validate_selector(
             value["operand"],
             f"{context}.operand",
+            object_types,
+            properties,
+            property_sets,
+        )
+    elif kind == "related":
+        exact_keys(value, {"kind", "path", "selector"}, {"quantifier"}, context)
+        path = list_value(value["path"], f"{context}.path")
+        if not path:
+            fail(context, "related selector requires a path")
+        for index, step in enumerate(path):
+            if type(step) is not str or not RELATED_PATH_STEP.fullmatch(step):
+                fail(
+                    f"{context}.path[{index}]",
+                    "path step must be 'Relationship' or "
+                    "'Relationship:forward|backward|either'",
+                )
+        if "quantifier" in value and (
+            type(value["quantifier"]) is not str
+            or value["quantifier"] not in RELATED_QUANTIFIERS
+        ):
+            fail(context, "quantifier must be 'any', 'all', or 'none'")
+        validate_selector(
+            value["selector"],
+            f"{context}.selector",
             object_types,
             properties,
             property_sets,

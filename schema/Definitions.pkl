@@ -114,9 +114,11 @@ definitions: Mapping<String, RuleDefinition>(
 
 output {
   renderer {
-    // Omit defaulted property-selector flags from normalized JSON.
+    // Omit defaulted property-selector flags and related-selector quantifiers
+    // from normalized JSON.
     converters {
       [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
+      [Selectors.RelatedSelector] = (it) -> Selectors.normalizedRelatedSelector(it)
     }
   }
 }

@@ -99,3 +99,34 @@ class NotSelector extends Selector {
   kind: "not" = "not"
   operand: Selector
 }
+
+/// How a related selector tests the objects its `path` reaches.
+///
+/// - `any` holds when at least one reached object matches.
+/// - `all` holds when every reached object matches and at least one is reached.
+/// - `none` holds when no reached object matches, also when none is reached.
+typealias RelatedQuantifier = "any" | "all" | "none"
+
+/// Select an object by the objects a relationship `path` reaches from it.
+///
+/// Each step is `Relationship` or `Relationship:direction`, where direction is
+/// `forward` (the default), `backward`, or `either`; the steps are walked one
+/// after another and never reach the object itself. Relationship names are the
+/// source's own names, not concepts, while the nested `selector` names concepts
+/// like any other selector.
+class RelatedSelector extends Selector {
+  kind: "related" = "related"
+  /// Relationship steps walked in order from the selected object.
+  path: Listing<String(!isEmpty)>(length > 0)
+  /// How the reached objects are tested against `selector`. Normalized JSON
+  /// omits the default `any`.
+  quantifier: RelatedQuantifier = "any"
+  /// The selector each reached object is tested against.
+  selector: Selector
+}
+
+/// Render a related selector without its default quantifier so packages that
+/// do not set it keep byte-identical normalized JSON. The nested selector is
+/// still rendered through the renderer's converters.
+const function normalizedRelatedSelector(selector: RelatedSelector): Map<String, Any> =
+  selector.toMap().filter((key, value) -> !(key == "quantifier" && value == "any"))
