@@ -35,6 +35,14 @@ class EntityTypeSelector extends Selector {
 /// - `exists` takes no value.
 typealias ComparisonOperator = "equals" | "notEquals" | "lessThan" | "lessThanOrEquals" | "greaterThan" | "greaterThanOrEquals" | "matches" | "like" | "contains" | "oneOf" | "noneOf" | "exists"
 
+/// How a property selector compares a list-valued property element by element.
+///
+/// - `any` holds when at least one element satisfies the comparison.
+/// - `all` holds when every element does, and never for an empty list.
+///
+/// A single value counts as a one-element list. `exists` takes no quantifier.
+typealias Quantifier = "any" | "all"
+
 /// Select entities using a canonical property concept. `propertySet` is an
 /// optional exact container qualifier, never an ownership hierarchy.
 class PropertySelector extends Selector {
@@ -53,6 +61,11 @@ class PropertySelector extends Selector {
   /// Normalized JSON omits the default `false`; `true` is rejected on `exists`
   /// and on non-text comparisons.
   trim: Boolean = false
+  /// Compares a list-valued property element by element. Required for a
+  /// comparison of a `stringList` or `referenceList` property, whose `value`
+  /// is then a value of the element kind (`string` or `reference`); rejected on
+  /// `exists`. Normalized JSON omits it when unset.
+  quantifier: Quantifier?
 }
 
 /// Render a property selector without its default text-comparison flags so

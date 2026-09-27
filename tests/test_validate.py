@@ -1125,5 +1125,168 @@ class TableParameterTests(unittest.TestCase):
         )
 
 
+class QuantifiedPropertySelectorTests(unittest.TestCase):
+    """List-valued properties compare element by element under a quantifier."""
+
+    properties = {
+        property_id: {"valueKind": kind} for property_id, kind in PROPERTY_KINDS.items()
+    } | {"axioval:example.references": {"valueKind": "referenceList"}}
+
+    def check(self, selector: dict) -> None:
+        from scripts.contracts import validate_selector
+
+        validate_selector(selector, "test", None, self.properties, None)
+
+    def assert_rejected(self, selector: dict) -> None:
+        with self.subTest(selector=selector), self.assertRaises(SystemExit):
+            self.check(selector)
+
+    def test_accepts_quantified_comparisons_of_list_elements(self) -> None:
+        for quantifier in ("any", "all"):
+            for selector in (
+                property_selector(
+                    "axioval:example.tags",
+                    "oneOf",
+                    texts("A-WALL"),
+                    quantifier=quantifier,
+                ),
+                property_selector(
+                    "axioval:example.tags", "noneOf", texts(), quantifier=quantifier
+                ),
+                property_selector(
+                    "axioval:example.tags",
+                    "equals",
+                    text("A-WALL"),
+                    quantifier=quantifier,
+                ),
+                property_selector(
+                    "axioval:example.tags",
+                    "like",
+                    text("a-*"),
+                    quantifier=quantifier,
+                    caseSensitive=False,
+                    trim=True,
+                ),
+                property_selector(
+                    "axioval:example.tags",
+                    "greaterThan",
+                    text("B"),
+                    quantifier=quantifier,
+                ),
+                property_selector(
+                    "axioval:example.references",
+                    "equals",
+                    {"type": "reference", "value": "axioval:a"},
+                    quantifier=quantifier,
+                ),
+                # A single value counts as a one-element list.
+                property_selector(
+                    "axioval:example.count",
+                    "greaterThan",
+                    {"type": "integer", "value": 2},
+                    quantifier=quantifier,
+                ),
+            ):
+                with self.subTest(selector=selector):
+                    self.check(selector)
+            # Without a catalog the element kind is unknown, so any value fits.
+            from scripts.contracts import validate_selector
+
+            validate_selector(
+                property_selector(
+                    "axioval:example.unbound",
+                    "equals",
+                    text("a"),
+                    quantifier=quantifier,
+                ),
+                "test",
+            )
+        self.check(property_selector("axioval:example.tags", "exists"))
+
+    def test_rejects_unknown_quantifiers(self) -> None:
+        for quantifier in ("some", "ANY", "none", "", None, True, ["any"]):
+            self.assert_rejected(
+                property_selector(
+                    "axioval:example.tags", "oneOf", texts("a"), quantifier=quantifier
+                )
+            )
+
+    def test_rejects_a_quantifier_on_exists(self) -> None:
+        for quantifier in ("any", "all"):
+            self.assert_rejected(
+                property_selector(
+                    "axioval:example.tags", "exists", quantifier=quantifier
+                )
+            )
+            self.assert_rejected(
+                property_selector(
+                    "axioval:example.text", "exists", quantifier=quantifier
+                )
+            )
+
+    def test_list_valued_comparisons_require_a_quantifier(self) -> None:
+        for selector in (
+            property_selector("axioval:example.tags", "oneOf", texts("a")),
+            property_selector("axioval:example.tags", "equals", texts("a")),
+            property_selector("axioval:example.tags", "contains", text("a")),
+            property_selector(
+                "axioval:example.references",
+                "equals",
+                {"type": "referenceList", "value": ["axioval:a"]},
+            ),
+        ):
+            self.assert_rejected(selector)
+
+    def test_quantified_values_fit_the_element_kind(self) -> None:
+        for selector in (
+            # The whole list is never compared.
+            property_selector(
+                "axioval:example.tags", "equals", texts("a"), quantifier="any"
+            ),
+            property_selector(
+                "axioval:example.tags",
+                "equals",
+                {"type": "integer", "value": 1},
+                quantifier="all",
+            ),
+            property_selector(
+                "axioval:example.references",
+                "oneOf",
+                texts("Not A Reference"),
+                quantifier="any",
+            ),
+            property_selector(
+                "axioval:example.count", "like", text("1*"), quantifier="any"
+            ),
+            property_selector(
+                "axioval:example.count",
+                "equals",
+                {"type": "integer", "value": 1},
+                quantifier="any",
+                caseSensitive=False,
+            ),
+        ):
+            self.assert_rejected(selector)
+
+    def test_pkl_omits_an_unset_quantifier(self) -> None:
+        evaluated = validate.evaluate(
+            validate.ROOT / "tests/fixtures/property-selector-quantifier.pkl"
+        )
+        validate.validate_definition_document(evaluated, "fixture")
+        quantified, present = evaluated["definitions"]["axioval:example.selected"][
+            "parameters"
+        ]["compared"]["defaultValue"]["value"]["operands"]
+        self.assertEqual(
+            quantified,
+            property_selector(
+                "axioval:example.layers",
+                "oneOf",
+                texts("A-WALL", "A-DOOR"),
+                quantifier="all",
+            ),
+        )
+        self.assertEqual(present, property_selector("axioval:example.layers", "exists"))
+
+
 if __name__ == "__main__":
     unittest.main()

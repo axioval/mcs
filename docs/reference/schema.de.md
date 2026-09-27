@@ -211,6 +211,38 @@ kein Textvergleich ist, wird abgelehnt.
     }
     ```
 
+### Listenwertige Eigenschaften
+
+Ein Eigenschaftskonzept mit der `valueKind` `stringList` oder `referenceList`
+ist listenwertig: Die Anwendung kann mehrere Werte dafür ermitteln, etwa jede
+Darstellungsebene (Layer) eines Objekts. Eine Liste wird nie als Ganzes
+verglichen. Ein Vergleich einer listenwertigen Eigenschaft gibt einen
+`quantifier` an, und sein `value` passt dann zur Art der Elemente, `string`
+oder `reference`:
+
+- `any` gilt, wenn mindestens ein Element den Vergleich erfüllt;
+- `all` gilt, wenn jedes Element ihn erfüllt, und nie für eine leere Liste.
+
+Ein einzelner Wert zählt als Liste mit einem Element, daher ist ein Quantor
+auch auf einer skalaren Eigenschaft zulässig. `exists` nimmt keinen Quantor,
+und jeder andere Wert für `quantifier` wird abgelehnt. Normalisiertes JSON
+lässt einen nicht gesetzten Quantor weg, sodass bestehende Pakete unverändert
+gerendert werden.
+
+„Jede Ebene ist vereinbart“ ist `oneOf` mit `quantifier = "all"`, „mindestens
+eine Ebene ist vereinbart“ dasselbe mit `"any"`, und „keine Ebene ist
+verboten“ `noneOf` mit `"all"`.
+
+??? example "Quantifizierten Ebenenselektor anzeigen"
+    ```pkl
+    new Selectors.PropertySelector {
+      property = "axioval:example.ifc.layers"
+      operator = "oneOf"
+      value = new Values.StringListValue { value { "A-WALL"; "A-DOOR" } }
+      quantifier = "all"
+    }
+    ```
+
 ## Umfangreiche Anwendbarkeit
 
 Eine Regel mit mehreren Populationen verwendet ein `Applicability`-Objekt. Die

@@ -75,6 +75,10 @@ TEXT_PATTERN_OPERATORS = {"matches", "like", "contains"}
 LIST_OPERATORS = {"oneOf", "noneOf"}
 # Value kinds compared as text, so case folding and trimming apply.
 TEXT_VALUE_KINDS = {"string", "enum", "reference"}
+QUANTIFIERS = {"any", "all"}
+# List-valued property kinds and the kind of each element a quantified
+# comparison tests.
+LIST_ELEMENT_KINDS = {"stringList": "string", "referenceList": "reference"}
 IMAGE_MEDIA_TYPES = {
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",
@@ -756,7 +760,7 @@ def validate_selector(
         exact_keys(
             value,
             {"kind", "property", "operator"},
-            {"propertySet", "value", "caseSensitive", "trim"},
+            {"propertySet", "value", "caseSensitive", "trim", "quantifier"},
             context,
         )
         operator = value["operator"]
@@ -770,6 +774,13 @@ def validate_selector(
         for flag in ("caseSensitive", "trim"):
             if flag in value and type(value[flag]) is not bool:
                 fail(context, f"{flag} must be a boolean")
+        if "quantifier" in value and (
+            type(value["quantifier"]) is not str
+            or value["quantifier"] not in QUANTIFIERS
+        ):
+            fail(context, "quantifier must be 'any' or 'all'")
+        if operator == "exists" and "quantifier" in value:
+            fail(context, "exists selector must not have a quantifier")
         if properties is not None and value["property"] not in properties:
             fail(context, "unknown property concept")
         if "propertySet" in value and (
@@ -792,6 +803,11 @@ def validate_selector(
             if properties is not None and value["property"] in properties
             else None
         )
+        if property_kind in LIST_ELEMENT_KINDS and operator != "exists":
+            if "quantifier" not in value:
+                fail(context, "comparing a list-valued property requires a quantifier")
+            # A quantified comparison tests each element on its own.
+            property_kind = LIST_ELEMENT_KINDS[property_kind]
         compared_kind: str | None = None
         if "value" in value:
             if operator in TEXT_PATTERN_OPERATORS:

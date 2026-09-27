@@ -19,6 +19,11 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   parameter kinds, and `allowedValues` on tables, for bound rows and defaults
   alike. Normalized JSON omits `columns` elsewhere, so existing packages render
   unchanged.
+- An optional property selector `quantifier`, `any` or `all`, that compares a
+  list-valued (`stringList` or `referenceList`) property element by element;
+  normalized JSON omits it when unset. The binder rejects other values and a
+  quantifier on `exists`, checks a quantified `value` against the element kind,
+  and requires a quantifier on every comparison of a list-valued property.
 - Property selector operators `like` (whole-value wildcards), `contains`,
   `oneOf`, and `noneOf`, plus `caseSensitive` and `trim` text options that
   normalized JSON omits at their defaults. The binder requires a `string` for

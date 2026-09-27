@@ -216,6 +216,36 @@ on a comparison that is not text is rejected.
     }
     ```
 
+### List-valued properties
+
+A property concept with `valueKind` `stringList` or `referenceList` is
+list-valued: the application may resolve several values for it, such as every
+presentation layer of an object. A list is never compared as a whole. A
+comparison of a list-valued property states a `quantifier`, and its `value`
+then fits the element kind, `string` or `reference`:
+
+- `any` holds when at least one element satisfies the comparison;
+- `all` holds when every element does, and never for an empty list.
+
+A single value counts as a one-element list, so a quantifier is also accepted
+on a scalar property. `exists` takes no quantifier, and any other `quantifier`
+value is rejected. Normalized JSON omits an unset quantifier, so existing
+packages render unchanged.
+
+"Every layer is agreed" is `oneOf` with `quantifier = "all"`, "at least one
+layer is agreed" the same with `"any"`, and "no layer is forbidden" `noneOf`
+with `"all"`.
+
+??? example "Show a quantified layer selector"
+    ```pkl
+    new Selectors.PropertySelector {
+      property = "axioval:example.ifc.layers"
+      operator = "oneOf"
+      value = new Values.StringListValue { value { "A-WALL"; "A-DOOR" } }
+      quantifier = "all"
+    }
+    ```
+
 ## Rich applicability
 
 A rule that involves several populations uses an `Applicability` object. Its
