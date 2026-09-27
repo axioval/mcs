@@ -47,7 +47,9 @@ class PropertySetDefinition {
 /// The kind of every cell in one table column. A `textPattern` cell is a
 /// `Values.StringValue` holding a whole-value wildcard pattern: `*` any run of
 /// characters, `?` one character, and a backslash escapes the next character.
-typealias ColumnKind = "string" | "textPattern" | "number" | "quantity" | "integer" | "boolean" | "selector" | "reference"
+/// A `date` cell is a `Values.DateValue` and a `dateTime` cell a
+/// `Values.DateTimeValue`, checked like any date or date-time literal.
+typealias ColumnKind = "string" | "textPattern" | "number" | "quantity" | "integer" | "boolean" | "selector" | "reference" | "date" | "dateTime"
 
 /// One named, typed column of a `table` parameter.
 class TableColumn {

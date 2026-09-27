@@ -88,6 +88,8 @@ ist (die Voreinstellung):
 | `boolean` | `boolean` |
 | `selector` | `selector` |
 | `reference` | `reference` |
+| `date` | `date`, ein realer Tag in der Form `YYYY-MM-DD` |
+| `dateTime` | `dateTime`, ein Zeitpunkt mit seinem UTC-Versatz |
 
 Ein Tabellenwert ist eine Liste von Zeilen. Jede Zeile ordnet Spalten-IDs Zellen
 der Art ihrer Spalte zu. Der Binder lehnt eine Zeile mit unbekannter Spalte,
@@ -218,8 +220,9 @@ Regeldefinitionen deklarieren die Datumsparameter der
 Eigenschaftsfähigkeiten (Eigenschaftsprädikat, Eigenschaftsvergleich und
 Eigenschaftswert) als Parameter der Art `date` oder `dateTime`, etwa `date`,
 `date_time`, `target_date` und `target_date_time`, und ihre `precision` als
-`string`-Parameter mit dem einzigen Wert `day`. Datumsspalten in
-`table`-Parametern werden nicht unterstützt.
+`string`-Parameter mit dem einzigen Wert `day`. Ein `table`-Parameter nimmt
+Spalten der Arten `date` und `dateTime`, deren Zellen wie jedes andere Datums-
+oder Zeitpunktliteral geprüft werden.
 
 ## Selektoren
 

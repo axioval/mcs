@@ -95,6 +95,8 @@ minimum area per space type, instead of one rule per row. It declares its
 | `boolean` | `boolean` |
 | `selector` | `selector` |
 | `reference` | `reference` |
+| `date` | `date`, a real day written `YYYY-MM-DD` |
+| `dateTime` | `dateTime`, an instant with its UTC offset |
 
 A table value is a list of rows. Each row maps column IDs to cells of the
 column's kind. The binder rejects a row with an unknown column, a cell of
@@ -219,7 +221,8 @@ Rule definitions declare the date parameters of the property capabilities
 (property predicate, property comparison, and property value) as parameters of
 kind `date` or `dateTime`, such as `date`, `date_time`, `target_date`, and
 `target_date_time`, and their `precision` as a `string` parameter whose only
-value is `day`. Date columns in `table` parameters are not supported.
+value is `day`. A `table` parameter takes `date` and `dateTime` columns, whose
+cells are checked like any other date or date-time literal.
 
 ## Selectors
 

@@ -51,6 +51,8 @@ COLUMN_VALUE_KINDS = {
     "boolean": "boolean",
     "selector": "selector",
     "reference": "reference",
+    "date": "date",
+    "dateTime": "dateTime",
 }
 SELECTOR_OPERATORS = {
     "equals",

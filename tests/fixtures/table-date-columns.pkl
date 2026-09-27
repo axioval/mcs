@@ -1,0 +1,51 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Values.pkl"
+
+package {
+  id = "axioval:example.table-date-columns"
+  version = "0.1.0"
+  name { default = "Table date columns" }
+  description { default = "A table-valued parameter with date and date-time columns." }
+}
+definitions {
+  ["axioval:example.inspection-limits"] {
+    id = "axioval:example.inspection-limits"
+    name { default = "Inspection limits" }
+    capability = "axioval:example.inspection-limits"
+    parameters {
+      ["limits"] {
+        id = "limits"
+        name { default = "Latest inspection per space type" }
+        kind = "table"
+        columns {
+          new {
+            id = "space_type"
+            name { default = "Space type" }
+            kind = "textPattern"
+          }
+          new {
+            id = "inspected"
+            name { default = "Inspected by" }
+            kind = "date"
+          }
+          new {
+            id = "stamped"
+            name { default = "Stamped by" }
+            kind = "dateTime"
+            required = false
+          }
+        }
+        defaultValue = new Values.TableValue {
+          value {
+            new {
+              ["space_type"] = new Values.StringValue { value = "Office*" }
+              ["inspected"] = new Values.DateValue { value = "2026-09-27" }
+              ["stamped"] = new Values.DateTimeValue { value = "2026-09-27T10:00:00+02:00" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

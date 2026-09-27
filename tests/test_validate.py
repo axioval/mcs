@@ -932,6 +932,8 @@ class TableParameterTests(unittest.TestCase):
                 column("strict", "boolean", required=False),
                 column("scope", "selector", required=False),
                 column("reference", "reference", required=False),
+                column("inspected", "date", required=False),
+                column("stamped", "dateTime", required=False),
             ],
         }
         limits.update(overrides)
@@ -1040,6 +1042,57 @@ class TableParameterTests(unittest.TestCase):
             ],
         ):
             self.assert_rejected(rows)
+
+    def test_date_columns_take_date_and_date_time_cells(self) -> None:
+        self.bind(
+            [
+                table_row(
+                    "Office",
+                    10,
+                    inspected=date("2024-02-29"),
+                    stamped=date_time("2026-09-27T10:00:00.5+02:00"),
+                ),
+                table_row("*", 6, stamped=date_time("2026-09-27T08:00:00Z")),
+            ]
+        )
+        for cells in (
+            {"inspected": date("2026-02-29")},
+            {"inspected": date("2026-9-27")},
+            {"inspected": date_time("2026-09-27T10:00:00Z")},
+            {"inspected": text("2026-09-27")},
+            {"stamped": date_time("2026-09-27T10:00:00")},
+            {"stamped": date_time("2026-09-27T24:00:00Z")},
+            {"stamped": date_time("2026-09-27T10:00:00-00:00")},
+            {"stamped": date("2026-09-27")},
+        ):
+            self.assert_rejected([table_row("Office", 10, **cells)])
+
+    def test_pkl_renders_date_columns(self) -> None:
+        evaluated = validate.evaluate(
+            validate.ROOT / "tests/fixtures/table-date-columns.pkl"
+        )
+        validate.validate_definition_document(evaluated, "fixture")
+        limits = evaluated["definitions"]["axioval:example.inspection-limits"][
+            "parameters"
+        ]["limits"]
+        self.assertEqual(
+            [(declared["id"], declared["kind"]) for declared in limits["columns"]],
+            [
+                ("space_type", "textPattern"),
+                ("inspected", "date"),
+                ("stamped", "dateTime"),
+            ],
+        )
+        self.assertEqual(
+            limits["defaultValue"]["value"],
+            [
+                {
+                    "space_type": text("Office*"),
+                    "inspected": date("2026-09-27"),
+                    "stamped": date_time("2026-09-27T10:00:00+02:00"),
+                }
+            ],
+        )
 
     def test_rejects_invalid_column_declarations(self) -> None:
         for columns in (

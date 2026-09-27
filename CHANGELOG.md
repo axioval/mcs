@@ -10,6 +10,9 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Table columns of kind `date` and `dateTime`, whose cells are
+  `Values.DateValue` and `Values.DateTimeValue` literals checked like any other
+  date or date-time, so a table row can bound a value by date.
 - A `propertyPattern` selector (`Selectors.PropertyPatternSelector`) that
   selects an object by the properties whose names match XML Schema patterns:
   `propertyPattern` and an optional `propertySetPattern`, matched against the
