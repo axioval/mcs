@@ -10,6 +10,17 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- A `propertyPattern` selector (`Selectors.PropertyPatternSelector`) that
+  selects an object by the properties whose names match XML Schema patterns:
+  `propertyPattern` and an optional `propertySetPattern`, matched against the
+  source's own names and never bound through the concept catalogs, and
+  `matched` (`any` or `all`) over the matching properties, no match being no
+  match. `operator`, `value`, `caseSensitive`, `trim`, `quantifier`, and
+  `precision` compare each matched value as on a property selector, and
+  normalized JSON omits their defaults. The binder checks exact keys,
+  `matched`, and that both patterns are non-empty and valid, rejecting
+  character-class subtraction, `\i`/`\c` name escapes, and `\p{Is…}` block
+  escapes.
 - A `discipline` selector, `{"kind": "discipline", "value": "<token>"}`
   (`Selectors.DisciplineSelector`), that selects the objects of the sources
   declaring that discipline; an object whose source declares none is not

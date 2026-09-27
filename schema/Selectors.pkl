@@ -93,6 +93,57 @@ const function normalizedPropertySelector(selector: PropertySelector): Map<Strin
     && !(key == "trim" && value == false)
   )
 
+/// A non-empty XML Schema regular expression over names a source states, as
+/// IDS names property sets and properties (`Pset_.*Common`). It matches the
+/// whole name, and `^` and `$` are ordinary characters. The binder rejects
+/// invalid patterns and constructs that cannot be matched exactly:
+/// character-class subtraction, the `\i` and `\c` name escapes, and
+/// `\p{Is…}` block escapes.
+typealias NamePattern = String(!isEmpty)
+
+/// Select entities by the properties whose property-set and property names
+/// match XML Schema patterns.
+///
+/// The patterns match the source's own names; they name no concept and are
+/// never bound through the concept catalogs. Without `propertySetPattern`
+/// every property set is searched. The selector holds when at least one
+/// property matches and the comparison holds for `matched` of them; no
+/// matching property is no match. The other fields compare each matched
+/// property's value as a property selector does.
+class PropertyPatternSelector extends Selector {
+  kind: "propertyPattern" = "propertyPattern"
+  /// Pattern over property-set names; every set when unset. Normalized JSON
+  /// omits it when unset.
+  propertySetPattern: NamePattern?
+  /// Pattern over property names.
+  propertyPattern: NamePattern
+  /// Which matched properties must satisfy the comparison: `any` needs one,
+  /// `all` needs every one.
+  matched: Quantifier
+  operator: ComparisonOperator
+  value: Values.ParameterValue?
+  /// As on a property selector. Normalized JSON omits the default `true`.
+  caseSensitive: Boolean = true
+  /// As on a property selector. Normalized JSON omits the default `false`.
+  trim: Boolean = false
+  /// Compares each matched list value element by element, as on a property
+  /// selector. Normalized JSON omits it when unset.
+  quantifier: Quantifier?
+  /// As on a property selector. Normalized JSON omits it when unset.
+  precision: TemporalPrecision?
+}
+
+/// Render a property-pattern selector without its default text-comparison
+/// flags and unset fields, as a property selector renders.
+const function normalizedPropertyPatternSelector(
+  selector: PropertyPatternSelector
+): Map<String, Any> =
+  selector.toMap().filter((key, value) ->
+    value != null
+    && !(key == "caseSensitive" && value == true)
+    && !(key == "trim" && value == false)
+  )
+
 /// Select entities carrying a classification reference.
 class ClassificationSelector extends Selector {
   kind: "classification" = "classification"

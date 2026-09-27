@@ -1983,5 +1983,203 @@ class DisciplineSelectorTests(unittest.TestCase):
         )
 
 
+def pattern_selector(
+    property_pattern, operator: str = "exists", value=None, matched="any", **fields
+) -> dict:
+    selector = {
+        "kind": "propertyPattern",
+        "propertyPattern": property_pattern,
+        "matched": matched,
+        "operator": operator,
+    }
+    if value is not None:
+        selector["value"] = value
+    selector.update(fields)
+    return selector
+
+
+class PropertyPatternSelectorTests(unittest.TestCase):
+    """Property-pattern selectors match the source's own names by pattern."""
+
+    def check(self, selector: dict, properties=None, property_sets=None) -> None:
+        from scripts.contracts import validate_selector
+
+        validate_selector(selector, "test", {}, properties or {}, property_sets or {})
+
+    def assert_rejected(self, selector: dict) -> None:
+        with self.subTest(selector=selector), self.assertRaises(SystemExit):
+            self.check(selector)
+
+    def test_accepts_patterns_comparisons_and_nesting(self) -> None:
+        for selector in (
+            pattern_selector("FireRating"),
+            pattern_selector("FireRating", matched="all"),
+            pattern_selector(
+                "Is(External|LoadBearing)",
+                "equals",
+                {"type": "boolean", "value": True},
+                matched="all",
+                propertySetPattern="Pset_.*Common",
+            ),
+            pattern_selector(
+                r"[A-Z]\w*Code",
+                "oneOf",
+                texts("EI 90", "EI 120"),
+                caseSensitive=False,
+                trim=True,
+                quantifier="all",
+            ),
+            pattern_selector("Name", "matches", text("[A-Z].*"), caseSensitive=False),
+            pattern_selector(".*Date", "lessThan", date("2030-01-01"), precision="day"),
+            pattern_selector(
+                "Width",
+                "greaterThan",
+                {"type": "quantity", "value": 0.9, "unit": "m"},
+            ),
+            pattern_selector(r"\p{Lu}+[^\s]*"),
+            pattern_selector("^Pset$"),
+            {"kind": "not", "operand": pattern_selector("Reference")},
+            related_selector(["IfcRelAggregates"], pattern_selector("Status")),
+        ):
+            with self.subTest(selector=selector):
+                self.check(selector)
+
+    def test_patterns_are_never_bound_as_concepts(self) -> None:
+        # Names no catalog declares, even names shaped like concept IDs, are
+        # patterns over the source's own names.
+        self.check(
+            pattern_selector(
+                "axioval:example.unknown", propertySetPattern="axioval:example.set"
+            ),
+            properties={
+                property_id: {"valueKind": kind}
+                for property_id, kind in PROPERTY_KINDS.items()
+            },
+        )
+        self.check(pattern_selector("NotAConcept", propertySetPattern="Pset_.*"))
+
+    def test_rejects_invalid_and_untranslatable_patterns(self) -> None:
+        for pattern in (
+            "",
+            None,
+            1,
+            ["FireRating"],
+            "(",
+            "a)",
+            "[ab",
+            "a\\",
+            r"\q",
+            r"\$",
+            "(?i)fire",
+            "a*?",
+            "a{",
+            "[]",
+            "[a-z-[aeiou]]",
+            "[a--b]",
+            r"\i\c*",
+            r"\p{IsBasicLatin}",
+            r"\p{Greek}",
+        ):
+            self.assert_rejected(pattern_selector(pattern))
+            self.assert_rejected(pattern_selector("Name", propertySetPattern=pattern))
+
+    def test_rejects_malformed_matched_and_keys(self) -> None:
+        valid = pattern_selector("FireRating")
+        for matched in ("none", "ALL", "", None, True, ["any"]):
+            self.assert_rejected(pattern_selector("FireRating", matched=matched))
+        for selector in (
+            {key: value for key, value in valid.items() if key != "matched"},
+            {key: value for key, value in valid.items() if key != "propertyPattern"},
+            {key: value for key, value in valid.items() if key != "operator"},
+            {**valid, "property": "axioval:example.text"},
+            {**valid, "propertySet": "axioval:example.set"},
+            {**valid, "pattern": "FireRating"},
+        ):
+            self.assert_rejected(selector)
+
+    def test_rejects_malformed_comparisons(self) -> None:
+        for selector in (
+            pattern_selector("Name", "exists", text("a")),
+            pattern_selector("Name", "equals"),
+            pattern_selector("Name", "approximately", text("a")),
+            pattern_selector("Name", "exists", quantifier="any"),
+            pattern_selector("Name", "equals", text("a"), quantifier="some"),
+            pattern_selector("Name", "exists", caseSensitive=False),
+            pattern_selector("Name", "exists", trim=True),
+            pattern_selector("Name", "equals", text("a"), trim="yes"),
+            pattern_selector(
+                "Name", "equals", {"type": "boolean", "value": True}, trim=True
+            ),
+            pattern_selector("Name", "matches", {"type": "boolean", "value": True}),
+            pattern_selector("Name", "oneOf", text("a")),
+            pattern_selector("Name", "lessThan", {"type": "boolean", "value": True}),
+            pattern_selector("Name", "equals", text("a"), precision="day"),
+            pattern_selector("Name", "equals", date("2030-01-01"), precision="month"),
+        ):
+            self.assert_rejected(selector)
+
+    def test_pkl_rejects_malformed_property_pattern_selectors(self) -> None:
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+        for fields in (
+            'propertyPattern = ""\n  matched = "any"',
+            'propertyPattern = "A"\n  propertySetPattern = ""\n  matched = "any"',
+            'propertyPattern = "A"\n  matched = "none"',
+            'propertyPattern = "A"',
+            'matched = "any"',
+        ):
+            with (
+                self.subTest(fields=fields),
+                tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp,
+            ):
+                module = Path(tmp) / "pattern.pkl"
+                module.write_text(
+                    f'import "{selectors}"\n\n'
+                    "value = new Selectors.PropertyPatternSelector {\n"
+                    f"  {fields}\n"
+                    '  operator = "exists"\n'
+                    "}\n",
+                    encoding="utf-8",
+                )
+                with self.assertRaises(SystemExit):
+                    validate.evaluate(module)
+
+    def test_pkl_omits_defaults(self) -> None:
+        evaluated = validate.evaluate(
+            validate.ROOT / "tests/fixtures/property-pattern-selector.pkl"
+        )
+        validate.validate_definition_document(evaluated, "fixture")
+        self.assertEqual(
+            evaluated["definitions"]["axioval:example.selected"]["parameters"][
+                "compared"
+            ]["defaultValue"]["value"]["operands"],
+            [
+                pattern_selector("FireRating"),
+                pattern_selector(
+                    "Is(External|LoadBearing)",
+                    "equals",
+                    {"type": "boolean", "value": True},
+                    matched="all",
+                    propertySetPattern="Pset_.*Common",
+                ),
+                pattern_selector(
+                    r"[A-Z]\w*Code",
+                    "oneOf",
+                    texts("EI 90", "EI 120"),
+                    caseSensitive=False,
+                    trim=True,
+                    quantifier="all",
+                ),
+                pattern_selector(
+                    ".*Date",
+                    "lessThan",
+                    date("2030-01-01"),
+                    matched="all",
+                    propertySetPattern="Pset_.*",
+                    precision="day",
+                ),
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

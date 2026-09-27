@@ -90,6 +90,18 @@ RELATED_QUANTIFIERS = {"any", "all", "none"}
 RELATED_PATH_STEP = re.compile(r"[^:\s]+(:(forward|backward|either))?")
 # A discipline name a source declares; no vocabulary is fixed.
 DISCIPLINE_TOKEN = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
+# The Unicode general categories an XML Schema `\p{...}` escape may name.
+XSD_CATEGORIES = {
+    *"LMNPZSC",
+    *("Lu", "Ll", "Lt", "Lm", "Lo", "Mn", "Mc", "Me", "Nd", "Nl", "No"),
+    *("Pc", "Pd", "Ps", "Pe", "Pi", "Pf", "Po", "Zs", "Zl", "Zp"),
+    *("Sm", "Sc", "Sk", "So", "Cc", "Cf", "Co", "Cn"),
+}
+# Characters an XML Schema single-character escape may follow `\` with.
+XSD_SINGLE_ESCAPES = set("nrt\\|.-^?*+{}()[]")
+# Multi-character escapes; their Python spelling compiles alike.
+XSD_CLASS_ESCAPES = set("sSwWdD")
+XSD_QUANTITY = re.compile(r"\{[0-9]+(,[0-9]*)?\}")
 IMAGE_MEDIA_TYPES = {
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",
@@ -321,6 +333,125 @@ def well_formed_pattern(pattern: str) -> bool:
     for character in pattern:
         escaped = not escaped and character == "\\"
     return not escaped
+
+
+def xsd_pattern_error(pattern: str) -> str | None:
+    """Why `pattern` is not an XML Schema regular expression matched exactly.
+
+    Mirrors the checking engine's translation: `^` and `$` are ordinary
+    characters, and character-class subtraction, the `\\i` and `\\c` name
+    escapes, and `\\p{Is...}` block escapes are refused rather than
+    approximated. The translated pattern is compiled to catch syntax errors.
+    """
+    out: list[str] = []
+    index = 0
+    in_class = False
+    class_start = 0
+    previous_class_char: str | None = None
+    # Whether the previous atom already carries a quantifier.
+    quantified = False
+
+    def escape(position: int) -> tuple[str, int]:
+        if position >= len(pattern):
+            raise ValueError("pattern ends with a backslash")
+        escaped = pattern[position]
+        if escaped in XSD_CLASS_ESCAPES or escaped in XSD_SINGLE_ESCAPES:
+            return "\\" + escaped, position + 1
+        if escaped in "pP":
+            if pattern[position + 1 : position + 2] != "{":
+                raise ValueError(f"'\\{escaped}' needs a braced name")
+            end = pattern.find("}", position + 2)
+            if end < 0:
+                raise ValueError("unterminated '\\p{'")
+            name = pattern[position + 2 : end]
+            if name.startswith("Is"):
+                raise ValueError(f"block escape '\\p{{{name}}}' is not supported")
+            if name not in XSD_CATEGORIES:
+                raise ValueError(f"{name!r} is not a Unicode category")
+            # Python has no category escapes; any one character compiles alike.
+            return "a", end + 1
+        if escaped in "iIcC":
+            raise ValueError(f"name escape '\\{escaped}' is not supported")
+        raise ValueError(f"'\\{escaped}' is not an XML Schema escape")
+
+    def follows_atom() -> bool:
+        return not quantified and bool(out) and out[-1] not in ("(", "|")
+
+    try:
+        while index < len(pattern):
+            character = pattern[index]
+            if in_class:
+                if character == "]":
+                    if index == class_start:
+                        raise ValueError("empty character class")
+                    in_class = False
+                    out.append("]")
+                    index += 1
+                elif character == "\\":
+                    translated, index = escape(index + 1)
+                    out.append(translated)
+                elif character == "-" and pattern[index + 1 : index + 2] == "[":
+                    raise ValueError("character-class subtraction is not supported")
+                elif character == "-" and previous_class_char == "-":
+                    raise ValueError(
+                        "'--' in a character class is not XML Schema syntax"
+                    )
+                elif character == "[":
+                    raise ValueError("an unescaped '[' inside a character class")
+                else:
+                    # Set operators in Python classes; literals in XML Schema.
+                    out.append("\\" + character if character in "&~|" else character)
+                    index += 1
+                previous_class_char = character
+                continue
+            if character in "*+?":
+                if not follows_atom():
+                    raise ValueError(f"{character!r} does not follow an atom")
+                out.append(character)
+                quantified = True
+                index += 1
+                continue
+            if character == "{":
+                quantity = XSD_QUANTITY.match(pattern, index)
+                if quantity is None:
+                    raise ValueError("an unescaped '{' that is not a quantity")
+                if not follows_atom():
+                    raise ValueError("a quantity does not follow an atom")
+                out.append(quantity.group())
+                quantified = True
+                index = quantity.end()
+                continue
+            quantified = False
+            if character == "}":
+                raise ValueError("an unescaped '}'")
+            if character in "^$":
+                out.append("\\" + character)
+                index += 1
+            elif character == "[":
+                in_class = True
+                previous_class_char = None
+                out.append("[")
+                index += 1
+                if pattern[index : index + 1] == "^":
+                    out.append("^")
+                    index += 1
+                class_start = index
+            elif character == "(" and pattern[index + 1 : index + 2] == "?":
+                raise ValueError("'(?' is not XML Schema syntax")
+            elif character == "\\":
+                translated, index = escape(index + 1)
+                out.append(translated)
+            else:
+                out.append(character)
+                index += 1
+        if in_class:
+            raise ValueError("unterminated character class")
+        re.compile("".join(out))
+    except ValueError as error:
+        return str(error)
+    except re.error as error:
+        return error.msg
+    return None
 
 
 def table_rows(
@@ -811,6 +942,95 @@ def validate_definition_document(
     return package_id, definitions, object_types, properties, property_sets
 
 
+def validate_property_comparison(
+    value: dict[str, Any], context: str, property_kind: str | None
+) -> None:
+    """Check a property or property-pattern selector's comparison fields.
+
+    `property_kind` is the compared property's value kind when a concept
+    declares it, else `None`, which leaves kind-dependent checks to the
+    checking application.
+    """
+    operator = value["operator"]
+    if type(operator) is not str or operator not in SELECTOR_OPERATORS:
+        fail(context, "invalid property selector")
+    for flag in ("caseSensitive", "trim"):
+        if flag in value and type(value[flag]) is not bool:
+            fail(context, f"{flag} must be a boolean")
+    if "quantifier" in value and (
+        type(value["quantifier"]) is not str or value["quantifier"] not in QUANTIFIERS
+    ):
+        fail(context, "quantifier must be 'any' or 'all'")
+    if operator == "exists" and "quantifier" in value:
+        fail(context, "exists selector must not have a quantifier")
+    if "precision" in value and (
+        type(value["precision"]) is not str
+        or value["precision"] not in TEMPORAL_PRECISIONS
+    ):
+        fail(context, "precision must be 'day'")
+    if operator == "exists" and "value" in value:
+        fail(context, "exists selector must not have a value")
+    if operator != "exists" and "value" not in value:
+        fail(context, "comparison selector requires a value")
+    if property_kind in LIST_ELEMENT_KINDS and operator != "exists":
+        if "quantifier" not in value:
+            fail(context, "comparing a list-valued property requires a quantifier")
+        # A quantified comparison tests each element on its own.
+        property_kind = LIST_ELEMENT_KINDS[property_kind]
+    compared_kind: str | None = None
+    if "value" in value:
+        if operator in TEXT_PATTERN_OPERATORS:
+            parameter_value(value["value"], "string", f"{context}.value")
+            if property_kind is not None and property_kind not in TEXT_VALUE_KINDS:
+                fail(context, f"{operator} requires a text property")
+            compared_kind = "string"
+        elif operator in LIST_OPERATORS:
+            checked = parameter_value(value["value"], "stringList", f"{context}.value")
+            if property_kind is not None:
+                if property_kind not in TEXT_VALUE_KINDS:
+                    fail(context, f"{operator} requires a text property")
+                # Each element is one candidate for the property's value.
+                for index, entry in enumerate(checked["value"]):
+                    parameter_value(
+                        {"type": property_kind, "value": entry},
+                        property_kind,
+                        f"{context}.value.value[{index}]",
+                    )
+            compared_kind = "string"
+        else:
+            # Day precision reads a date-time as the day it states, so a
+            # date and a date-time then compare with each other.
+            day_precision = (
+                "precision" in value and property_kind in TEMPORAL_VALUE_KINDS
+            )
+            checked = parameter_value(
+                value["value"],
+                None if day_precision else property_kind,
+                f"{context}.value",
+            )
+            compared_kind = checked["type"]
+            if day_precision and compared_kind not in TEMPORAL_VALUE_KINDS:
+                fail(
+                    context,
+                    f"expected a date or dateTime value, got {compared_kind!r}",
+                )
+            if (
+                operator in ORDERING_OPERATORS
+                and compared_kind not in ORDERED_VALUE_KINDS
+            ):
+                fail(
+                    context,
+                    f"{operator} requires an integer, number, quantity, "
+                    "string, date, or dateTime value",
+                )
+    if (value.get("caseSensitive") is False or value.get("trim") is True) and (
+        operator == "exists" or compared_kind not in TEXT_VALUE_KINDS
+    ):
+        fail(context, "caseSensitive and trim apply only to text comparisons")
+    if "precision" in value and compared_kind not in TEMPORAL_VALUE_KINDS:
+        fail(context, "precision applies only to a date or dateTime value")
+
+
 def validate_selector(
     value: Any,
     context: str,
@@ -848,29 +1068,10 @@ def validate_selector(
             },
             context,
         )
-        operator = value["operator"]
-        if (
-            type(operator) is not str
-            or operator not in SELECTOR_OPERATORS
-            or type(value["property"]) is not str
-            or not QUALIFIED_ID.fullmatch(value["property"])
+        if type(value["property"]) is not str or not QUALIFIED_ID.fullmatch(
+            value["property"]
         ):
             fail(context, "invalid property selector")
-        for flag in ("caseSensitive", "trim"):
-            if flag in value and type(value[flag]) is not bool:
-                fail(context, f"{flag} must be a boolean")
-        if "quantifier" in value and (
-            type(value["quantifier"]) is not str
-            or value["quantifier"] not in QUANTIFIERS
-        ):
-            fail(context, "quantifier must be 'any' or 'all'")
-        if operator == "exists" and "quantifier" in value:
-            fail(context, "exists selector must not have a quantifier")
-        if "precision" in value and (
-            type(value["precision"]) is not str
-            or value["precision"] not in TEMPORAL_PRECISIONS
-        ):
-            fail(context, "precision must be 'day'")
         if properties is not None and value["property"] not in properties:
             fail(context, "unknown property concept")
         if "propertySet" in value and (
@@ -884,74 +1085,41 @@ def validate_selector(
             and value["propertySet"] not in property_sets
         ):
             fail(context, "unknown property-set concept")
-        if operator == "exists" and "value" in value:
-            fail(context, "exists selector must not have a value")
-        if operator != "exists" and "value" not in value:
-            fail(context, "comparison selector requires a value")
         property_kind = (
             properties[value["property"]]["valueKind"]
             if properties is not None and value["property"] in properties
             else None
         )
-        if property_kind in LIST_ELEMENT_KINDS and operator != "exists":
-            if "quantifier" not in value:
-                fail(context, "comparing a list-valued property requires a quantifier")
-            # A quantified comparison tests each element on its own.
-            property_kind = LIST_ELEMENT_KINDS[property_kind]
-        compared_kind: str | None = None
-        if "value" in value:
-            if operator in TEXT_PATTERN_OPERATORS:
-                parameter_value(value["value"], "string", f"{context}.value")
-                if property_kind is not None and property_kind not in TEXT_VALUE_KINDS:
-                    fail(context, f"{operator} requires a text property")
-                compared_kind = "string"
-            elif operator in LIST_OPERATORS:
-                checked = parameter_value(
-                    value["value"], "stringList", f"{context}.value"
-                )
-                if property_kind is not None:
-                    if property_kind not in TEXT_VALUE_KINDS:
-                        fail(context, f"{operator} requires a text property")
-                    # Each element is one candidate for the property's value.
-                    for index, entry in enumerate(checked["value"]):
-                        parameter_value(
-                            {"type": property_kind, "value": entry},
-                            property_kind,
-                            f"{context}.value.value[{index}]",
-                        )
-                compared_kind = "string"
-            else:
-                # Day precision reads a date-time as the day it states, so a
-                # date and a date-time then compare with each other.
-                day_precision = (
-                    "precision" in value and property_kind in TEMPORAL_VALUE_KINDS
-                )
-                checked = parameter_value(
-                    value["value"],
-                    None if day_precision else property_kind,
-                    f"{context}.value",
-                )
-                compared_kind = checked["type"]
-                if day_precision and compared_kind not in TEMPORAL_VALUE_KINDS:
-                    fail(
-                        context,
-                        f"expected a date or dateTime value, got {compared_kind!r}",
-                    )
-                if (
-                    operator in ORDERING_OPERATORS
-                    and compared_kind not in ORDERED_VALUE_KINDS
-                ):
-                    fail(
-                        context,
-                        f"{operator} requires an integer, number, quantity, "
-                        "string, date, or dateTime value",
-                    )
-        if (value.get("caseSensitive") is False or value.get("trim") is True) and (
-            operator == "exists" or compared_kind not in TEXT_VALUE_KINDS
-        ):
-            fail(context, "caseSensitive and trim apply only to text comparisons")
-        if "precision" in value and compared_kind not in TEMPORAL_VALUE_KINDS:
-            fail(context, "precision applies only to a date or dateTime value")
+        validate_property_comparison(value, context, property_kind)
+    elif kind == "propertyPattern":
+        exact_keys(
+            value,
+            {"kind", "propertyPattern", "matched", "operator"},
+            {
+                "propertySetPattern",
+                "value",
+                "caseSensitive",
+                "trim",
+                "quantifier",
+                "precision",
+            },
+            context,
+        )
+        # The patterns match the source's own names: they are checked as
+        # patterns and never bound through the concept catalogs.
+        for key in ("propertySetPattern", "propertyPattern"):
+            if key not in value:
+                continue
+            pattern = value[key]
+            if type(pattern) is not str or not pattern:
+                fail(context, f"{key} must be a non-empty string")
+            error = xsd_pattern_error(pattern)
+            if error is not None:
+                fail(context, f"{key} is not a supported XML Schema pattern: {error}")
+        if type(value["matched"]) is not str or value["matched"] not in QUANTIFIERS:
+            fail(context, "matched must be 'any' or 'all'")
+        # No concept names the matched properties, so their kind is unknown.
+        validate_property_comparison(value, context, None)
     elif kind == "classification":
         exact_keys(
             value, {"kind", "system", "code", "includeDescendants"}, set(), context

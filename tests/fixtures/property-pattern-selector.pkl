@@ -1,0 +1,61 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Selectors.pkl"
+import "../../schema/SelectorValues.pkl"
+import "../../schema/Values.pkl"
+
+package {
+  id = "axioval:example.property-pattern-selector"
+  version = "0.1.0"
+  name { default = "Property-pattern selector" }
+  description { default = "Property-pattern selectors and their defaults." }
+}
+definitions {
+  ["axioval:example.selected"] {
+    id = "axioval:example.selected"
+    name { default = "Selected objects" }
+    capability = "axioval:example.selected"
+    parameters {
+      ["compared"] {
+        id = "compared"
+        name { default = "Compared objects" }
+        kind = "selector"
+        defaultValue = new SelectorValues.SelectorValue {
+          value = new Selectors.AnyOfSelector {
+            operands {
+              new Selectors.PropertyPatternSelector {
+                propertyPattern = "FireRating"
+                matched = "any"
+                operator = "exists"
+              }
+              new Selectors.PropertyPatternSelector {
+                propertySetPattern = "Pset_.*Common"
+                propertyPattern = "Is(External|LoadBearing)"
+                matched = "all"
+                operator = "equals"
+                value = new Values.BooleanValue { value = true }
+              }
+              new Selectors.PropertyPatternSelector {
+                propertyPattern = "[A-Z]\\w*Code"
+                matched = "any"
+                operator = "oneOf"
+                value = new Values.StringListValue { value { "EI 90"; "EI 120" } }
+                caseSensitive = false
+                trim = true
+                quantifier = "all"
+              }
+              new Selectors.PropertyPatternSelector {
+                propertySetPattern = "Pset_.*"
+                propertyPattern = ".*Date"
+                matched = "all"
+                operator = "lessThan"
+                value = new Values.DateValue { value = "2030-01-01" }
+                precision = "day"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

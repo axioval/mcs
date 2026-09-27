@@ -13,7 +13,7 @@ Die Quelltextbeispiele bleiben eingeklappt, bis Sie sie bewusst öffnen.
 | `Types.pkl` | Bezeichner, semantische Versionen, lokalisierter Text, Paketmetadaten |
 | `Citations.pkl` | bibliografische Quellen, Fundstellen, Zitate und Parameterziele |
 | `Values.pkl` | Markierte Skalar- und Listenwerte sowie Objekt- und Eigenschaftsreferenzen |
-| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Klassifikation, verbundene Objekte, Disziplin und boolesche Zusammensetzung |
+| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Eigenschaftsmuster, Klassifikation, verbundene Objekte, Disziplin und boolesche Zusammensetzung |
 | `Definitions.pkl` | Vokabulare und wiederverwendbare Fähigkeitsvorlagen |
 | `RuleSets.pkl` | Konkrete Regelinstanzen und rein kosmetische Ordner |
 
@@ -228,6 +228,8 @@ Selektoren sind deklarativ und werden rekursiv validiert:
 - `all`
 - `entityType` mit einer kanonischen Objekttyp-ID
 - `property` mit kanonischer Eigenschafts-ID und optionalem Set-Qualifizierer
+- `propertyPattern`, der die eigenen Set- und Eigenschaftsnamen der Quelle
+  über Muster nach XML Schema abgleicht
 - `classification`
 - `related`, der die über einen Beziehungspfad erreichten Objekte prüft
 - `discipline`, der die Objekte von Quellen mit einer deklarierten Disziplin auswählt
@@ -300,6 +302,62 @@ verboten“ `noneOf` mit `"all"`.
       operator = "oneOf"
       value = new Values.StringListValue { value { "A-WALL"; "A-DOOR" } }
       quantifier = "all"
+    }
+    ```
+
+### Eigenschaftsmusterselektoren
+
+Ein `propertyPattern`-Selektor wählt ein Objekt anhand der Eigenschaften aus,
+deren Namen regulären Ausdrücken nach XML Schema entsprechen, so wie IDS
+Eigenschaftssets und Eigenschaften benennt (`Pset_.*Common`).
+
+??? example "JSON anzeigen"
+    ```json
+    {
+      "kind": "propertyPattern",
+      "propertySetPattern": "Pset_.*Common",
+      "propertyPattern": "Is(External|LoadBearing)",
+      "matched": "all",
+      "operator": "equals",
+      "value": { "type": "boolean", "value": true }
+    }
+    ```
+
+`propertyPattern` und das optionale `propertySetPattern` passen auf den ganzen
+Namen, den die Quelle angibt, nie auf ein Konzept: Sie werden nicht über die
+Konzeptkataloge gebunden, ein Muster benennt also keine katalogisierte
+Eigenschaft. Ohne `propertySetPattern` wird jedes Eigenschaftsset durchsucht.
+Beide Muster sind nicht leere reguläre Ausdrücke nach XML Schema, in denen `^`
+und `$` gewöhnliche Zeichen sind. Der Binder lehnt ein Muster ab, das sich nicht
+kompilieren lässt, sowie die Konstrukte, die die prüfende Anwendung nicht exakt
+abgleichen kann: Zeichenklassen-Subtraktion (`[a-z-[aeiou]]`), die
+Namens-Escapes `\i` und `\c` sowie Block-Escapes `\p{Is…}`.
+
+`matched` legt fest, welche der passenden Eigenschaften den Vergleich erfüllen
+müssen:
+
+- `any` gilt, wenn mindestens eine ihn erfüllt;
+- `all` gilt, wenn jede ihn erfüllt.
+
+Passt keine Eigenschaft, trifft der Selektor in beiden Fällen nicht zu. Die
+Vergleichsfelder `operator`, `value`, `caseSensitive`, `trim`, `quantifier` und
+`precision` vergleichen den Wert jeder passenden Eigenschaft wie bei einem
+Eigenschaftsselektor. Da kein Konzept die `valueKind` der passenden Eigenschaften
+deklariert, prüft der Binder den Wert nur gegen den Operator; die prüfende
+Anwendung vergleicht ihn mit dem Wert jeder Eigenschaft. Normalisiertes JSON
+lässt `caseSensitive` und `trim` mit ihren Standardwerten sowie ein nicht
+gesetztes `propertySetPattern`, `quantifier` oder `precision` weg, sodass
+bestehende Pakete unverändert gerendert werden. Der Binder lehnt jeden weiteren
+Schlüssel ab.
+
+??? example "Musterselektor über allgemeine Eigenschaftssets anzeigen"
+    ```pkl
+    new Selectors.PropertyPatternSelector {
+      propertySetPattern = "Pset_.*Common"
+      propertyPattern = "Is(External|LoadBearing)"
+      matched = "all"
+      operator = "equals"
+      value = new Values.BooleanValue { value = true }
     }
     ```
 

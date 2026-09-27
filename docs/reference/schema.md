@@ -15,7 +15,7 @@ folded by default so you can scan the concepts first.
 | `Types.pkl` | identifiers, semantic versions, localized text, package metadata |
 | `Citations.pkl` | bibliographic sources, locators, citations, parameter targets |
 | `Values.pkl` | tagged scalar/list values plus object/property references |
-| `Selectors.pkl` | object type, property, classification, related-object, discipline, boolean-composition selectors |
+| `Selectors.pkl` | object type, property, property-pattern, classification, related-object, discipline, boolean-composition selectors |
 | `Definitions.pkl` | vocabularies and reusable capability templates |
 | `RuleSets.pkl` | concrete rule instances and cosmetic folders |
 
@@ -228,6 +228,8 @@ Selectors are declarative and recursively validated:
 - `all`
 - `entityType` using a canonical object-type ID
 - `property` using a canonical property ID and optional set qualifier
+- `propertyPattern`, matching the source's own property-set and property
+  names by XML Schema patterns
 - `classification`
 - `related`, testing the objects a relationship path reaches
 - `discipline`, selecting the objects of sources that declare a discipline
@@ -298,6 +300,58 @@ with `"all"`.
       operator = "oneOf"
       value = new Values.StringListValue { value { "A-WALL"; "A-DOOR" } }
       quantifier = "all"
+    }
+    ```
+
+### Property-pattern selectors
+
+A `propertyPattern` selector selects an object by the properties whose names
+match XML Schema regular expressions, as IDS names property sets and
+properties (`Pset_.*Common`).
+
+??? example "Show JSON"
+    ```json
+    {
+      "kind": "propertyPattern",
+      "propertySetPattern": "Pset_.*Common",
+      "propertyPattern": "Is(External|LoadBearing)",
+      "matched": "all",
+      "operator": "equals",
+      "value": { "type": "boolean", "value": true }
+    }
+    ```
+
+`propertyPattern` and the optional `propertySetPattern` match the whole name the
+source states, never a concept: they are not bound through the concept catalogs,
+so a pattern names no catalogued property. Without `propertySetPattern` every
+property set is searched. Both patterns are non-empty XML Schema regular
+expressions, in which `^` and `$` are ordinary characters. The binder rejects a
+pattern that does not compile and the constructs the checking application
+cannot match exactly: character-class subtraction (`[a-z-[aeiou]]`), the `\i`
+and `\c` name escapes, and `\p{Is…}` block escapes.
+
+`matched` states which of the matching properties must satisfy the comparison:
+
+- `any` holds when at least one does;
+- `all` holds when every one does.
+
+A selector no property matches is no match under either. The comparison fields
+`operator`, `value`, `caseSensitive`, `trim`, `quantifier`, and `precision`
+compare each matched property's value as on a property selector. Since no
+concept declares the matched properties' `valueKind`, the binder checks the
+value against the operator only, and the checking application compares it with
+each property's own value. Normalized JSON omits `caseSensitive` and `trim` at
+their defaults and an unset `propertySetPattern`, `quantifier`, or `precision`,
+so existing packages render unchanged. The binder rejects any other key.
+
+??? example "Show a pattern selector over common property sets"
+    ```pkl
+    new Selectors.PropertyPatternSelector {
+      propertySetPattern = "Pset_.*Common"
+      propertyPattern = "Is(External|LoadBearing)"
+      matched = "all"
+      operator = "equals"
+      value = new Values.BooleanValue { value = true }
     }
     ```
 
