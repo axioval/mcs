@@ -15,7 +15,7 @@ folded by default so you can scan the concepts first.
 | `Types.pkl` | identifiers, semantic versions, localized text, package metadata |
 | `Citations.pkl` | bibliographic sources, locators, citations, parameter targets |
 | `Values.pkl` | tagged scalar/list values plus object/property references |
-| `Selectors.pkl` | object type, property, property-pattern, classification, related-object, discipline, boolean-composition selectors |
+| `Selectors.pkl` | object type, property, property-pattern, classification, related-object, discipline, source, boolean-composition selectors |
 | `Definitions.pkl` | vocabularies and reusable capability templates |
 | `RuleSets.pkl` | concrete rule instances and cosmetic folders |
 
@@ -233,14 +233,17 @@ Selectors are declarative and recursively validated:
 - `property` using a canonical property ID and optional set qualifier
 - `propertyPattern`, matching the source's own property-set and property
   names by XML Schema patterns
-- `classification`
+- `classification`, by a code, a code pattern, or a whole classification
+  system
 - `related`, testing the objects a relationship path reaches
 - `discipline`, selecting the objects of sources that declare a discipline
+- `source`, comparing what a source states about itself, such as the
+  application that wrote it
 - `allOf`, `anyOf`, and `not`
 
 A comparison value on a property selector must match the referenced property's
-catalogued `valueKind`. `exists` rejects a comparison value; every other
-operator requires one.
+catalogued `valueKind`. The presence operators `exists`, `isEmpty`, and
+`isNotEmpty` reject a comparison value; every other operator requires one.
 
 | Operator | Value | Meaning |
 | --- | --- | --- |
@@ -251,6 +254,8 @@ operator requires one.
 | `contains` | `string` | the value contains the text as a substring |
 | `oneOf`, `noneOf` | `stringList` | the value is, or is not, one of the listed texts; each element must be a value of the property's kind |
 | `exists` | none | the property has a value |
+| `isEmpty` | none | the property is present but null, blank text, or a list of nothing else; an absent property is not empty |
+| `isNotEmpty` | none | the property is present with a value; an absent property is not a value |
 
 Two optional flags tune text comparisons, meaning any comparison of a `string`,
 `enum`, or `reference` value and the operators `matches`, `like`, `contains`,
@@ -262,8 +267,8 @@ Two optional flags tune text comparisons, meaning any comparison of a `string`,
   `false`.
 
 Normalized JSON omits both flags when they keep their defaults, so existing
-packages render unchanged. Setting either away from its default on `exists` or
-on a comparison that is not text is rejected.
+packages render unchanged. Setting either away from its default on a presence
+operator or on a comparison that is not text is rejected.
 
 ??? example "Show a case-insensitive wildcard selector"
     ```pkl
@@ -288,9 +293,9 @@ then fits the element kind, `string` or `reference`:
 - `all` holds when every element does, and never for an empty list.
 
 A single value counts as a one-element list, so a quantifier is also accepted
-on a scalar property. `exists` takes no quantifier, and any other `quantifier`
-value is rejected. Normalized JSON omits an unset quantifier, so existing
-packages render unchanged.
+on a scalar property. The presence operators take no quantifier, and any other
+`quantifier` value is rejected. Normalized JSON omits an unset quantifier, so
+existing packages render unchanged.
 
 "Every layer is agreed" is `oneOf` with `quantifier = "all"`, "at least one
 layer is agreed" the same with `"any"`, and "no layer is forbidden" `noneOf`
@@ -395,6 +400,30 @@ empty name, or another direction, and any other `quantifier` value.
     }
     ```
 
+### Classification selectors
+
+A `classification` selector selects the objects carrying a classification in
+`system`, as their source states it. `code` names one code exactly;
+`codePattern` matches codes by an XML Schema pattern over the whole code, as IDS
+writes classification patterns (`Ss_25_.*`), and is checked like a
+property-name pattern. At most one of them is given: with neither, any
+classification in `system` matches. `includeDescendants` also matches the codes
+an assignment's ancestors carry and needs a code or a pattern.
+
+Normalized JSON omits an unset `code` or `codePattern`, so existing packages
+render unchanged. Pkl and the binder reject `code` together with
+`codePattern`, `includeDescendants: true` with neither, and an empty or
+unsupported pattern.
+
+??? example "Show a classification selector by pattern"
+    ```pkl
+    new Selectors.ClassificationSelector {
+      system = "uniclass"
+      codePattern = "Ss_25_.*"
+      includeDescendants = true
+    }
+    ```
+
 ### Discipline selectors
 
 A `discipline` selector selects the objects of the sources that play a
@@ -430,6 +459,41 @@ other token and any other key.
 
     The rule's selector-typed `counterparts` parameter then takes
     `new Selectors.DisciplineSelector { value = "structure" }`.
+
+### Source selectors
+
+A `source` selector selects the objects of the sources whose metadata `field`
+satisfies a comparison:
+
+| `field` | The source's |
+| --- | --- |
+| `fileName` | file name the checking application loaded it from |
+| `application` | name of every application it states wrote it |
+| `schema` | declared schema, such as `IFC4` |
+| `project` | name of the project it describes |
+
+Source metadata is not an object fact: every object of a source matches or none
+does. `operator`, `value`, `caseSensitive`, `trim`, and `quantifier` compare the
+field as a property selector compares a `string` value, so the binder checks
+the value as a text comparison and binds no concept. A field holding several
+values, such as a model written by two applications, needs a `quantifier`. A
+field the source states empty matches nothing, as an absent property does. A
+field the checking application never read is not evaluated, never a non-match.
+
+Normalized JSON omits `caseSensitive` and `trim` at their defaults and an unset
+`value` or `quantifier`, and the binder rejects any other key; a source selector
+takes no `precision`.
+
+??? example "Show a selector for models written by one application"
+    ```pkl
+    new Selectors.SourceSelector {
+      field = "application"
+      operator = "like"
+      value = new Values.StringValue { value = "Modeller*" }
+      caseSensitive = false
+      quantifier = "any"
+    }
+    ```
 
 ## Rich applicability
 

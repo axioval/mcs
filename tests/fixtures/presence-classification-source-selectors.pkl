@@ -1,0 +1,78 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Selectors.pkl"
+import "../../schema/SelectorValues.pkl"
+import "../../schema/Values.pkl"
+
+package {
+  id = "axioval:example.presence-classification-source-selectors"
+  version = "0.1.0"
+  name { default = "Presence, classification, and source selectors" }
+  description { default = "Emptiness operators, classification patterns, and source metadata." }
+}
+properties {
+  ["axioval:example.reference"] {
+    id = "axioval:example.reference"
+    name { default = "Reference" }
+    valueKind = "string"
+    externalNames {
+      new { typeSystem = "axioval:example.bim"; name = "Reference" }
+    }
+  }
+}
+definitions {
+  ["axioval:example.selected"] {
+    id = "axioval:example.selected"
+    name { default = "Selected objects" }
+    capability = "axioval:example.selected"
+    parameters {
+      ["compared"] {
+        id = "compared"
+        name { default = "Compared objects" }
+        kind = "selector"
+        defaultValue = new SelectorValues.SelectorValue {
+          value = new Selectors.AnyOfSelector {
+            operands {
+              new Selectors.PropertySelector {
+                property = "axioval:example.reference"
+                operator = "isEmpty"
+              }
+              new Selectors.PropertyPatternSelector {
+                propertyPattern = "Fire.*"
+                matched = "any"
+                operator = "isNotEmpty"
+              }
+              new Selectors.ClassificationSelector {
+                system = "din276"
+                code = "331"
+              }
+              new Selectors.ClassificationSelector {
+                system = "uniclass"
+                codePattern = "Ss_25_.*"
+                includeDescendants = true
+              }
+              new Selectors.ClassificationSelector { system = "uniclass" }
+              new Selectors.SourceSelector {
+                field = "application"
+                operator = "like"
+                value = new Values.StringValue { value = "Modeller*" }
+                caseSensitive = false
+                trim = true
+                quantifier = "any"
+              }
+              new Selectors.SourceSelector {
+                field = "schema"
+                operator = "equals"
+                value = new Values.StringValue { value = "IFC4" }
+              }
+              new Selectors.SourceSelector {
+                field = "project"
+                operator = "isNotEmpty"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -2470,5 +2470,224 @@ class RuleRefinementTests(unittest.TestCase):
                     validate.evaluate(broken)
 
 
+def classification_selector(system="uniclass", include_descendants=False, **fields):
+    selector = {
+        "kind": "classification",
+        "system": system,
+        "includeDescendants": include_descendants,
+    }
+    selector.update(fields)
+    return selector
+
+
+def source_selector(field, operator="exists", value=None, **fields) -> dict:
+    selector = {"kind": "source", "field": field, "operator": operator}
+    if value is not None:
+        selector["value"] = value
+    selector.update(fields)
+    return selector
+
+
+class PresenceOperatorTests(unittest.TestCase):
+    """`isEmpty` and `isNotEmpty` judge presence as `exists` does."""
+
+    properties = {
+        property_id: {"valueKind": kind} for property_id, kind in PROPERTY_KINDS.items()
+    }
+
+    def check(self, selector: dict) -> None:
+        from scripts.contracts import validate_selector
+
+        validate_selector(selector, "test", {}, self.properties, {})
+
+    def test_accepts_presence_operators_without_a_value(self) -> None:
+        for operator in ("isEmpty", "isNotEmpty"):
+            for selector in (
+                property_selector("axioval:example.text", operator),
+                property_selector("axioval:example.tags", operator),
+                property_selector("axioval:example.flag", operator, trim=False),
+                pattern_selector("Fire.*", operator),
+                source_selector("project", operator),
+            ):
+                with self.subTest(selector=selector):
+                    self.check(selector)
+
+    def test_rejects_a_value_quantifier_or_text_option(self) -> None:
+        for operator in ("isEmpty", "isNotEmpty"):
+            for build in (
+                lambda **fields: property_selector(
+                    "axioval:example.text", operator, **fields
+                ),
+                lambda **fields: pattern_selector("Fire.*", operator, **fields),
+                lambda **fields: source_selector("project", operator, **fields),
+            ):
+                for fields in (
+                    {"value": text("")},
+                    {"quantifier": "any"},
+                    {"quantifier": "all"},
+                    {"caseSensitive": False},
+                    {"trim": True},
+                ):
+                    selector = build(**fields)
+                    with self.subTest(selector=selector), self.assertRaises(
+                        SystemExit
+                    ):
+                        self.check(selector)
+        with self.assertRaises(SystemExit):
+            self.check(property_selector("axioval:example.text", "isBlank"))
+
+
+class ClassificationSelectorTests(unittest.TestCase):
+    """Classification selectors name a code, a code pattern, or a system."""
+
+    def check(self, selector: dict) -> None:
+        from scripts.contracts import validate_selector
+
+        validate_selector(selector, "test", {}, {}, {})
+
+    def assert_rejected(self, selector: dict) -> None:
+        with self.subTest(selector=selector), self.assertRaises(SystemExit):
+            self.check(selector)
+
+    def test_accepts_codes_patterns_and_whole_systems(self) -> None:
+        for selector in (
+            classification_selector("din276", code="331"),
+            classification_selector("din276", True, code="331"),
+            classification_selector(codePattern="Ss_25_.*"),
+            classification_selector(
+                include_descendants=True, codePattern=r"Ss_25_\d{2}"
+            ),
+            classification_selector(),
+            {"kind": "not", "operand": classification_selector()},
+            related_selector(["IfcRelAggregates"], classification_selector()),
+        ):
+            with self.subTest(selector=selector):
+                self.check(selector)
+
+    def test_rejects_malformed_classification_selectors(self) -> None:
+        for selector in (
+            classification_selector(code="331", codePattern="3.*"),
+            classification_selector(include_descendants=True),
+            classification_selector(code=""),
+            classification_selector(code=331),
+            classification_selector(codePattern=""),
+            classification_selector(codePattern="[a-z-[aeiou]]"),
+            classification_selector(codePattern=r"\p{IsBasicLatin}"),
+            classification_selector(codePattern="("),
+            classification_selector(""),
+            classification_selector(None),
+            classification_selector(include_descendants="yes"),
+            {"kind": "classification", "system": "uniclass"},
+            classification_selector(code="331", pattern="3.*"),
+        ):
+            self.assert_rejected(selector)
+
+    def test_pkl_rejects_contradictory_classification_selectors(self) -> None:
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+        for fields in (
+            'code = "331"; codePattern = "3.*"',
+            "includeDescendants = true",
+            'codePattern = ""',
+        ):
+            with (
+                self.subTest(fields=fields),
+                tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp,
+            ):
+                module = Path(tmp) / "classification.pkl"
+                module.write_text(
+                    f'import "{selectors}"\n\n'
+                    "value = new Selectors.ClassificationSelector {\n"
+                    f'  system = "uniclass"; {fields}\n'
+                    "}\n",
+                    encoding="utf-8",
+                )
+                with self.assertRaises(SystemExit):
+                    validate.evaluate(module)
+
+
+class SourceSelectorTests(unittest.TestCase):
+    """Source selectors compare what a source states about itself as text."""
+
+    def check(self, selector: dict) -> None:
+        from scripts.contracts import validate_selector
+
+        validate_selector(selector, "test", {}, {}, {})
+
+    def assert_rejected(self, selector: dict) -> None:
+        with self.subTest(selector=selector), self.assertRaises(SystemExit):
+            self.check(selector)
+
+    def test_accepts_every_field_and_text_comparison(self) -> None:
+        for selector in (
+            source_selector("fileName", "like", text("*.ifc")),
+            source_selector(
+                "application",
+                "contains",
+                text("modeller"),
+                caseSensitive=False,
+                trim=True,
+                quantifier="all",
+            ),
+            source_selector("schema", "oneOf", texts("IFC4", "IFC4X3_ADD2")),
+            source_selector("project", "matches", text("P-[0-9]+")),
+            source_selector("project", "greaterThan", text("A")),
+            source_selector("application", "exists"),
+            {"kind": "not", "operand": source_selector("schema", "isEmpty")},
+        ):
+            with self.subTest(selector=selector):
+                self.check(selector)
+
+    def test_rejects_unknown_fields_keys_and_non_text_values(self) -> None:
+        for selector in (
+            source_selector("author", "equals", text("x")),
+            source_selector("FileName", "equals", text("x")),
+            source_selector(None, "equals", text("x")),
+            source_selector("schema", "equals"),
+            source_selector("schema", "equals", {"type": "integer", "value": 4}),
+            source_selector("schema", "equals", date("2026-09-27")),
+            source_selector("schema", "lessThan", {"type": "boolean", "value": True}),
+            source_selector("schema", "oneOf", text("IFC4")),
+            source_selector("schema", "equals", text("IFC4"), precision="day"),
+            source_selector("schema", "equals", text("IFC4"), quantifier="some"),
+            source_selector("schema", "equals", text("IFC4"), property="x:y"),
+            {"kind": "source", "operator": "exists"},
+            {"kind": "source", "field": "schema"},
+        ):
+            self.assert_rejected(selector)
+
+
+class PresenceClassificationSourceRenderingTests(unittest.TestCase):
+    def test_pkl_omits_defaults_and_unset_codes(self) -> None:
+        evaluated = validate.evaluate(
+            validate.ROOT
+            / "tests/fixtures/presence-classification-source-selectors.pkl"
+        )
+        validate.validate_definition_document(evaluated, "fixture")
+        self.assertEqual(
+            evaluated["definitions"]["axioval:example.selected"]["parameters"][
+                "compared"
+            ]["defaultValue"]["value"]["operands"],
+            [
+                property_selector("axioval:example.reference", "isEmpty"),
+                pattern_selector("Fire.*", "isNotEmpty"),
+                classification_selector("din276", code="331"),
+                classification_selector(
+                    include_descendants=True, codePattern="Ss_25_.*"
+                ),
+                classification_selector(),
+                source_selector(
+                    "application",
+                    "like",
+                    text("Modeller*"),
+                    caseSensitive=False,
+                    trim=True,
+                    quantifier="any",
+                ),
+                source_selector("schema", "equals", text("IFC4")),
+                source_selector("project", "isNotEmpty"),
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

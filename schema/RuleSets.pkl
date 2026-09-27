@@ -151,9 +151,9 @@ root: RuleFolder
 
 output {
   renderer {
-    // Omit defaulted property- and property-pattern-selector flags,
-    // related-selector quantifiers, and empty rule refinements from
-    // normalized JSON.
+    // Omit defaulted property-, property-pattern-, and source-selector flags,
+    // related-selector quantifiers, unset classification codes, and empty rule
+    // refinements from normalized JSON.
     converters {
       [RuleInstance] = (it) -> normalizedRuleInstance(it)
       [CategoryLevel] = (it) -> normalizedCategoryLevel(it)
@@ -161,6 +161,9 @@ output {
       [Selectors.PropertyPatternSelector] = (it) ->
         Selectors.normalizedPropertyPatternSelector(it)
       [Selectors.RelatedSelector] = (it) -> Selectors.normalizedRelatedSelector(it)
+      [Selectors.ClassificationSelector] = (it) ->
+        Selectors.normalizedClassificationSelector(it)
+      [Selectors.SourceSelector] = (it) -> Selectors.normalizedSourceSelector(it)
     }
   }
 }

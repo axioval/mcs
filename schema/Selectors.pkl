@@ -34,14 +34,21 @@ class EntityTypeSelector extends Selector {
 /// - `oneOf` and `noneOf` take a `stringList`; each element must be a value of
 ///   the property's kind.
 /// - `exists` takes no value.
-typealias ComparisonOperator = "equals" | "notEquals" | "lessThan" | "lessThanOrEquals" | "greaterThan" | "greaterThanOrEquals" | "matches" | "like" | "contains" | "oneOf" | "noneOf" | "exists"
+/// - `isEmpty` holds for a value that is present but null, blank text, or a
+///   list of nothing else, and `isNotEmpty` for one present with a value; an
+///   absent value is neither. Both take no value.
+///
+/// `exists`, `isEmpty`, and `isNotEmpty` judge presence: they take no value
+/// and no quantifier, and reject `caseSensitive = false` and `trim = true`.
+typealias ComparisonOperator = "equals" | "notEquals" | "lessThan" | "lessThanOrEquals" | "greaterThan" | "greaterThanOrEquals" | "matches" | "like" | "contains" | "oneOf" | "noneOf" | "exists" | "isEmpty" | "isNotEmpty"
 
 /// How a property selector compares a list-valued property element by element.
 ///
 /// - `any` holds when at least one element satisfies the comparison.
 /// - `all` holds when every element does, and never for an empty list.
 ///
-/// A single value counts as a one-element list. `exists` takes no quantifier.
+/// A single value counts as a one-element list. `exists`, `isEmpty`, and
+/// `isNotEmpty` take no quantifier.
 typealias Quantifier = "any" | "all"
 
 /// How finely a property selector compares dates and date-times.
@@ -65,20 +72,20 @@ class PropertySelector extends Selector {
   /// `false` folds case for text comparisons: any operator comparing a
   /// string, enum, or reference value, and `matches`, `like`, `contains`,
   /// `oneOf`, and `noneOf`. Normalized JSON omits the default `true`; `false`
-  /// is rejected on `exists` and on non-text comparisons.
+  /// is rejected on a presence operator and on non-text comparisons.
   caseSensitive: Boolean = true
   /// `true` strips leading and trailing whitespace from the resolved property
   /// value before a text comparison; `value` itself is never trimmed.
-  /// Normalized JSON omits the default `false`; `true` is rejected on `exists`
-  /// and on non-text comparisons.
+  /// Normalized JSON omits the default `false`; `true` is rejected on a
+  /// presence operator and on non-text comparisons.
   trim: Boolean = false
   /// Compares a list-valued property element by element. Required for a
   /// comparison of a `stringList` or `referenceList` property, whose `value`
   /// is then a value of the element kind (`string` or `reference`); rejected on
-  /// `exists`. Normalized JSON omits it when unset.
+  /// a presence operator. Normalized JSON omits it when unset.
   quantifier: Quantifier?
   /// Compares a `date` or `dateTime` value at the given precision; rejected
-  /// with any other value and on `exists`. With `day`, a `date` property may
+  /// with any other value and on a presence operator. With `day`, a `date` property may
   /// be compared with a `dateTime` value and the other way round. Normalized
   /// JSON omits it when unset.
   precision: TemporalPrecision?
@@ -144,13 +151,72 @@ const function normalizedPropertyPatternSelector(
     && !(key == "trim" && value == false)
   )
 
-/// Select entities carrying a classification reference.
+/// Select entities carrying a classification reference in `system`.
+///
+/// `code` names one code exactly and `codePattern` matches codes by an XML
+/// Schema pattern over the whole code (`Ss_25_.*`), as IDS writes
+/// classification patterns; at most one of them is given. With neither, any
+/// classification in `system` matches.
 class ClassificationSelector extends Selector {
   kind: "classification" = "classification"
   system: String
-  code: String
-  includeDescendants: Boolean = false
+  /// One code, compared exactly. Normalized JSON omits it when unset.
+  code: String(codePattern == null)?
+  /// A pattern over whole codes, validated like a property-name pattern.
+  /// Normalized JSON omits it when unset.
+  codePattern: NamePattern?
+  /// Also matches the codes an assignment's ancestors carry; needs `code` or
+  /// `codePattern`.
+  includeDescendants: Boolean(!this || code != null || codePattern != null) = false
 }
+
+/// Render a classification selector without an unset code or code pattern, so
+/// packages that state a code keep byte-identical normalized JSON.
+const function normalizedClassificationSelector(
+  selector: ClassificationSelector
+): Map<String, Any> =
+  selector.toMap().filter((_, value) -> value != null)
+
+/// A fact about a whole source that a source selector compares.
+///
+/// - `fileName` is the file name the checking application loaded the source
+///   from.
+/// - `application` is the name of every application the source states wrote
+///   it.
+/// - `schema` is the schema the source declares, such as `IFC4`.
+/// - `project` is the name of the project the source describes.
+typealias SourceField = "fileName" | "application" | "schema" | "project"
+
+/// Select the objects of the sources whose metadata `field` satisfies the
+/// comparison, such as the application that wrote a model.
+///
+/// Source metadata is not an object fact: every object of a source matches or
+/// none does. The field compares as a property selector's text value does. A
+/// field holding several values needs `quantifier`, one the source states
+/// empty matches nothing, and one the application never obtained is not evaluated,
+/// never a non-match.
+class SourceSelector extends Selector {
+  kind: "source" = "source"
+  field: SourceField
+  operator: ComparisonOperator
+  value: Values.ParameterValue?
+  /// As on a property selector. Normalized JSON omits the default `true`.
+  caseSensitive: Boolean = true
+  /// As on a property selector. Normalized JSON omits the default `false`.
+  trim: Boolean = false
+  /// Compares a field holding several values value by value, as on a property
+  /// selector. Normalized JSON omits it when unset.
+  quantifier: Quantifier?
+}
+
+/// Render a source selector without its default text-comparison flags and
+/// unset fields, as a property selector renders.
+const function normalizedSourceSelector(selector: SourceSelector): Map<String, Any> =
+  selector.toMap().filter((key, value) ->
+    value != null
+    && !(key == "caseSensitive" && value == true)
+    && !(key == "trim" && value == false)
+  )
 
 /// A discipline name: 1 to 64 lowercase ASCII letters, digits, `-`, or `_`,
 /// starting with a letter or digit. No vocabulary is fixed; names compare

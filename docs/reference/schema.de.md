@@ -13,7 +13,7 @@ Die Quelltextbeispiele bleiben eingeklappt, bis Sie sie bewusst öffnen.
 | `Types.pkl` | Bezeichner, semantische Versionen, lokalisierter Text, Paketmetadaten |
 | `Citations.pkl` | bibliografische Quellen, Fundstellen, Zitate und Parameterziele |
 | `Values.pkl` | Markierte Skalar- und Listenwerte sowie Objekt- und Eigenschaftsreferenzen |
-| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Eigenschaftsmuster, Klassifikation, verbundene Objekte, Disziplin und boolesche Zusammensetzung |
+| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Eigenschaftsmuster, Klassifikation, verbundene Objekte, Disziplin, Quelle und boolesche Zusammensetzung |
 | `Definitions.pkl` | Vokabulare und wiederverwendbare Fähigkeitsvorlagen |
 | `RuleSets.pkl` | Konkrete Regelinstanzen und rein kosmetische Ordner |
 
@@ -233,12 +233,15 @@ Selektoren sind deklarativ und werden rekursiv validiert:
 - `property` mit kanonischer Eigenschafts-ID und optionalem Set-Qualifizierer
 - `propertyPattern`, der die eigenen Set- und Eigenschaftsnamen der Quelle
   über Muster nach XML Schema abgleicht
-- `classification`
+- `classification` nach einem Code, einem Codemuster oder einem ganzen
+  Klassifikationssystem
 - `related`, der die über einen Beziehungspfad erreichten Objekte prüft
 - `discipline`, der die Objekte von Quellen mit einer deklarierten Disziplin auswählt
+- `source`, der vergleicht, was eine Quelle über sich selbst angibt, etwa die
+  Anwendung, die sie geschrieben hat
 - `allOf`, `anyOf` und `not`
 
-Ein Vergleichswert auf einem Eigenschaftsselektor muss zur katalogisierten `valueKind` der referenzierten Eigenschaft passen. `exists` lehnt einen Vergleichswert ab. Jeder andere Operator benötigt einen.
+Ein Vergleichswert auf einem Eigenschaftsselektor muss zur katalogisierten `valueKind` der referenzierten Eigenschaft passen. Die Anwesenheitsoperatoren `exists`, `isEmpty` und `isNotEmpty` lehnen einen Vergleichswert ab. Jeder andere Operator benötigt einen.
 
 | Operator | Wert | Bedeutung |
 | --- | --- | --- |
@@ -249,6 +252,8 @@ Ein Vergleichswert auf einem Eigenschaftsselektor muss zur katalogisierten `valu
 | `contains` | `string` | der Wert enthält den Text als Teilzeichenkette |
 | `oneOf`, `noneOf` | `stringList` | der Wert ist einer der aufgeführten Texte oder keiner davon; jedes Element muss ein Wert der Art der Eigenschaft sein |
 | `exists` | keiner | die Eigenschaft hat einen Wert |
+| `isEmpty` | keiner | die Eigenschaft ist vorhanden, aber null, leerer Text oder eine Liste aus nichts anderem; eine fehlende Eigenschaft ist nicht leer |
+| `isNotEmpty` | keiner | die Eigenschaft ist mit einem Wert vorhanden; eine fehlende Eigenschaft ist kein Wert |
 
 Zwei optionale Schalter steuern Textvergleiche, also jeden Vergleich eines
 `string`-, `enum`- oder `reference`-Werts sowie die Operatoren `matches`,
@@ -262,8 +267,8 @@ Zwei optionale Schalter steuern Textvergleiche, also jeden Vergleich eines
 
 Normalisiertes JSON lässt beide Schalter weg, solange sie ihre Voreinstellung
 behalten, sodass bestehende Pakete unverändert gerendert werden. Ein von der
-Voreinstellung abweichender Schalter auf `exists` oder auf einem Vergleich, der
-kein Textvergleich ist, wird abgelehnt.
+Voreinstellung abweichender Schalter auf einem Anwesenheitsoperator oder auf
+einem Vergleich, der kein Textvergleich ist, wird abgelehnt.
 
 ??? example "Selektor mit Platzhaltern ohne Groß- und Kleinschreibung anzeigen"
     ```pkl
@@ -289,8 +294,8 @@ oder `reference`:
 - `all` gilt, wenn jedes Element ihn erfüllt, und nie für eine leere Liste.
 
 Ein einzelner Wert zählt als Liste mit einem Element, daher ist ein Quantor
-auch auf einer skalaren Eigenschaft zulässig. `exists` nimmt keinen Quantor,
-und jeder andere Wert für `quantifier` wird abgelehnt. Normalisiertes JSON
+auch auf einer skalaren Eigenschaft zulässig. Die Anwesenheitsoperatoren
+nehmen keinen Quantor, und jeder andere Wert für `quantifier` wird abgelehnt. Normalisiertes JSON
 lässt einen nicht gesetzten Quantor weg, sodass bestehende Pakete unverändert
 gerendert werden.
 
@@ -402,6 +407,31 @@ sowie jeden anderen Wert für `quantifier` ab.
     }
     ```
 
+### Klassifikationsselektoren
+
+Ein `classification`-Selektor wählt die Objekte aus, die eine Klassifikation in
+`system` tragen, wie ihre Quelle sie angibt. `code` nennt genau einen Code;
+`codePattern` gleicht Codes über ein Muster nach XML Schema über den ganzen Code
+ab, wie IDS Klassifikationsmuster schreibt (`Ss_25_.*`), und wird wie ein Muster
+für Eigenschaftsnamen geprüft. Höchstens eines von beiden ist angegeben: Ohne
+beide passt jede Klassifikation in `system`. `includeDescendants` trifft auch
+die Codes, die die Vorfahren einer Zuordnung tragen, und benötigt einen Code
+oder ein Muster.
+
+Normalisiertes JSON lässt einen nicht gesetzten `code` oder `codePattern` weg,
+sodass bestehende Pakete unverändert gerendert werden. Pkl und der Binder
+lehnen `code` zusammen mit `codePattern`, `includeDescendants: true` ohne beide
+sowie ein leeres oder nicht unterstütztes Muster ab.
+
+??? example "Klassifikationsselektor mit Muster anzeigen"
+    ```pkl
+    new Selectors.ClassificationSelector {
+      system = "uniclass"
+      codePattern = "Ss_25_.*"
+      includeDescendants = true
+    }
+    ```
+
 ### Disziplinselektoren
 
 Ein `discipline`-Selektor wählt die Objekte der Quellen aus, die in der Prüfung
@@ -439,6 +469,42 @@ Binder lehnt jedes andere Token und jeden weiteren Schlüssel ab.
 
     Der selektortypisierte Parameter `counterparts` der Regel erhält dann
     `new Selectors.DisciplineSelector { value = "structure" }`.
+
+### Quellenselektoren
+
+Ein `source`-Selektor wählt die Objekte der Quellen aus, deren Metadatenfeld
+`field` einen Vergleich erfüllt:
+
+| `field` | Bei der Quelle |
+| --- | --- |
+| `fileName` | der Dateiname, aus dem die prüfende Anwendung sie geladen hat |
+| `application` | der Name jeder Anwendung, die sie nach eigener Angabe geschrieben hat |
+| `schema` | das deklarierte Schema, etwa `IFC4` |
+| `project` | der Name des beschriebenen Projekts |
+
+Quellenmetadaten sind keine Objekteigenschaft: Alle Objekte einer Quelle passen
+oder keines. `operator`, `value`, `caseSensitive`, `trim` und `quantifier`
+vergleichen das Feld wie ein Eigenschaftsselektor einen `string`-Wert, daher
+prüft der Binder den Wert als Textvergleich und bindet kein Konzept. Ein Feld
+mit mehreren Werten, etwa ein von zwei Anwendungen geschriebenes Modell,
+benötigt einen `quantifier`. Ein Feld, das die Quelle als leer angibt, passt auf
+nichts, wie eine fehlende Eigenschaft. Ein Feld, das die prüfende Anwendung nie
+gelesen hat, wird nicht ausgewertet und gilt nie als Nichttreffer.
+
+Normalisiertes JSON lässt `caseSensitive` und `trim` mit ihrer Voreinstellung
+sowie einen nicht gesetzten `value` oder `quantifier` weg, und der Binder lehnt
+jeden anderen Schlüssel ab; ein Quellenselektor nimmt keine `precision`.
+
+??? example "Selektor für Modelle einer Anwendung anzeigen"
+    ```pkl
+    new Selectors.SourceSelector {
+      field = "application"
+      operator = "like"
+      value = new Values.StringValue { value = "Modeller*" }
+      caseSensitive = false
+      quantifier = "any"
+    }
+    ```
 
 ## Umfangreiche Anwendbarkeit
 

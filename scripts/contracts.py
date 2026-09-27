@@ -67,7 +67,12 @@ SELECTOR_OPERATORS = {
     "oneOf",
     "noneOf",
     "exists",
+    "isEmpty",
+    "isNotEmpty",
 }
+# Operators judging presence rather than comparing a value: they take no
+# value, no quantifier, and no text option.
+PRESENCE_OPERATORS = {"exists", "isEmpty", "isNotEmpty"}
 ORDERING_OPERATORS = {
     "lessThan",
     "lessThanOrEquals",
@@ -87,6 +92,8 @@ QUANTIFIERS = {"any", "all"}
 # comparison tests.
 LIST_ELEMENT_KINDS = {"stringList": "string", "referenceList": "reference"}
 RELATED_QUANTIFIERS = {"any", "all", "none"}
+# The source metadata fields a source selector compares.
+SOURCE_FIELDS = {"fileName", "application", "schema", "project"}
 # A related-selector path step: a source relationship name, optionally
 # followed by its direction.
 RELATED_PATH_STEP = re.compile(r"[^:\s]+(:(forward|backward|either))?")
@@ -980,18 +987,19 @@ def validate_property_comparison(
         type(value["quantifier"]) is not str or value["quantifier"] not in QUANTIFIERS
     ):
         fail(context, "quantifier must be 'any' or 'all'")
-    if operator == "exists" and "quantifier" in value:
-        fail(context, "exists selector must not have a quantifier")
+    presence = operator in PRESENCE_OPERATORS
+    if presence and "quantifier" in value:
+        fail(context, f"{operator} selector must not have a quantifier")
     if "precision" in value and (
         type(value["precision"]) is not str
         or value["precision"] not in TEMPORAL_PRECISIONS
     ):
         fail(context, "precision must be 'day'")
-    if operator == "exists" and "value" in value:
-        fail(context, "exists selector must not have a value")
-    if operator != "exists" and "value" not in value:
+    if presence and "value" in value:
+        fail(context, f"{operator} selector must not have a value")
+    if not presence and "value" not in value:
         fail(context, "comparison selector requires a value")
-    if property_kind in LIST_ELEMENT_KINDS and operator != "exists":
+    if property_kind in LIST_ELEMENT_KINDS and not presence:
         if "quantifier" not in value:
             fail(context, "comparing a list-valued property requires a quantifier")
         # A quantified comparison tests each element on its own.
@@ -1043,7 +1051,7 @@ def validate_property_comparison(
                     "string, date, or dateTime value",
                 )
     if (value.get("caseSensitive") is False or value.get("trim") is True) and (
-        operator == "exists" or compared_kind not in TEXT_VALUE_KINDS
+        presence or compared_kind not in TEXT_VALUE_KINDS
     ):
         fail(context, "caseSensitive and trim apply only to text comparisons")
     if "precision" in value and compared_kind not in TEMPORAL_VALUE_KINDS:
@@ -1141,16 +1149,47 @@ def validate_selector(
         validate_property_comparison(value, context, None)
     elif kind == "classification":
         exact_keys(
-            value, {"kind", "system", "code", "includeDescendants"}, set(), context
+            value,
+            {"kind", "system", "includeDescendants"},
+            {"code", "codePattern"},
+            context,
         )
         if (
             any(
                 type(value[key]) is not str or not value[key]
-                for key in ("system", "code")
+                for key in ("system", "code", "codePattern")
+                if key in value
             )
             or type(value["includeDescendants"]) is not bool
         ):
             fail(context, "invalid classification selector")
+        if "code" in value and "codePattern" in value:
+            fail(context, "code and codePattern exclude each other")
+        if "codePattern" in value:
+            error = xsd_pattern_error(value["codePattern"])
+            if error is not None:
+                fail(
+                    context,
+                    f"codePattern is not a supported XML Schema pattern: {error}",
+                )
+        if value["includeDescendants"] and not (
+            "code" in value or "codePattern" in value
+        ):
+            fail(context, "includeDescendants needs code or codePattern")
+    elif kind == "source":
+        exact_keys(
+            value,
+            {"kind", "field", "operator"},
+            {"value", "caseSensitive", "trim", "quantifier"},
+            context,
+        )
+        if type(value["field"]) is not str or value["field"] not in SOURCE_FIELDS:
+            fail(
+                context,
+                "field must be 'fileName', 'application', 'schema', or 'project'",
+            )
+        # Source metadata is text the source states, never a concept.
+        validate_property_comparison(value, context, "string")
     elif kind == "discipline":
         exact_keys(value, {"kind", "value"}, set(), context)
         if type(value["value"]) is not str or not DISCIPLINE_TOKEN.fullmatch(

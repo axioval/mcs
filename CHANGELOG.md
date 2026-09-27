@@ -10,6 +10,21 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- The presence operators `isEmpty` (present but null, blank text, or a list of
+  nothing else) and `isNotEmpty` (present with a value), which, like `exists`,
+  take no value, no quantifier, and no text option on property,
+  property-pattern, and source selectors.
+- A classification selector may name codes by `codePattern`, an XML Schema
+  pattern over the whole code checked like a property-name pattern, or with
+  neither `code` nor `codePattern` select any classification in its `system`.
+  `code` becomes optional, normalized JSON omits an unset `code` or
+  `codePattern`, and Pkl and the binder reject both together and
+  `includeDescendants: true` with neither.
+- A `source` selector (`Selectors.SourceSelector`) that compares a source's
+  `fileName`, `application`, `schema`, or `project` as a property selector
+  compares a text value, with `caseSensitive`, `trim`, and `quantifier`
+  omitted at their defaults. It binds no concept, and the binder rejects any
+  other field or key.
 - Rule-instance refinements, mirroring the engine's rule instance, each
   optional and omitted from normalized JSON when empty: `severityBands`
   (`RuleSets.SeverityBand`, a finite `below` threshold above zero of the

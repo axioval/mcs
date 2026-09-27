@@ -116,13 +116,17 @@ definitions: Mapping<String, RuleDefinition>(
 
 output {
   renderer {
-    // Omit defaulted property- and property-pattern-selector flags and
-    // related-selector quantifiers from normalized JSON.
+    // Omit defaulted property-, property-pattern-, and source-selector flags,
+    // related-selector quantifiers, and unset classification codes from
+    // normalized JSON.
     converters {
       [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
       [Selectors.PropertyPatternSelector] = (it) ->
         Selectors.normalizedPropertyPatternSelector(it)
       [Selectors.RelatedSelector] = (it) -> Selectors.normalizedRelatedSelector(it)
+      [Selectors.ClassificationSelector] = (it) ->
+        Selectors.normalizedClassificationSelector(it)
+      [Selectors.SourceSelector] = (it) -> Selectors.normalizedSourceSelector(it)
     }
   }
 }
