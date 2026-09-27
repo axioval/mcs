@@ -83,3 +83,12 @@ sources: Mapping<String, Citations.Source>(
 ) = new {}
 definitionPackages: Listing<Types.QualifiedIdentifier>(length > 0)
 root: RuleFolder
+
+output {
+  renderer {
+    // Omit defaulted property-selector flags from normalized JSON.
+    converters {
+      [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
+    }
+  }
+}

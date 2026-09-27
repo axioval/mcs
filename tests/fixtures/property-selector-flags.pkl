@@ -1,0 +1,44 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Selectors.pkl"
+import "../../schema/SelectorValues.pkl"
+import "../../schema/Values.pkl"
+
+package {
+  id = "axioval:example.selector-flags"
+  version = "0.1.0"
+  name { default = "Selector flags" }
+  description { default = "Property selector text options." }
+}
+definitions {
+  ["axioval:example.selected"] {
+    id = "axioval:example.selected"
+    name { default = "Selected objects" }
+    capability = "axioval:example.selected"
+    parameters {
+      ["compared"] {
+        id = "compared"
+        name { default = "Compared objects" }
+        kind = "selector"
+        defaultValue = new SelectorValues.SelectorValue {
+          value = new Selectors.AllOfSelector {
+            operands {
+              new Selectors.PropertySelector {
+                property = "axioval:example.ifc.reference"
+                operator = "like"
+                value = new Values.StringValue { value = "EI*" }
+              }
+              new Selectors.PropertySelector {
+                property = "axioval:example.ifc.reference"
+                operator = "noneOf"
+                value = new Values.StringListValue { value { "a"; "b" } }
+                caseSensitive = false
+                trim = true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

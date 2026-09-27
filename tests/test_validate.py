@@ -654,5 +654,232 @@ class SelectorTests(unittest.TestCase):
             )
 
 
+PROPERTY_KINDS = {
+    "axioval:example.text": "string",
+    "axioval:example.state": "enum",
+    "axioval:example.count": "integer",
+    "axioval:example.width": "quantity",
+    "axioval:example.flag": "boolean",
+    "axioval:example.tags": "stringList",
+}
+
+
+def property_selector(property_id: str, operator: str, value=None, **flags) -> dict:
+    selector = {"kind": "property", "property": property_id, "operator": operator}
+    if value is not None:
+        selector["value"] = value
+    selector.update(flags)
+    return selector
+
+
+def text(value: str) -> dict:
+    return {"type": "string", "value": value}
+
+
+def texts(*values: str) -> dict:
+    return {"type": "stringList", "value": list(values)}
+
+
+class ExtendedPropertySelectorTests(unittest.TestCase):
+    """Property selectors mirror the engine's extended comparison contract."""
+
+    properties = {
+        property_id: {"valueKind": kind} for property_id, kind in PROPERTY_KINDS.items()
+    }
+
+    def check(self, selector: dict) -> None:
+        from scripts.contracts import validate_selector
+
+        validate_selector(selector, "test", None, self.properties, None)
+
+    def assert_rejected(self, selector: dict) -> None:
+        with self.subTest(selector=selector), self.assertRaises(SystemExit):
+            self.check(selector)
+
+    def test_accepts_new_operators_with_their_value_shapes(self) -> None:
+        for selector in (
+            property_selector("axioval:example.text", "matches", text("EI[0-9]+")),
+            property_selector("axioval:example.text", "like", text("EI*")),
+            property_selector("axioval:example.text", "contains", text("30")),
+            property_selector("axioval:example.text", "oneOf", texts("a", "b")),
+            property_selector("axioval:example.text", "noneOf", texts()),
+            property_selector("axioval:example.state", "oneOf", texts("open", "shut")),
+        ):
+            with self.subTest(selector=selector):
+                self.check(selector)
+
+    def test_text_operators_require_a_string(self) -> None:
+        for operator in ("matches", "like", "contains"):
+            self.assert_rejected(
+                property_selector("axioval:example.text", operator, texts("a"))
+            )
+            self.assert_rejected(
+                property_selector(
+                    "axioval:example.text", operator, {"type": "integer", "value": 1}
+                )
+            )
+            self.assert_rejected(
+                property_selector("axioval:example.count", operator, text("1"))
+            )
+
+    def test_list_operators_require_a_string_list_of_the_property_kind(self) -> None:
+        for operator in ("oneOf", "noneOf"):
+            self.assert_rejected(
+                property_selector("axioval:example.text", operator, text("a"))
+            )
+            self.assert_rejected(
+                property_selector(
+                    "axioval:example.text",
+                    operator,
+                    {"type": "referenceList", "value": ["axioval:a"]},
+                )
+            )
+            # Elements are checked against the property kind, not the list.
+            self.assert_rejected(
+                property_selector("axioval:example.state", operator, texts("Not An Id"))
+            )
+            self.assert_rejected(
+                property_selector("axioval:example.count", operator, texts("1"))
+            )
+            self.assert_rejected(
+                property_selector("axioval:example.tags", operator, texts("a"))
+            )
+
+    def test_ordering_operators_require_ordered_values(self) -> None:
+        for operator in (
+            "lessThan",
+            "lessThanOrEquals",
+            "greaterThan",
+            "greaterThanOrEquals",
+        ):
+            for selector in (
+                property_selector(
+                    "axioval:example.count", operator, {"type": "integer", "value": 2}
+                ),
+                property_selector(
+                    "axioval:example.width",
+                    operator,
+                    {"type": "quantity", "value": 0.9, "unit": "m"},
+                ),
+                property_selector("axioval:example.text", operator, text("B")),
+                property_selector("axioval:example.unbound", operator, text("B")),
+            ):
+                with self.subTest(selector=selector):
+                    from scripts.contracts import validate_selector
+
+                    validate_selector(selector, "test")
+            for selector in (
+                property_selector(
+                    "axioval:example.flag", operator, {"type": "boolean", "value": True}
+                ),
+                property_selector(
+                    "axioval:example.state", operator, {"type": "enum", "value": "open"}
+                ),
+                property_selector("axioval:example.tags", operator, texts("a")),
+            ):
+                self.assert_rejected(selector)
+
+    def test_accepts_text_options_on_text_comparisons(self) -> None:
+        for operator, value in (
+            ("equals", text("F30")),
+            ("notEquals", text("F30")),
+            ("greaterThan", text("F30")),
+            ("matches", text("f[0-9]+")),
+            ("like", text("f*")),
+            ("contains", text("3")),
+            ("oneOf", texts("f30", "f60")),
+            ("noneOf", texts("f90")),
+        ):
+            selector = property_selector(
+                "axioval:example.text",
+                operator,
+                value,
+                caseSensitive=False,
+                trim=True,
+            )
+            with self.subTest(selector=selector):
+                self.check(selector)
+        self.check(
+            property_selector(
+                "axioval:example.state",
+                "equals",
+                {"type": "enum", "value": "open"},
+                caseSensitive=False,
+            )
+        )
+        # Explicit defaults are accepted on any comparison.
+        self.check(
+            property_selector(
+                "axioval:example.count",
+                "equals",
+                {"type": "integer", "value": 1},
+                caseSensitive=True,
+                trim=False,
+            )
+        )
+        self.check(property_selector("axioval:example.text", "exists", trim=False))
+
+    def test_rejects_text_options_outside_text_comparisons(self) -> None:
+        for flags in ({"caseSensitive": False}, {"trim": True}):
+            self.assert_rejected(
+                property_selector("axioval:example.text", "exists", **flags)
+            )
+            self.assert_rejected(
+                property_selector(
+                    "axioval:example.count",
+                    "equals",
+                    {"type": "integer", "value": 1},
+                    **flags,
+                )
+            )
+            self.assert_rejected(
+                property_selector(
+                    "axioval:example.flag",
+                    "equals",
+                    {"type": "boolean", "value": True},
+                    **flags,
+                )
+            )
+            self.assert_rejected(
+                property_selector(
+                    "axioval:example.width",
+                    "lessThan",
+                    {"type": "quantity", "value": 1, "unit": "m"},
+                    **flags,
+                )
+            )
+
+    def test_rejects_non_boolean_text_options(self) -> None:
+        for flag, value in (("caseSensitive", "false"), ("trim", 1), ("trim", None)):
+            self.assert_rejected(
+                property_selector(
+                    "axioval:example.text", "equals", text("a"), **{flag: value}
+                )
+            )
+
+    def test_pkl_omits_default_text_options(self) -> None:
+        evaluated = validate.evaluate(
+            validate.ROOT / "tests/fixtures/property-selector-flags.pkl"
+        )
+        validate.validate_definition_document(evaluated, "fixture")
+        plain, folded = evaluated["definitions"]["axioval:example.selected"][
+            "parameters"
+        ]["compared"]["defaultValue"]["value"]["operands"]
+        self.assertEqual(
+            plain,
+            property_selector("axioval:example.ifc.reference", "like", text("EI*")),
+        )
+        self.assertEqual(
+            folded,
+            property_selector(
+                "axioval:example.ifc.reference",
+                "noneOf",
+                texts("a", "b"),
+                caseSensitive=False,
+                trim=True,
+            ),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

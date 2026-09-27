@@ -10,6 +10,12 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Property selector operators `like` (whole-value wildcards), `contains`,
+  `oneOf`, and `noneOf`, plus `caseSensitive` and `trim` text options that
+  normalized JSON omits at their defaults. The binder requires a `string` for
+  `matches`, `like`, and `contains`, a `stringList` whose elements fit the
+  property's value kind for `oneOf` and `noneOf`, ordered value kinds for
+  ordering operators, and text comparisons for non-default text options.
 - Authoring adapters for version-bound `openbim.ifc` references and closed
   `openbim.geometry` capability IDs, plus an IFC4X3 directional-clearance example.
 - MCS source-closure support for checksum-locked Pkl package imports, with

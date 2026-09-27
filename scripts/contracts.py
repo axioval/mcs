@@ -45,8 +45,23 @@ SELECTOR_OPERATORS = {
     "greaterThan",
     "greaterThanOrEquals",
     "matches",
+    "like",
+    "contains",
+    "oneOf",
+    "noneOf",
     "exists",
 }
+ORDERING_OPERATORS = {
+    "lessThan",
+    "lessThanOrEquals",
+    "greaterThan",
+    "greaterThanOrEquals",
+}
+ORDERED_VALUE_KINDS = {"integer", "number", "quantity", "string"}
+TEXT_PATTERN_OPERATORS = {"matches", "like", "contains"}
+LIST_OPERATORS = {"oneOf", "noneOf"}
+# Value kinds compared as text, so case folding and trimming apply.
+TEXT_VALUE_KINDS = {"string", "enum", "reference"}
 IMAGE_MEDIA_TYPES = {
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",
@@ -621,7 +636,10 @@ def validate_selector(
             fail(context, "unknown object-type concept")
     elif kind == "property":
         exact_keys(
-            value, {"kind", "property", "operator"}, {"propertySet", "value"}, context
+            value,
+            {"kind", "property", "operator"},
+            {"propertySet", "value", "caseSensitive", "trim"},
+            context,
         )
         operator = value["operator"]
         if (
@@ -631,6 +649,9 @@ def validate_selector(
             or not QUALIFIED_ID.fullmatch(value["property"])
         ):
             fail(context, "invalid property selector")
+        for flag in ("caseSensitive", "trim"):
+            if flag in value and type(value[flag]) is not bool:
+                fail(context, f"{flag} must be a boolean")
         if properties is not None and value["property"] not in properties:
             fail(context, "unknown property concept")
         if "propertySet" in value and (
@@ -648,15 +669,50 @@ def validate_selector(
             fail(context, "exists selector must not have a value")
         if operator != "exists" and "value" not in value:
             fail(context, "comparison selector requires a value")
+        property_kind = (
+            properties[value["property"]]["valueKind"]
+            if properties is not None and value["property"] in properties
+            else None
+        )
+        compared_kind: str | None = None
         if "value" in value:
-            expected_kind = (
-                properties[value["property"]]["valueKind"]
-                if properties is not None and value["property"] in properties
-                else None
-            )
-            checked = parameter_value(value["value"], expected_kind, f"{context}.value")
-            if operator == "matches" and checked["type"] != "string":
-                fail(context, "matches requires a string value")
+            if operator in TEXT_PATTERN_OPERATORS:
+                parameter_value(value["value"], "string", f"{context}.value")
+                if property_kind is not None and property_kind not in TEXT_VALUE_KINDS:
+                    fail(context, f"{operator} requires a text property")
+                compared_kind = "string"
+            elif operator in LIST_OPERATORS:
+                checked = parameter_value(
+                    value["value"], "stringList", f"{context}.value"
+                )
+                if property_kind is not None:
+                    if property_kind not in TEXT_VALUE_KINDS:
+                        fail(context, f"{operator} requires a text property")
+                    # Each element is one candidate for the property's value.
+                    for index, entry in enumerate(checked["value"]):
+                        parameter_value(
+                            {"type": property_kind, "value": entry},
+                            property_kind,
+                            f"{context}.value.value[{index}]",
+                        )
+                compared_kind = "string"
+            else:
+                checked = parameter_value(
+                    value["value"], property_kind, f"{context}.value"
+                )
+                compared_kind = checked["type"]
+                if (
+                    operator in ORDERING_OPERATORS
+                    and compared_kind not in ORDERED_VALUE_KINDS
+                ):
+                    fail(
+                        context,
+                        f"{operator} requires an integer, number, quantity, or string value",
+                    )
+        if (value.get("caseSensitive") is False or value.get("trim") is True) and (
+            operator == "exists" or compared_kind not in TEXT_VALUE_KINDS
+        ):
+            fail(context, "caseSensitive and trim apply only to text comparisons")
     elif kind == "classification":
         exact_keys(
             value, {"kind", "system", "code", "includeDescendants"}, set(), context

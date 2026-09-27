@@ -116,6 +116,42 @@ Selektoren sind deklarativ und werden rekursiv validiert:
 
 Ein Vergleichswert auf einem Eigenschaftsselektor muss zur katalogisierten `valueKind` der referenzierten Eigenschaft passen. `exists` lehnt einen Vergleichswert ab. Jeder andere Operator benötigt einen.
 
+| Operator | Wert | Bedeutung |
+| --- | --- | --- |
+| `equals`, `notEquals` | Art der Eigenschaft | gleich oder ungleich |
+| `lessThan`, `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals` | `integer`, `number`, `quantity` oder `string` | geordneter Vergleich |
+| `matches` | `string` | regulärer Ausdruck, der den ganzen Wert treffen muss |
+| `like` | `string` | Platzhaltermuster, das den ganzen Wert treffen muss: `*` beliebig viele Zeichen, `?` genau ein Zeichen, `\` maskiert das nächste Zeichen |
+| `contains` | `string` | der Wert enthält den Text als Teilzeichenkette |
+| `oneOf`, `noneOf` | `stringList` | der Wert ist einer der aufgeführten Texte oder keiner davon; jedes Element muss ein Wert der Art der Eigenschaft sein |
+| `exists` | keiner | die Eigenschaft hat einen Wert |
+
+Zwei optionale Schalter steuern Textvergleiche, also jeden Vergleich eines
+`string`-, `enum`- oder `reference`-Werts sowie die Operatoren `matches`,
+`like`, `contains`, `oneOf` und `noneOf`:
+
+- `caseSensitive: false` vergleicht ohne Rücksicht auf Groß- und
+  Kleinschreibung. Voreinstellung ist `true`.
+- `trim: true` entfernt Leerraum am Anfang und Ende des ermittelten
+  Eigenschaftswerts vor dem Vergleich. Der deklarierte `value` wird nie
+  gekürzt. Voreinstellung ist `false`.
+
+Normalisiertes JSON lässt beide Schalter weg, solange sie ihre Voreinstellung
+behalten, sodass bestehende Pakete unverändert gerendert werden. Ein von der
+Voreinstellung abweichender Schalter auf `exists` oder auf einem Vergleich, der
+kein Textvergleich ist, wird abgelehnt.
+
+??? example "Selektor mit Platzhaltern ohne Groß- und Kleinschreibung anzeigen"
+    ```pkl
+    new Selectors.PropertySelector {
+      property = "axioval:example.ifc.reference"
+      operator = "like"
+      value = new Values.StringValue { value = "EI*" }
+      caseSensitive = false
+      trim = true
+    }
+    ```
+
 ## Umfangreiche Anwendbarkeit
 
 Eine Regel mit mehreren Populationen verwendet ein `Applicability`-Objekt. Die

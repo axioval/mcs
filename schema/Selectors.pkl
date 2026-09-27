@@ -19,7 +19,21 @@ class EntityTypeSelector extends Selector {
   includeSubtypes: Boolean = true
 }
 
-typealias ComparisonOperator = "equals" | "notEquals" | "lessThan" | "lessThanOrEquals" | "greaterThan" | "greaterThanOrEquals" | "matches" | "exists"
+/// How a property selector compares the resolved property value with `value`.
+///
+/// - `equals` and `notEquals` compare with a value of the property's kind.
+/// - `lessThan`, `lessThanOrEquals`, `greaterThan`, and `greaterThanOrEquals`
+///   order integer, number, quantity, or string values.
+/// - `matches` takes a `string` regular expression that must match the whole
+///   value.
+/// - `like` takes a `string` wildcard pattern that must match the whole value:
+///   `*` matches any run of characters, `?` exactly one character, and `\`
+///   escapes the next character.
+/// - `contains` takes a `string` that must occur as a substring of the value.
+/// - `oneOf` and `noneOf` take a `stringList`; each element must be a value of
+///   the property's kind.
+/// - `exists` takes no value.
+typealias ComparisonOperator = "equals" | "notEquals" | "lessThan" | "lessThanOrEquals" | "greaterThan" | "greaterThanOrEquals" | "matches" | "like" | "contains" | "oneOf" | "noneOf" | "exists"
 
 /// Select entities using a canonical property concept. `propertySet` is an
 /// optional exact container qualifier, never an ownership hierarchy.
@@ -29,7 +43,26 @@ class PropertySelector extends Selector {
   property: Types.QualifiedIdentifier
   operator: ComparisonOperator
   value: Values.ParameterValue?
+  /// `false` folds case for text comparisons: any operator comparing a
+  /// string, enum, or reference value, and `matches`, `like`, `contains`,
+  /// `oneOf`, and `noneOf`. Normalized JSON omits the default `true`; `false`
+  /// is rejected on `exists` and on non-text comparisons.
+  caseSensitive: Boolean = true
+  /// `true` strips leading and trailing whitespace from the resolved property
+  /// value before a text comparison; `value` itself is never trimmed.
+  /// Normalized JSON omits the default `false`; `true` is rejected on `exists`
+  /// and on non-text comparisons.
+  trim: Boolean = false
 }
+
+/// Render a property selector without its default text-comparison flags so
+/// packages that do not set them keep byte-identical normalized JSON.
+const function normalizedPropertySelector(selector: PropertySelector): Map<String, Any> =
+  selector.toMap().filter((key, value) ->
+    value != null
+    && !(key == "caseSensitive" && value == true)
+    && !(key == "trim" && value == false)
+  )
 
 /// Select entities carrying a classification reference.
 class ClassificationSelector extends Selector {

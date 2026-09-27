@@ -126,6 +126,40 @@ A comparison value on a property selector must match the referenced property's
 catalogued `valueKind`. `exists` rejects a comparison value; every other
 operator requires one.
 
+| Operator | Value | Meaning |
+| --- | --- | --- |
+| `equals`, `notEquals` | the property's kind | equal or not equal |
+| `lessThan`, `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals` | `integer`, `number`, `quantity`, or `string` | ordered comparison |
+| `matches` | `string` | regular expression matching the whole value |
+| `like` | `string` | wildcard pattern matching the whole value: `*` any run of characters, `?` one character, `\` escapes the next character |
+| `contains` | `string` | the value contains the text as a substring |
+| `oneOf`, `noneOf` | `stringList` | the value is, or is not, one of the listed texts; each element must be a value of the property's kind |
+| `exists` | none | the property has a value |
+
+Two optional flags tune text comparisons, meaning any comparison of a `string`,
+`enum`, or `reference` value and the operators `matches`, `like`, `contains`,
+`oneOf`, and `noneOf`:
+
+- `caseSensitive: false` compares without regard to case. The default is `true`.
+- `trim: true` strips leading and trailing whitespace from the resolved property
+  value before comparing. The declared `value` is never trimmed. The default is
+  `false`.
+
+Normalized JSON omits both flags when they keep their defaults, so existing
+packages render unchanged. Setting either away from its default on `exists` or
+on a comparison that is not text is rejected.
+
+??? example "Show a case-insensitive wildcard selector"
+    ```pkl
+    new Selectors.PropertySelector {
+      property = "axioval:example.ifc.reference"
+      operator = "like"
+      value = new Values.StringValue { value = "EI*" }
+      caseSensitive = false
+      trim = true
+    }
+    ```
+
 ## Rich applicability
 
 A rule that involves several populations uses an `Applicability` object. Its

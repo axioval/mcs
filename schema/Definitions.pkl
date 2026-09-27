@@ -2,6 +2,7 @@ module axioval.schema.Definitions
 
 import "Types.pkl"
 import "Values.pkl"
+import "Selectors.pkl"
 import "Citations.pkl"
 
 typealias ParameterKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "objectTypeReference" | "propertyReference" | "selector" | "stringList" | "referenceList"
@@ -90,3 +91,12 @@ propertySets: Mapping<String, PropertySetDefinition>(
 definitions: Mapping<String, RuleDefinition>(
   toMap().every((key, value) -> key == value.id)
 ) = new {}
+
+output {
+  renderer {
+    // Omit defaulted property-selector flags from normalized JSON.
+    converters {
+      [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
+    }
+  }
+}
