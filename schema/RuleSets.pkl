@@ -48,6 +48,53 @@ class ExplanatoryImage {
 /// to evaluate. New multi-population rules should use `Applicability`.
 typealias RuleApplicability = Selectors.Selector | Applicability
 
+/// One band of a rule's `severityBands`: a finding whose relative deviation
+/// `|value - bound| / |bound|` from the bound it misses lies below `below`, and
+/// at or above the previous band's `below` (zero for the first band), takes
+/// `severity`. A deviation at or beyond the last band keeps the rule's own
+/// severity.
+class SeverityBand {
+  /// The band's exclusive upper threshold: finite and above zero.
+  below: Float(isFinite, this > 0)
+  severity: Types.Severity
+}
+
+/// Whether every band's threshold lies above the previous band's.
+const function ascendingBands(bands: Listing<SeverityBand>): Boolean =
+  let (thresholds = bands.toList().map((band) -> band.below))
+    thresholds.isEmpty
+    || thresholds.dropLast(1).zip(thresholds.drop(1)).every((pair) -> pair.first < pair.second)
+
+/// One entry of a rule's `severityOverrides`: a finding whose subject or any
+/// related object `selector` selects takes `severity`. Entries are tried in
+/// order and the first that holds decides.
+class SeverityOverride {
+  /// Names concepts like any other selector.
+  selector: Selectors.Selector
+  severity: Types.Severity
+}
+
+/// One level of a rule's `categories`: the value of `property` on a finding's
+/// subject, or on every object `path` reaches from it, heads the finding's
+/// message in brackets, outermost level first.
+class CategoryLevel {
+  /// A property-set concept, or a reserved set such as `axioval:attributes`.
+  /// Normalized JSON omits it when unset.
+  propertySet: Types.QualifiedIdentifier?
+  /// A property concept.
+  property: Types.QualifiedIdentifier
+  /// Steps as a related selector's `path`, in which derived relationships
+  /// (`axioval:derived.…`) are also allowed; empty reads the subject itself.
+  /// Normalized JSON omits it when empty.
+  path: Listing<String(!isEmpty)> = new {}
+}
+
+/// Render a category level without an unset property set or an empty path.
+const function normalizedCategoryLevel(level: CategoryLevel): Map<String, Any> =
+  level.toMap().filter((key, value) ->
+    value != null && !(key == "path" && value.isEmpty)
+  )
+
 class RuleInstance {
   id: Types.Identifier
   definitionId: Types.QualifiedIdentifier
@@ -63,7 +110,25 @@ class RuleInstance {
   parameterCitations: Listing<Citations.ParameterCitation> = new {}
   explanatoryImages: Listing<ExplanatoryImage> = new {}
   tags: Listing<String> = new {}
+  /// Severities graded by how far a measured value misses its bound, for
+  /// capabilities that report the deviation. Thresholds ascend strictly.
+  /// Normalized JSON omits it when empty.
+  severityBands: Listing<SeverityBand>(ascendingBands(this)) = new {}
+  /// Severities chosen by the objects a finding involves. Normalized JSON
+  /// omits it when empty.
+  severityOverrides: Listing<SeverityOverride> = new {}
+  /// Nested categories headed before each finding's message, outermost first.
+  /// Normalized JSON omits it when empty.
+  categories: Listing<CategoryLevel> = new {}
 }
+
+/// Render a rule instance without unset fields or empty refinements, so
+/// packages that declare none keep byte-identical normalized JSON.
+const function normalizedRuleInstance(rule: RuleInstance): Map<String, Any> =
+  rule.toMap().filter((key, value) ->
+    value != null
+    && !(Set("severityBands", "severityOverrides", "categories").contains(key) && value.isEmpty)
+  )
 
 class RuleFolder {
   id: Types.Identifier
@@ -86,9 +151,12 @@ root: RuleFolder
 
 output {
   renderer {
-    // Omit defaulted property- and property-pattern-selector flags and
-    // related-selector quantifiers from normalized JSON.
+    // Omit defaulted property- and property-pattern-selector flags,
+    // related-selector quantifiers, and empty rule refinements from
+    // normalized JSON.
     converters {
+      [RuleInstance] = (it) -> normalizedRuleInstance(it)
+      [CategoryLevel] = (it) -> normalizedCategoryLevel(it)
       [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
       [Selectors.PropertyPatternSelector] = (it) ->
         Selectors.normalizedPropertyPatternSelector(it)

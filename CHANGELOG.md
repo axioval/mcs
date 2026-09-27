@@ -10,6 +10,16 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Rule-instance refinements, mirroring the engine's rule instance, each
+  optional and omitted from normalized JSON when empty: `severityBands`
+  (`RuleSets.SeverityBand`, a finite `below` threshold above zero of the
+  relative deviation and a `severity`, thresholds strictly ascending),
+  `severityOverrides` (`RuleSets.SeverityOverride`, a `selector` bound against
+  the concept catalogs and a `severity`), and `categories`
+  (`RuleSets.CategoryLevel`, a property concept, an optional property-set
+  concept or reserved set such as `axioval:attributes`, and an optional
+  related-selector `path` that may also name derived relationships). The binder
+  checks exact keys and rejects empty lists.
 - Table columns of kind `date` and `dateTime`, whose cells are
   `Values.DateValue` and `Values.DateTimeValue` literals checked like any other
   date or date-time, so a table row can bound a value by date.

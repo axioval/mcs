@@ -2234,5 +2234,241 @@ class PropertyPatternSelectorTests(unittest.TestCase):
         )
 
 
+REFERENCE = "axioval:example.ifc.reference"
+WALL_SET = "axioval:example.ifc.pset-wall-common"
+
+
+def band(below, severity: str = "warning") -> dict:
+    return {"below": below, "severity": severity}
+
+
+def reference_override(severity: str = "error", **fields) -> dict:
+    selector = {
+        "kind": "property",
+        "propertySet": WALL_SET,
+        "property": REFERENCE,
+        "operator": "equals",
+        "value": text("W1"),
+    }
+    selector.update(fields)
+    return {"selector": selector, "severity": severity}
+
+
+def category(property_id: str = REFERENCE, **fields) -> dict:
+    level = {"property": property_id}
+    level.update(fields)
+    return level
+
+
+class RuleRefinementTests(unittest.TestCase):
+    """Rule instances refine severities and categories after a capability ran."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def bind(self, **refinements) -> None:
+        ruleset = copy.deepcopy(self.ruleset)
+        for rule in ruleset["root"]["rules"]:
+            rule.pop("explanatoryImages", None)
+        ruleset["root"]["rules"][0].update(refinements)
+        validate.bind_ruleset(ruleset, [copy.deepcopy(self.definitions)], "test")
+
+    def assert_rejected(self, **refinements) -> None:
+        with self.subTest(refinements=refinements), self.assertRaises(SystemExit):
+            self.bind(**refinements)
+
+    def test_accepts_refinements_and_their_absence(self) -> None:
+        self.bind()
+        self.bind(
+            severityBands=[band(0.05, "info"), band(0.2), band(1)],
+            severityOverrides=[
+                reference_override(),
+                {
+                    "selector": property_selector(REFERENCE, "exists"),
+                    "severity": "info",
+                },
+                {
+                    "selector": {"kind": "not", "operand": {"kind": "all"}},
+                    "severity": "warning",
+                },
+            ],
+            categories=[
+                category(propertySet=WALL_SET),
+                category(),
+                category(propertySet="axioval:attributes"),
+                category(propertySet="axioval:type-attributes"),
+                category(path=["IfcRelContainedInSpatialStructure:backward"]),
+                category(path=["IfcRelAggregates+", "IfcRelNests:either"]),
+                category(
+                    propertySet="axioval:attributes",
+                    path=[
+                        "axioval:derived.adjacent-space",
+                        "axioval:derived.contained-in-space;horizontal=0.25;vertical=0.5",
+                        "axioval:derived.overlapping-group-space;ratio=0.9:backward",
+                    ],
+                ),
+            ],
+        )
+
+    def test_rejects_bands_that_are_not_positive_finite_and_ascending(self) -> None:
+        for bands in (
+            [],
+            [band(0)],
+            [band(-0.1)],
+            [band(float("inf"))],
+            [band(float("nan"))],
+            [band(True)],
+            [band("0.1")],
+            [band(0.2), band(0.1)],
+            [band(0.1), band(0.1)],
+            [band(0.1, "fatal")],
+            [{"below": 0.1}],
+            [{**band(0.1), "above": 0.0}],
+            {"below": 0.1, "severity": "info"},
+        ):
+            self.assert_rejected(severityBands=bands)
+
+    def test_override_selectors_bind_against_the_concept_catalogs(self) -> None:
+        for overrides in (
+            [],
+            [reference_override(property="axioval:example.unknown")],
+            [reference_override(propertySet="axioval:example.unknown")],
+            [reference_override(value={"type": "integer", "value": 1})],
+            [
+                {
+                    "selector": {
+                        "kind": "entityType",
+                        "objectType": "axioval:example.unknown",
+                        "includeSubtypes": True,
+                    },
+                    "severity": "error",
+                }
+            ],
+            [reference_override("fatal")],
+            [{"selector": {"kind": "all"}}],
+            [{**reference_override(), "when": "always"}],
+        ):
+            self.assert_rejected(severityOverrides=overrides)
+
+    def test_rejects_unbound_or_malformed_categories(self) -> None:
+        for levels in (
+            [],
+            [category("axioval:example.unknown")],
+            [category("Reference")],
+            [category(propertySet="axioval:example.unknown")],
+            [category(propertySet="axioval:unknown-reserved")],
+            [category(path=[])],
+            [category(path=[""])],
+            [category(path=["Ifc Rel"])],
+            [category(path=["IfcRelAggregates:sideways"])],
+            [category(path=["axioval:derived."])],
+            [category(path=["axioval:derived.adjacent-space;reach"])],
+            [category(path=["axioval:derived.adjacent-space:sideways"])],
+            [category(path="IfcRelAggregates")],
+            [{"propertySet": WALL_SET}],
+            [{**category(), "quantifier": "any"}],
+        ):
+            self.assert_rejected(categories=levels)
+
+    def test_pkl_renders_refinements_and_omits_them_when_empty(self) -> None:
+        rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+        values = (validate.ROOT / "schema/Values.pkl").as_uri()
+        refined = f"""
+      severityBands {{
+        new {{ below = 0.05; severity = "info" }}
+        new {{ below = 0.2; severity = "warning" }}
+      }}
+      severityOverrides {{
+        new {{
+          selector = new Selectors.PropertySelector {{
+            propertySet = "{WALL_SET}"
+            property = "{REFERENCE}"
+            operator = "equals"
+            value = new Values.StringValue {{ value = "W1" }}
+          }}
+          severity = "error"
+        }}
+      }}
+      categories {{
+        new {{ propertySet = "axioval:attributes"; property = "{REFERENCE}" }}
+        new {{
+          property = "{REFERENCE}"
+          path {{ "axioval:derived.adjacent-space;reach=1" }}
+        }}
+      }}"""
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            module = Path(tmp) / "refinements.pkl"
+            module.write_text(
+                f'amends "{rules}"\n\n'
+                f'import "{selectors}"\n'
+                f'import "{values}"\n\n'
+                'package { id = "axioval:example.refinements"; version = "0.1.0"; '
+                'name { default = "Refinements" } }\n'
+                'definitionPackages { "axioval:example.definitions" }\n'
+                "root {\n"
+                '  id = "root"\n'
+                '  name { default = "Root" }\n'
+                "  rules {\n"
+                "    new {\n"
+                '      id = "refined"\n'
+                '      definitionId = "axioval:example.property-exists"\n'
+                '      name { default = "Refined" }\n'
+                f"{refined}\n"
+                "    }\n"
+                "    new {\n"
+                '      id = "plain"\n'
+                '      definitionId = "axioval:example.property-exists"\n'
+                '      name { default = "Plain" }\n'
+                "      severityBands {}\n"
+                "      categories {}\n"
+                "    }\n"
+                "  }\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            evaluated = validate.evaluate(module)
+            refined_rule, plain = evaluated["root"]["rules"]
+            self.assertEqual(
+                refined_rule["severityBands"],
+                [band(0.05, "info"), band(0.2, "warning")],
+            )
+            self.assertEqual(
+                refined_rule["severityOverrides"],
+                [reference_override()],
+            )
+            self.assertEqual(
+                refined_rule["categories"],
+                [
+                    category(propertySet="axioval:attributes"),
+                    category(path=["axioval:derived.adjacent-space;reach=1"]),
+                ],
+            )
+            for key in ("severityBands", "severityOverrides", "categories"):
+                self.assertNotIn(key, plain)
+            self.assertNotIn("description", plain)
+
+            for bands in (
+                'new { below = 0.2; severity = "info" }\n'
+                'new { below = 0.1; severity = "warning" }',
+                'new { below = 0.0; severity = "info" }',
+                'new { below = NaN; severity = "info" }',
+                'new { below = 0.1; severity = "fatal" }',
+            ):
+                broken = Path(tmp) / "broken.pkl"
+                broken.write_text(
+                    f'import "{rules}"\n\n'
+                    "bands: Listing<RuleSets.SeverityBand>"
+                    "(RuleSets.ascendingBands(this)) = new {\n"
+                    f"{bands}\n}}\n",
+                    encoding="utf-8",
+                )
+                with self.subTest(bands=bands), self.assertRaises(SystemExit):
+                    validate.evaluate(broken)
+
+
 if __name__ == "__main__":
     unittest.main()

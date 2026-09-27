@@ -482,6 +482,70 @@ Dateien, aus dem Paket führende symbolische Links, aktive SVG-Inhalte, externe
 SVG-Referenzen und falsche Raster-Signaturen ab. Bilder erklären nur und ändern
 weder Anwendbarkeit noch Ausführung.
 
+## Verfeinerungen einer Regel
+
+Eine Fähigkeit entscheidet, was gefunden wird. Eine Regelinstanz kann zusätzlich
+angeben, wie diese Befunde berichtet werden, für jede Fähigkeit gleich, sodass
+keine Definition dafür einen Parameter deklariert. Das leisten drei optionale
+Listen; normalisiertes JSON lässt jede leere Liste weg, sodass eine Regel ohne
+sie unverändert gerendert wird, und der Binder lehnt eine leere Liste und jeden
+anderen Schlüssel ab.
+
+`severityBands` stuft einen Befund danach ab, wie weit ein gemessener Wert
+seine Grenze verfehlt. Jedes Band hat eine Schwelle `below` der relativen
+Abweichung `|value - bound| / |bound|` und eine `severity`: Eine Abweichung
+unter der ersten Schwelle erhält die Schwere des ersten Bands, eine ab einer
+Schwelle unter der nächsten die des nächsten Bands, und eine ab der letzten
+Schwelle behält die eigene `severity` der Regel. Schwellen sind endliche Zahlen
+über null und steigen streng an. Abgestuft werden können nur Fähigkeiten, die
+eine Abweichung berichten; bei jeder anderen lehnt die prüfende Anwendung die
+Bänder ab.
+
+`severityOverrides` wählt eine Schwere nach den Objekten, die ein Befund
+betrifft. Jeder Eintrag ist ein `selector` und eine `severity`; die Einträge
+werden der Reihe nach gegen Prüfobjekt und verbundene Objekte des Befunds
+geprüft, und der erste, dessen Selektor eines davon auswählt, entscheidet. Der
+Selektor nennt Konzepte und wird wie jeder andere Selektor gegen die
+Konzeptkataloge gebunden. Eine Überschreibung, die sich nicht entscheiden lässt,
+lässt den Befund unausgewertet, statt seine Schwere zu setzen.
+
+`categories` stellt der Meldung jedes Befunds verschachtelte Kategorien voran,
+die äußerste zuerst, etwa `[F90] [Office]`. Jede Ebene liest `property`, ein
+Eigenschaftskonzept, im optionalen `propertySet`, einem
+Eigenschaftsgruppenkonzept oder einer reservierten Gruppe wie
+`axioval:attributes`, am Prüfobjekt des Befunds oder, mit einem `path`, an jedem
+Objekt, das der Pfad von ihm aus erreicht. Der Pfad nimmt die Schritte eines
+Selektors für verbundene Objekte und darf zusätzlich abgeleitete Beziehungen
+wie `axioval:derived.adjacent-space` mit ihren Toleranzen nennen. Mehrere
+erreichte Werte teilen sich eine Überschrift, und kein Wert ergibt `[-]`.
+
+??? example "Regel mit Verfeinerungen anzeigen"
+    ```pkl
+    severity = "error"
+    severityBands {
+      new { below = 0.05; severity = "info" }
+      new { below = 0.2; severity = "warning" }
+    }
+    severityOverrides {
+      new {
+        selector = new Selectors.PropertySelector {
+          property = "axioval:example.load-bearing"
+          operator = "equals"
+          value = new Values.BooleanValue { value = true }
+        }
+        severity = "error"
+      }
+    }
+    categories {
+      new { property = "axioval:example.fire-rating" }
+      new {
+        propertySet = "axioval:attributes"
+        property = "axioval:example.name"
+        path { "axioval:derived.adjacent-space" }
+      }
+    }
+    ```
+
 ## Ordner sind kosmetisch
 
 `RuleFolder` dient Darstellung und Organisation. Seine Position ändert weder Selektorumfang, Regelidentität, Ausführungssemantik noch Vertrauen. Verbraucher können alternative Ansichten darstellen, ohne die Regeln umzuschreiben.

@@ -467,6 +467,66 @@ media-type mismatches, duplicate image IDs, missing files, symlink escapes,
 active SVG content, external SVG references, and raster signature mismatches.
 Images are explanatory only and never change applicability or execution.
 
+## Rule refinements
+
+A capability decides what is found. A rule instance may additionally say how
+those findings are reported, the same way for every capability, so no
+definition declares a parameter for it. Three optional lists do so; normalized
+JSON omits each when empty, so a rule declaring none renders unchanged, and the
+binder rejects an empty list and any other key.
+
+`severityBands` grades a finding by how far a measured value misses its bound.
+Each band has a `below` threshold of the relative deviation
+`|value - bound| / |bound|` and a `severity`: a deviation below the first
+threshold takes the first band's severity, one from a threshold below the next
+takes the next band's, and one at or beyond the last threshold keeps the rule's
+own `severity`. Thresholds are finite numbers above zero and ascend strictly.
+Only capabilities that report a deviation can be graded; the checking
+application refuses bands on any other.
+
+`severityOverrides` chooses a severity by the objects a finding involves. Each
+entry is a `selector` and a `severity`; the entries are tried in order against
+the finding's subject and related objects, and the first whose selector selects
+one of them decides. The selector names concepts and binds against the concept
+catalogs like any other selector. An override that cannot be decided leaves the
+finding not evaluated rather than defaulting its severity.
+
+`categories` heads each finding's message with nested categories, outermost
+first, such as `[F90] [Office]`. Each level reads `property`, a property
+concept, in the optional `propertySet`, a property-set concept or a reserved
+set such as `axioval:attributes`, on the finding's subject or, with a `path`, on
+every object the path reaches from it. The path takes the steps of a related
+selector and may also name derived relationships, such as
+`axioval:derived.adjacent-space`, with their tolerances. Several reached values
+share one heading and no value heads `[-]`.
+
+??? example "Show a rule with refinements"
+    ```pkl
+    severity = "error"
+    severityBands {
+      new { below = 0.05; severity = "info" }
+      new { below = 0.2; severity = "warning" }
+    }
+    severityOverrides {
+      new {
+        selector = new Selectors.PropertySelector {
+          property = "axioval:example.load-bearing"
+          operator = "equals"
+          value = new Values.BooleanValue { value = true }
+        }
+        severity = "error"
+      }
+    }
+    categories {
+      new { property = "axioval:example.fire-rating" }
+      new {
+        propertySet = "axioval:attributes"
+        property = "axioval:example.name"
+        path { "axioval:derived.adjacent-space" }
+      }
+    }
+    ```
+
 ## Folders are cosmetic
 
 `RuleFolder` exists for presentation and organization. Its position does not

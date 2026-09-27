@@ -90,6 +90,23 @@ RELATED_QUANTIFIERS = {"any", "all", "none"}
 # A related-selector path step: a source relationship name, optionally
 # followed by its direction.
 RELATED_PATH_STEP = re.compile(r"[^:\s]+(:(forward|backward|either))?")
+# A derived relationship the checking engine computes, with its optional
+# tolerances, as a category path step may name it: optionally followed by a
+# direction and by `+` for one or more steps.
+DERIVED_PATH_STEP = re.compile(
+    r"axioval:derived\.[a-z][a-z0-9-]*(;[a-z]+=[0-9]+(\.[0-9]+)?)*"
+    r"(:(forward|backward|either))?\+?"
+)
+# Reserved property sets: engine vocabulary that binds to itself, never a
+# package concept.
+RESERVED_PROPERTY_SETS = {
+    "axioval:attributes",
+    "axioval:type-attributes",
+    "axioval:presentation",
+    "axioval:material",
+    "axioval:body",
+}
+SEVERITIES = {"info", "warning", "error"}
 # A discipline name a source declares; no vocabulary is fixed.
 DISCIPLINE_TOKEN = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 # The Unicode general categories an XML Schema `\p{...}` escape may name.
@@ -1194,6 +1211,104 @@ def validate_selector(
         fail(context, f"unknown selector kind {kind!r}")
 
 
+def validate_severity_bands(value: Any, context: str) -> None:
+    """Check a rule's `severityBands`: finite, positive, strictly ascending."""
+    bands = list_value(value, context)
+    if not bands:
+        fail(context, "severityBands is omitted when empty")
+    previous = 0.0
+    for index, band in enumerate(bands):
+        band_context = f"{context}[{index}]"
+        band = object_value(band, band_context)
+        exact_keys(band, {"below", "severity"}, set(), band_context)
+        below = band["below"]
+        if type(below) not in {int, float} or not math.isfinite(below):
+            fail(band_context, "below must be a finite number")
+        if below <= previous:
+            fail(
+                band_context,
+                f"below must lie above {previous}: thresholds are positive "
+                "and strictly ascending",
+            )
+        previous = below
+        if type(band["severity"]) is not str or band["severity"] not in SEVERITIES:
+            fail(band_context, "severity must be 'info', 'warning', or 'error'")
+
+
+def validate_severity_overrides(
+    value: Any,
+    context: str,
+    object_types: dict[str, dict[str, Any]],
+    properties: dict[str, dict[str, Any]],
+    property_sets: dict[str, dict[str, Any]],
+) -> None:
+    """Check a rule's `severityOverrides`, binding each selector's concepts."""
+    overrides = list_value(value, context)
+    if not overrides:
+        fail(context, "severityOverrides is omitted when empty")
+    for index, entry in enumerate(overrides):
+        entry_context = f"{context}[{index}]"
+        entry = object_value(entry, entry_context)
+        exact_keys(entry, {"selector", "severity"}, set(), entry_context)
+        validate_selector(
+            entry["selector"],
+            f"{entry_context}.selector",
+            object_types,
+            properties,
+            property_sets,
+        )
+        if type(entry["severity"]) is not str or entry["severity"] not in SEVERITIES:
+            fail(entry_context, "severity must be 'info', 'warning', or 'error'")
+
+
+def validate_categories(
+    value: Any,
+    context: str,
+    properties: dict[str, dict[str, Any]],
+    property_sets: dict[str, dict[str, Any]],
+) -> None:
+    """Check a rule's `categories`: bound properties, sets, and paths."""
+    levels = list_value(value, context)
+    if not levels:
+        fail(context, "categories is omitted when empty")
+    for index, level in enumerate(levels):
+        level_context = f"{context}[{index}]"
+        level = object_value(level, level_context)
+        exact_keys(level, {"property"}, {"propertySet", "path"}, level_context)
+        property_id = level["property"]
+        if type(property_id) is not str or not QUALIFIED_ID.fullmatch(property_id):
+            fail(level_context, "property must be a qualified identifier")
+        if property_id not in properties:
+            fail(level_context, f"unknown property concept {property_id!r}")
+        if "propertySet" in level:
+            property_set = level["propertySet"]
+            if type(property_set) is not str or not QUALIFIED_ID.fullmatch(
+                property_set
+            ):
+                fail(level_context, "propertySet must be a qualified identifier")
+            # Reserved sets are engine vocabulary and bind to themselves.
+            if (
+                property_set not in RESERVED_PROPERTY_SETS
+                and property_set not in property_sets
+            ):
+                fail(level_context, f"unknown property-set concept {property_set!r}")
+        if "path" in level:
+            path = list_value(level["path"], f"{level_context}.path")
+            if not path:
+                fail(level_context, "path is omitted when empty")
+            for step_index, step in enumerate(path):
+                if type(step) is not str or not (
+                    RELATED_PATH_STEP.fullmatch(step)
+                    or DERIVED_PATH_STEP.fullmatch(step)
+                ):
+                    fail(
+                        f"{level_context}.path[{step_index}]",
+                        "path step must be 'Relationship' or "
+                        "'Relationship:forward|backward|either', or a derived "
+                        "relationship 'axioval:derived.<name>'",
+                    )
+
+
 def validate_applicability(
     value: Any,
     context: str,
@@ -1623,6 +1738,9 @@ def bind_ruleset(
                     "citations",
                     "parameterCitations",
                     "explanatoryImages",
+                    "severityBands",
+                    "severityOverrides",
+                    "categories",
                 },
                 rule_context,
             )
@@ -1637,7 +1755,7 @@ def bind_ruleset(
             if (
                 type(rule["enabled"]) is not bool
                 or type(rule["severity"]) is not str
-                or rule["severity"] not in {"info", "warning", "error"}
+                or rule["severity"] not in SEVERITIES
             ):
                 fail(rule_context, "invalid enabled flag or severity")
             localized_text(rule["name"], f"{rule_context}.name")
@@ -1730,6 +1848,25 @@ def bind_ruleset(
                 f"{rule_context}.explanatoryImages",
                 asset_root,
             )
+            if "severityBands" in rule:
+                validate_severity_bands(
+                    rule["severityBands"], f"{rule_context}.severityBands"
+                )
+            if "severityOverrides" in rule:
+                validate_severity_overrides(
+                    rule["severityOverrides"],
+                    f"{rule_context}.severityOverrides",
+                    object_types,
+                    properties,
+                    property_sets,
+                )
+            if "categories" in rule:
+                validate_categories(
+                    rule["categories"],
+                    f"{rule_context}.categories",
+                    properties,
+                    property_sets,
+                )
         for index, child in enumerate(
             list_value(folder["folders"], f"{folder_context}.folders")
         ):
