@@ -5,7 +5,7 @@ import "Values.pkl"
 import "Selectors.pkl"
 import "Citations.pkl"
 
-typealias ParameterKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "objectTypeReference" | "propertyReference" | "selector" | "stringList" | "referenceList"
+typealias ParameterKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "objectTypeReference" | "propertyReference" | "selector" | "stringList" | "referenceList" | "table"
 typealias PropertyValueKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "stringList" | "referenceList"
 
 /// One external-schema name for a canonical property or container concept.
@@ -44,6 +44,23 @@ class PropertySetDefinition {
   citations: Listing<Citations.Citation> = new {}
 }
 
+/// The kind of every cell in one table column. A `textPattern` cell is a
+/// `Values.StringValue` holding a whole-value wildcard pattern: `*` any run of
+/// characters, `?` one character, and a backslash escapes the next character.
+typealias ColumnKind = "string" | "textPattern" | "number" | "quantity" | "integer" | "boolean" | "selector" | "reference"
+
+/// One named, typed column of a `table` parameter.
+class TableColumn {
+  id: Types.Identifier
+  name: Types.LocalizedText
+  description: Types.LocalizedText?
+  kind: ColumnKind
+  /// Whether every row must carry a cell in this column.
+  required: Boolean = true
+  /// Required for, and only valid on, a `quantity` column.
+  unitDimension: String?
+}
+
 class ParameterDefinition {
   id: Types.Identifier
   name: Types.LocalizedText
@@ -56,6 +73,9 @@ class ParameterDefinition {
   allowedValues: Listing<Values.ParameterValue> = new {}
   unitDimension: String?
   citations: Listing<Citations.Citation> = new {}
+  /// The columns of a `table` parameter, in presentation order. Required for,
+  /// and only valid on, `kind = "table"`; omitted from normalized JSON otherwise.
+  columns: Listing<TableColumn>(!isEmpty, isDistinctBy((it) -> it.id))?
 }
 
 /// Declares a rule template. `capability` is the stable semantic operation that

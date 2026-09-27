@@ -78,6 +78,62 @@ Declares a capability and typed parameter map. `referencedValueKind` is valid
 only on a `propertyReference` parameter and constrains the referenced property's
 catalogued type.
 
+### Table parameters
+
+A `table` parameter carries rows of patterns and limits in one rule, such as a
+minimum area per space type, instead of one rule per row. It declares its
+`columns`, each with an `id`, a localized `name`, an optional `description`, a
+`kind`, and whether it is `required` (the default):
+
+| Column kind | Cell value |
+| --- | --- |
+| `string` | `string` |
+| `textPattern` | `string`, read as a wildcard pattern matching the whole value: `*` any run of characters, `?` one character, `\` escapes the next character |
+| `number` | `number` |
+| `quantity` | `quantity`; the column requires a `unitDimension` |
+| `integer` | `integer` |
+| `boolean` | `boolean` |
+| `selector` | `selector` |
+| `reference` | `reference` |
+
+A table value is a list of rows. Each row maps column IDs to cells of the
+column's kind. The binder rejects a row with an unknown column, a cell of
+another kind, a missing required cell, or a text pattern ending in an unpaired
+backslash, whether the row is bound in a rule or is part of the `defaultValue`.
+Concepts named in selector cells must resolve like any selector. Column IDs are
+unique, `columns` is required on a table and invalid on every other kind, and a
+table declares no `allowedValues`. An empty table is valid.
+
+Normalized JSON omits `columns` on every other parameter, so existing packages
+render unchanged. Which row applies (the first match, the most specific match,
+or every match) is the capability's contract, not the package's.
+
+??? example "Show a table parameter with a default"
+    ```pkl
+    ["limits"] {
+      id = "limits"
+      name { default = "Limits per space type" }
+      kind = "table"
+      columns {
+        new { id = "space_type"; name { default = "Space type" }; kind = "textPattern" }
+        new {
+          id = "minimum_area"
+          name { default = "Minimum area" }
+          kind = "quantity"
+          unitDimension = "area"
+        }
+      }
+      defaultValue = new Values.TableValue {
+        value {
+          new {
+            ["space_type"] = new Values.StringValue { value = "Office*" }
+            ["minimum_area"] = new Values.QuantityValue { value = 10; unit = "m2" }
+          }
+        }
+      }
+    }
+    ```
+
 ## Reference values
 
 === "Object type"

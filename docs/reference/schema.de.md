@@ -70,6 +70,65 @@ Ordnet eine stabile Qualifizierer-ID externen Containernamen zu. Sie enthält ke
 
 Deklariert eine Fähigkeit und eine typisierte Parameter-Map. `referencedValueKind` ist nur für einen `propertyReference`-Parameter gültig und beschränkt den katalogisierten Typ der referenzierten Eigenschaft.
 
+### Tabellenparameter
+
+Ein `table`-Parameter trägt Zeilen aus Mustern und Grenzwerten in einer einzigen
+Regel, etwa eine Mindestfläche je Raumtyp, statt einer Regel je Zeile. Er
+deklariert seine `columns`, jede mit einer `id`, einem lokalisierten `name`,
+einer optionalen `description`, einer `kind` und der Angabe, ob sie `required`
+ist (die Voreinstellung):
+
+| Spaltenart | Zellwert |
+| --- | --- |
+| `string` | `string` |
+| `textPattern` | `string`, gelesen als Platzhaltermuster, das den ganzen Wert treffen muss: `*` beliebig viele Zeichen, `?` genau ein Zeichen, `\` maskiert das nächste Zeichen |
+| `number` | `number` |
+| `quantity` | `quantity`; die Spalte benötigt eine `unitDimension` |
+| `integer` | `integer` |
+| `boolean` | `boolean` |
+| `selector` | `selector` |
+| `reference` | `reference` |
+
+Ein Tabellenwert ist eine Liste von Zeilen. Jede Zeile ordnet Spalten-IDs Zellen
+der Art ihrer Spalte zu. Der Binder lehnt eine Zeile mit unbekannter Spalte,
+einer Zelle anderer Art, einer fehlenden Pflichtzelle oder einem Textmuster ab,
+das mit einem unmaskierten Backslash endet, gleich ob die Zeile in einer Regel
+gebunden oder Teil des `defaultValue` ist. In Selektorzellen genannte Konzepte
+müssen wie in jedem Selektor auflösbar sein. Spalten-IDs sind eindeutig,
+`columns` ist für eine Tabelle Pflicht und für jede andere Art ungültig, und eine
+Tabelle deklariert keine `allowedValues`. Eine leere Tabelle ist gültig.
+
+Normalisiertes JSON lässt `columns` bei allen anderen Parametern weg, sodass
+bestehende Pakete unverändert gerendert werden. Welche Zeile gilt (der erste
+Treffer, der spezifischste Treffer oder jeder Treffer), legt der Vertrag der
+Fähigkeit fest, nicht das Paket.
+
+??? example "Tabellenparameter mit Voreinstellung anzeigen"
+    ```pkl
+    ["limits"] {
+      id = "limits"
+      name { default = "Limits per space type" }
+      kind = "table"
+      columns {
+        new { id = "space_type"; name { default = "Space type" }; kind = "textPattern" }
+        new {
+          id = "minimum_area"
+          name { default = "Minimum area" }
+          kind = "quantity"
+          unitDimension = "area"
+        }
+      }
+      defaultValue = new Values.TableValue {
+        value {
+          new {
+            ["space_type"] = new Values.StringValue { value = "Office*" }
+            ["minimum_area"] = new Values.QuantityValue { value = 10; unit = "m2" }
+          }
+        }
+      }
+    }
+    ```
+
 ## Referenzwerte
 
 === "Objekttyp"

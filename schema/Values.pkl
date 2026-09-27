@@ -66,3 +66,10 @@ class ReferenceListValue extends ParameterValue {
   type: "referenceList" = "referenceList"
   value: Listing<Types.QualifiedIdentifier>
 }
+
+/// Rows of a `table` parameter, in declared order. Each row maps column IDs to
+/// cells of the column's kind; a `textPattern` cell is a `StringValue`.
+class TableValue extends ParameterValue {
+  type: "table" = "table"
+  value: Listing<Mapping<Types.Identifier, ParameterValue>>
+}

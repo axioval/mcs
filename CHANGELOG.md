@@ -10,6 +10,15 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Table-valued rule parameters: a `table` parameter declares named `columns`,
+  each with a kind (`string`, `textPattern`, `number`, `quantity` with a
+  `unitDimension`, `integer`, `boolean`, `selector`, or `reference`) and a
+  `required` flag, and its `TableValue` is a list of rows mapping column IDs to
+  cells of those kinds. The binder rejects unknown columns, cells of another
+  kind, missing required cells, malformed text patterns, columns on other
+  parameter kinds, and `allowedValues` on tables, for bound rows and defaults
+  alike. Normalized JSON omits `columns` elsewhere, so existing packages render
+  unchanged.
 - Property selector operators `like` (whole-value wildcards), `contains`,
   `oneOf`, and `noneOf`, plus `caseSensitive` and `trim` text options that
   normalized JSON omits at their defaults. The binder requires a `string` for

@@ -881,5 +881,249 @@ class ExtendedPropertySelectorTests(unittest.TestCase):
         )
 
 
+def column(column_id: str, kind: str, required: bool = True) -> dict:
+    declared = {
+        "id": column_id,
+        "name": {"default": column_id, "translations": {}},
+        "kind": kind,
+        "required": required,
+    }
+    if kind == "quantity":
+        declared["unitDimension"] = "area"
+    return declared
+
+
+def table_row(pattern: str, area: float, **cells) -> dict:
+    row = {
+        "space_type": text(pattern),
+        "minimum_area": {"type": "quantity", "value": area, "unit": "m2"},
+    }
+    row.update(cells)
+    return row
+
+
+class TableParameterTests(unittest.TestCase):
+    """Table parameters bind typed rows against declared columns."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def documents(self, rows: list | None = None, **overrides) -> tuple[dict, dict]:
+        ruleset = copy.deepcopy(self.ruleset)
+        definitions = copy.deepcopy(self.definitions)
+        for rule in ruleset["root"]["rules"]:
+            rule.pop("explanatoryImages", None)
+        limits = {
+            "id": "limits",
+            "name": {"default": "Limits", "translations": {}},
+            "kind": "table",
+            "required": True,
+            "allowedValues": [],
+            "citations": [],
+            "columns": [
+                column("space_type", "textPattern"),
+                column("minimum_area", "quantity"),
+                column("label", "string", required=False),
+                column("count", "integer", required=False),
+                column("ratio", "number", required=False),
+                column("strict", "boolean", required=False),
+                column("scope", "selector", required=False),
+                column("reference", "reference", required=False),
+            ],
+        }
+        limits.update(overrides)
+        definitions["definitions"]["axioval:example.property-exists"]["parameters"][
+            "limits"
+        ] = limits
+        ruleset["root"]["rules"][0]["parameters"]["limits"] = {
+            "type": "table",
+            "value": [table_row("Office*", 10)] if rows is None else rows,
+        }
+        return ruleset, definitions
+
+    def bind(self, rows: list | None = None, **overrides) -> None:
+        ruleset, definitions = self.documents(rows, **overrides)
+        validate.bind_ruleset(ruleset, [definitions], "test")
+
+    def assert_rejected(self, rows: list | None = None, **overrides) -> None:
+        with (
+            self.subTest(rows=rows, overrides=overrides),
+            self.assertRaises(SystemExit),
+        ):
+            self.bind(rows, **overrides)
+
+    def test_accepts_rows_of_every_column_kind(self) -> None:
+        self.bind(
+            [
+                table_row(
+                    "Office",
+                    12.5,
+                    label=text("single office"),
+                    count={"type": "integer", "value": 2},
+                    ratio={"type": "number", "value": 0.5},
+                    strict={"type": "boolean", "value": True},
+                    scope={
+                        "type": "selector",
+                        "value": {
+                            "kind": "entityType",
+                            "objectType": "axioval:example.ifc.wall",
+                            "includeSubtypes": True,
+                        },
+                    },
+                    reference={
+                        "type": "reference",
+                        "value": "axioval:example.office",
+                    },
+                ),
+                table_row(r"Office\*", 10),
+                table_row("*", 6),
+            ]
+        )
+        self.bind([])
+
+    def test_accepts_a_default_table_checked_against_the_columns(self) -> None:
+        ruleset, definitions = self.documents()
+        parameter = definitions["definitions"]["axioval:example.property-exists"][
+            "parameters"
+        ]["limits"]
+        parameter["required"] = False
+        parameter["defaultValue"] = {"type": "table", "value": [table_row("*", 6)]}
+        del ruleset["root"]["rules"][0]["parameters"]["limits"]
+        validate.bind_ruleset(ruleset, [definitions], "test")
+        parameter["defaultValue"]["value"][0]["colour"] = text("red")
+        with self.assertRaises(SystemExit):
+            validate.validate_definition_document(definitions, "test")
+
+    def test_rejects_rows_that_do_not_fit_the_columns(self) -> None:
+        missing = table_row("Office", 10)
+        del missing["minimum_area"]
+        for rows in (
+            [table_row("Office", 10, colour=text("red"))],
+            [table_row("Office", 10, label={"type": "enum", "value": "office"})],
+            [table_row("Office", 10, count={"type": "number", "value": 2.0})],
+            [table_row("Office", 10, ratio={"type": "integer", "value": 1})],
+            [table_row("Office", 10, strict=text("true"))],
+            [table_row("Office", 10, scope=text("walls"))],
+            [table_row("Office", 10, reference=text("x"))],
+            [table_row("Office", 10, label={"type": "table", "value": []})],
+            [
+                {
+                    **table_row("Office", 10),
+                    "minimum_area": {"type": "number", "value": 1},
+                }
+            ],
+            [
+                {
+                    **table_row("Office", 10),
+                    "space_type": {"type": "integer", "value": 1},
+                }
+            ],
+            [missing],
+            [table_row("Office\\", 10)],
+            ["not a row"],
+            [
+                table_row(
+                    "Office",
+                    10,
+                    scope={
+                        "type": "selector",
+                        "value": {
+                            "kind": "entityType",
+                            "objectType": "axioval:example.unknown",
+                            "includeSubtypes": True,
+                        },
+                    },
+                )
+            ],
+        ):
+            self.assert_rejected(rows)
+
+    def test_rejects_invalid_column_declarations(self) -> None:
+        for columns in (
+            [],
+            [column("space_type", "textPattern"), column("space_type", "string")],
+            [column("Space Type", "textPattern")],
+            [column("rows", "table")],
+            [column("rows", "stringList")],
+            [{**column("area", "quantity"), "unitDimension": ""}],
+            [{**column("label", "string"), "unitDimension": "area"}],
+            [{**column("label", "string"), "required": "yes"}],
+            [{**column("label", "string"), "width": 3}],
+            [
+                {
+                    key: value
+                    for key, value in column("label", "string").items()
+                    if key != "name"
+                }
+            ],
+        ):
+            self.assert_rejected([], columns=columns)
+        quantity = column("area", "quantity")
+        del quantity["unitDimension"]
+        self.assert_rejected([], columns=[quantity])
+
+    def test_columns_belong_to_tables_only(self) -> None:
+        ruleset, definitions = self.documents()
+        del definitions["definitions"]["axioval:example.property-exists"][
+            "parameters"
+        ]["limits"]["columns"]
+        with self.assertRaises(SystemExit):
+            validate.bind_ruleset(ruleset, [definitions], "test")
+        _, definitions = self.documents()
+        definitions["definitions"]["axioval:example.property-exists"]["parameters"][
+            "property"
+        ]["columns"] = [column("label", "string")]
+        with self.assertRaises(SystemExit):
+            validate.validate_definition_document(definitions, "test")
+        self.assert_rejected(
+            allowedValues=[{"type": "table", "value": [table_row("Office*", 10)]}]
+        )
+
+    def test_a_table_value_needs_a_table_parameter(self) -> None:
+        ruleset, definitions = self.documents()
+        ruleset["root"]["rules"][0]["parameters"]["property"] = {
+            "type": "table",
+            "value": [],
+        }
+        with self.assertRaises(SystemExit):
+            validate.bind_ruleset(ruleset, [definitions], "test")
+        from scripts.contracts import validate_selector
+
+        with self.assertRaises(SystemExit):
+            validate_selector(
+                property_selector(
+                    "axioval:example.text", "equals", {"type": "table", "value": []}
+                ),
+                "test",
+            )
+
+    def test_pkl_renders_columns_only_on_tables(self) -> None:
+        evaluated = validate.evaluate(
+            validate.ROOT / "tests/fixtures/table-parameter.pkl"
+        )
+        validate.validate_definition_document(evaluated, "fixture")
+        parameters = evaluated["definitions"]["axioval:example.area-limits"][
+            "parameters"
+        ]
+        self.assertNotIn("columns", parameters["label"])
+        limits = parameters["limits"]
+        # Undeclared descriptions and non-quantity dimensions are omitted.
+        self.assertEqual(
+            [{**declared, "name": None} for declared in limits["columns"]],
+            [
+                {**column("space_type", "textPattern"), "name": None},
+                {**column("minimum_area", "quantity"), "name": None},
+                {**column("scope", "selector", required=False), "name": None},
+            ],
+        )
+        self.assertEqual(
+            limits["defaultValue"]["value"][1],
+            table_row("*", 6, scope={"type": "selector", "value": {"kind": "all"}}),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

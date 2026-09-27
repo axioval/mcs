@@ -1,0 +1,66 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Selectors.pkl"
+import "../../schema/SelectorValues.pkl"
+import "../../schema/Values.pkl"
+
+package {
+  id = "axioval:example.table-parameter"
+  version = "0.1.0"
+  name { default = "Table parameter" }
+  description { default = "A table-valued parameter with typed columns." }
+}
+definitions {
+  ["axioval:example.area-limits"] {
+    id = "axioval:example.area-limits"
+    name { default = "Area limits" }
+    capability = "axioval:example.area-limits"
+    parameters {
+      ["limits"] {
+        id = "limits"
+        name { default = "Limits per space type" }
+        kind = "table"
+        columns {
+          new {
+            id = "space_type"
+            name { default = "Space type" }
+            kind = "textPattern"
+          }
+          new {
+            id = "minimum_area"
+            name { default = "Minimum area" }
+            kind = "quantity"
+            unitDimension = "area"
+          }
+          new {
+            id = "scope"
+            name { default = "Scope" }
+            kind = "selector"
+            required = false
+          }
+        }
+        defaultValue = new Values.TableValue {
+          value {
+            new {
+              ["space_type"] = new Values.StringValue { value = "Office*" }
+              ["minimum_area"] = new Values.QuantityValue { value = 10; unit = "m2" }
+            }
+            new {
+              ["space_type"] = new Values.StringValue { value = "*" }
+              ["minimum_area"] = new Values.QuantityValue { value = 6; unit = "m2" }
+              ["scope"] = new SelectorValues.SelectorValue {
+                value = new Selectors.AllSelector {}
+              }
+            }
+          }
+        }
+      }
+      ["label"] {
+        id = "label"
+        name { default = "Label" }
+        kind = "string"
+        required = false
+      }
+    }
+  }
+}

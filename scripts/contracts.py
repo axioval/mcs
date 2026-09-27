@@ -27,6 +27,7 @@ VALUE_KINDS = {
     "selector",
     "stringList",
     "referenceList",
+    "table",
 }
 VALUE_KEYS = {kind: {"type", "value"} for kind in VALUE_KINDS}
 VALUE_KEYS["quantity"] = {"type", "value", "unit"}
@@ -36,6 +37,18 @@ PROPERTY_VALUE_KINDS = VALUE_KINDS - {
     "objectTypeReference",
     "propertyReference",
     "selector",
+    "table",
+}
+# Table column kinds and the value variant each cell is written as.
+COLUMN_VALUE_KINDS = {
+    "string": "string",
+    "textPattern": "string",
+    "number": "number",
+    "quantity": "quantity",
+    "integer": "integer",
+    "boolean": "boolean",
+    "selector": "selector",
+    "reference": "reference",
 }
 SELECTOR_OPERATORS = {
     "equals",
@@ -279,8 +292,49 @@ def validate_citations(
     return seen
 
 
+def well_formed_pattern(pattern: str) -> bool:
+    """Whether every backslash in a wildcard pattern escapes a character."""
+    escaped = False
+    for character in pattern:
+        escaped = not escaped and character == "\\"
+    return not escaped
+
+
+def table_rows(
+    value: dict[str, Any], columns: list[dict[str, Any]] | None, context: str
+) -> None:
+    if columns is None:
+        fail(context, "a table value requires declared columns")
+    declared = {column["id"]: column for column in columns}
+    for index, row in enumerate(list_value(value["value"], f"{context}.value")):
+        row_context = f"{context}.value[{index}]"
+        row = object_value(row, row_context)
+        for column_id, cell in row.items():
+            column = declared.get(column_id)
+            if column is None:
+                fail(row_context, f"unknown column {column_id!r}")
+            cell_context = f"{row_context}[{column_id!r}]"
+            checked = parameter_value(
+                cell, COLUMN_VALUE_KINDS[column["kind"]], cell_context
+            )
+            if column["kind"] == "textPattern" and not well_formed_pattern(
+                checked["value"]
+            ):
+                fail(cell_context, "text pattern ends with an unpaired backslash")
+        missing = sorted(
+            column_id
+            for column_id, column in declared.items()
+            if column["required"] and column_id not in row
+        )
+        if missing:
+            fail(row_context, f"missing required columns {missing}")
+
+
 def parameter_value(
-    value: Any, expected_kind: str | None, context: str
+    value: Any,
+    expected_kind: str | None,
+    context: str,
+    columns: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     value = object_value(value, context)
     kind = value.get("type")
@@ -313,6 +367,9 @@ def parameter_value(
     item = value["value"]
     if kind == "selector":
         validate_selector(item, f"{context}.value")
+        return value
+    if kind == "table":
+        table_rows(value, columns, context)
         return value
     if kind in {"string", "enum", "reference"}:
         if type(item) is not str:
@@ -386,6 +443,55 @@ def resolve_selector_value(
         validate_selector(
             value["value"], context, object_types, properties, property_sets
         )
+    elif value["type"] == "table":
+        # Selector cells name concepts like any selector parameter.
+        for index, row in enumerate(value["value"]):
+            for column_id, cell in row.items():
+                resolve_selector_value(
+                    cell,
+                    object_types,
+                    properties,
+                    property_sets,
+                    f"{context}.value[{index}][{column_id!r}]",
+                )
+
+
+def table_columns(value: Any, context: str) -> list[dict[str, Any]]:
+    columns = list_value(value, context)
+    if not columns:
+        fail(context, "a table declares at least one column")
+    seen: set[str] = set()
+    for index, column in enumerate(columns):
+        column_context = f"{context}[{index}]"
+        column = object_value(column, column_context)
+        exact_keys(
+            column,
+            {"id", "name", "kind", "required"},
+            {"description", "unitDimension"},
+            column_context,
+        )
+        column_id = column["id"]
+        if type(column_id) is not str or not IDENTIFIER.fullmatch(column_id):
+            fail(column_context, "invalid column id")
+        if column_id in seen:
+            fail(column_context, f"duplicate column id {column_id!r}")
+        seen.add(column_id)
+        localized_text(column["name"], f"{column_context}.name")
+        if "description" in column:
+            localized_text(column["description"], f"{column_context}.description")
+        if (
+            type(column["kind"]) is not str
+            or column["kind"] not in COLUMN_VALUE_KINDS
+            or type(column["required"]) is not bool
+        ):
+            fail(column_context, "invalid column kind or required flag")
+        dimension = column.get("unitDimension")
+        if column["kind"] == "quantity":
+            if type(dimension) is not str or not dimension:
+                fail(column_context, "quantity columns require unitDimension")
+        elif "unitDimension" in column:
+            fail(column_context, "unitDimension is only valid for quantity columns")
+    return columns
 
 
 def validate_parameter_definition(value: Any, context: str) -> dict[str, Any]:
@@ -399,6 +505,7 @@ def validate_parameter_definition(value: Any, context: str) -> dict[str, Any]:
             "description",
             "referencedValueKind",
             "citations",
+            "columns",
         },
         context,
     )
@@ -428,8 +535,19 @@ def validate_parameter_definition(value: Any, context: str) -> dict[str, Any]:
             context,
             "referencedValueKind requires a propertyReference parameter and valid value kind",
         )
+    columns = None
+    if kind == "table":
+        if "columns" not in value:
+            fail(context, "table parameters require columns")
+        columns = table_columns(value["columns"], f"{context}.columns")
+        if value["allowedValues"] != []:
+            fail(context, "allowedValues is not valid for table parameters")
+    elif "columns" in value:
+        fail(context, "columns are only valid for table parameters")
     if "defaultValue" in value:
-        parameter_value(value["defaultValue"], kind, f"{context}.defaultValue")
+        parameter_value(
+            value["defaultValue"], kind, f"{context}.defaultValue", columns
+        )
     allowed = list_value(value["allowedValues"], f"{context}.allowedValues")
     seen: set[str] = set()
     for index, allowed_value in enumerate(allowed):
@@ -1225,6 +1343,7 @@ def bind_ruleset(
                     binding,
                     parameter["kind"],
                     f"{rule_context}.parameters[{parameter_id!r}]",
+                    parameter.get("columns"),
                 )
                 resolve_selector_value(
                     checked,
