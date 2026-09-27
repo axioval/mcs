@@ -13,7 +13,7 @@ Die Quelltextbeispiele bleiben eingeklappt, bis Sie sie bewusst öffnen.
 | `Types.pkl` | Bezeichner, semantische Versionen, lokalisierter Text, Paketmetadaten |
 | `Citations.pkl` | bibliografische Quellen, Fundstellen, Zitate und Parameterziele |
 | `Values.pkl` | Markierte Skalar- und Listenwerte sowie Objekt- und Eigenschaftsreferenzen |
-| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Klassifikation, verbundene Objekte und boolesche Zusammensetzung |
+| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Klassifikation, verbundene Objekte, Disziplin und boolesche Zusammensetzung |
 | `Definitions.pkl` | Vokabulare und wiederverwendbare Fähigkeitsvorlagen |
 | `RuleSets.pkl` | Konkrete Regelinstanzen und rein kosmetische Ordner |
 
@@ -230,6 +230,7 @@ Selektoren sind deklarativ und werden rekursiv validiert:
 - `property` mit kanonischer Eigenschafts-ID und optionalem Set-Qualifizierer
 - `classification`
 - `related`, der die über einen Beziehungspfad erreichten Objekte prüft
+- `discipline`, der die Objekte von Quellen mit einer deklarierten Disziplin auswählt
 - `allOf`, `anyOf` und `not`
 
 Ein Vergleichswert auf einem Eigenschaftsselektor muss zur katalogisierten `valueKind` der referenzierten Eigenschaft passen. `exists` lehnt einen Vergleichswert ab. Jeder andere Operator benötigt einen.
@@ -339,6 +340,44 @@ sowie jeden anderen Wert für `quantifier` ab.
       }
     }
     ```
+
+### Disziplinselektoren
+
+Ein `discipline`-Selektor wählt die Objekte der Quellen aus, die in der Prüfung
+eine Disziplin vertreten, etwa `architecture` oder `structure`.
+
+??? example "JSON anzeigen"
+    ```json
+    { "kind": "discipline", "value": "structure" }
+    ```
+
+Eine Disziplin gehört zu einer Quelle, nicht zu einem Objekt: Die prüfende
+Anwendung deklariert sie je Quelle, daher passen alle Objekte einer Quelle oder
+keines. Ein Objekt, dessen Quelle keine Disziplin deklariert, wird nicht
+ausgewertet und gilt nie als Nichttreffer. So kann eine auf Disziplinen
+beschränkte Regel ein Modell, das niemand zugeordnet hat, nicht bestehen.
+
+Der `value` ist ein Token aus 1 bis 64 ASCII-Kleinbuchstaben, Ziffern, `-` oder
+`_`, der mit einem Buchstaben oder einer Ziffer beginnt
+(`[a-z0-9][a-z0-9_-]{0,63}`). Es ist kein Vokabular festgelegt; Namen werden
+exakt verglichen, und ein Projekt einigt sich auf seine Namen wie auf seine
+Regeln. Der Selektor hat genau diese beiden Schlüssel. Er darf überall stehen,
+wo ein Selektor stehen darf: in `allOf`, `anyOf` und `not`, als `selector`
+eines `related`-Selektors und als Wert eines selektortypisierten Parameters. Der
+Binder lehnt jedes andere Token und jeden weiteren Schlüssel ab.
+
+??? example "Kollisionsmatrix zwischen zwei Disziplinen anzeigen"
+    ```pkl
+    new Selectors.AllOfSelector {
+      operands {
+        new Selectors.EntityTypeSelector { objectType = "axioval:example.wall" }
+        new Selectors.DisciplineSelector { value = "architecture" }
+      }
+    }
+    ```
+
+    Der selektortypisierte Parameter `counterparts` der Regel erhält dann
+    `new Selectors.DisciplineSelector { value = "structure" }`.
 
 ## Umfangreiche Anwendbarkeit
 

@@ -1,0 +1,51 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Selectors.pkl"
+import "../../schema/SelectorValues.pkl"
+
+package {
+  id = "axioval:example.discipline-selector"
+  version = "0.1.0"
+  name { default = "Discipline selector" }
+  description { default = "Discipline selectors alone and nested." }
+}
+objectTypes {
+  ["axioval:example.wall"] {
+    id = "axioval:example.wall"
+    name { default = "Wall" }
+    externalNames {
+      new { typeSystem = "axioval:example.bim"; name = "Wall" }
+    }
+  }
+}
+definitions {
+  ["axioval:example.selected"] {
+    id = "axioval:example.selected"
+    name { default = "Selected objects" }
+    capability = "axioval:example.selected"
+    parameters {
+      ["compared"] {
+        id = "compared"
+        name { default = "Compared objects" }
+        kind = "selector"
+        defaultValue = new SelectorValues.SelectorValue {
+          value = new Selectors.AllOfSelector {
+            operands {
+              new Selectors.EntityTypeSelector {
+                objectType = "axioval:example.wall"
+              }
+              new Selectors.DisciplineSelector { value = "architecture" }
+              new Selectors.NotSelector {
+                operand = new Selectors.DisciplineSelector { value = "mep_hvac-2" }
+              }
+              new Selectors.RelatedSelector {
+                path { "IfcRelAggregates:either" }
+                selector = new Selectors.DisciplineSelector { value = "structure" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

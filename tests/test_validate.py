@@ -1846,5 +1846,142 @@ class DateValueTests(unittest.TestCase):
                     evaluate(value_class, literal)
 
 
+def discipline_selector(value) -> dict:
+    return {"kind": "discipline", "value": value}
+
+
+class DisciplineSelectorTests(unittest.TestCase):
+    """Discipline selectors select the objects of sources declaring a name."""
+
+    object_types = {"axioval:example.wall": {}}
+
+    def check(self, selector: dict) -> None:
+        from scripts.contracts import validate_selector
+
+        validate_selector(selector, "test", self.object_types, {}, {})
+
+    def assert_rejected(self, selector: dict) -> None:
+        with self.subTest(selector=selector), self.assertRaises(SystemExit):
+            self.check(selector)
+
+    def test_accepts_tokens_alone_and_nested(self) -> None:
+        for token in ("architecture", "structure", "0", "mep_hvac-2", "a" * 64):
+            with self.subTest(token=token):
+                self.check(discipline_selector(token))
+        for selector in (
+            {
+                "kind": "allOf",
+                "operands": [
+                    {
+                        "kind": "entityType",
+                        "objectType": "axioval:example.wall",
+                        "includeSubtypes": True,
+                    },
+                    discipline_selector("architecture"),
+                ],
+            },
+            {"kind": "anyOf", "operands": [discipline_selector("structure")]},
+            {"kind": "not", "operand": discipline_selector("structure")},
+            related_selector(
+                ["IfcRelAggregates"], discipline_selector("structure")
+            ),
+            related_selector(
+                ["IfcRelAggregates:either"],
+                {"kind": "not", "operand": discipline_selector("mep")},
+                quantifier="none",
+            ),
+        ):
+            with self.subTest(selector=selector):
+                self.check(selector)
+
+    def test_rejects_malformed_tokens(self) -> None:
+        for token in (
+            "",
+            "Architecture",
+            "-structure",
+            "_structure",
+            "struc ture",
+            "structure\n",
+            "structure.main",
+            "struktur\u00e4",
+            "a" * 65,
+            None,
+            1,
+            True,
+            ["structure"],
+            {"value": "structure"},
+        ):
+            self.assert_rejected(discipline_selector(token))
+
+    def test_rejects_extra_and_missing_keys(self) -> None:
+        for selector in (
+            {"kind": "discipline"},
+            {**discipline_selector("structure"), "values": ["structure"]},
+            {**discipline_selector("structure"), "source": "arch.ifc"},
+            {**discipline_selector("structure"), "caseSensitive": False},
+        ):
+            self.assert_rejected(selector)
+
+    def test_rejects_malformed_nested_discipline_selectors(self) -> None:
+        for selector in (
+            {"kind": "not", "operand": discipline_selector("Structure")},
+            {"kind": "allOf", "operands": [discipline_selector("")]},
+            related_selector(
+                ["IfcRelAggregates"],
+                {**discipline_selector("structure"), "extra": True},
+            ),
+            related_selector(
+                ["IfcRelAggregates"],
+                {"kind": "not", "operand": discipline_selector("a" * 65)},
+            ),
+        ):
+            self.assert_rejected(selector)
+
+    def test_pkl_rejects_malformed_tokens(self) -> None:
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+        for token in ("", "Structure", "-mep", "a" * 65, "mep hvac"):
+            with (
+                self.subTest(token=token),
+                tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp,
+            ):
+                module = Path(tmp) / "discipline.pkl"
+                module.write_text(
+                    f'import "{selectors}"\n\n'
+                    "value = new Selectors.DisciplineSelector {\n"
+                    f'  value = "{token}"\n'
+                    "}\n",
+                    encoding="utf-8",
+                )
+                with self.assertRaises(SystemExit):
+                    validate.evaluate(module)
+
+    def test_pkl_renders_discipline_selectors(self) -> None:
+        evaluated = validate.evaluate(
+            validate.ROOT / "tests/fixtures/discipline-selector.pkl"
+        )
+        validate.validate_definition_document(evaluated, "fixture")
+        self.assertEqual(
+            evaluated["definitions"]["axioval:example.selected"]["parameters"][
+                "compared"
+            ]["defaultValue"]["value"],
+            {
+                "kind": "allOf",
+                "operands": [
+                    {
+                        "kind": "entityType",
+                        "objectType": "axioval:example.wall",
+                        "includeSubtypes": True,
+                    },
+                    discipline_selector("architecture"),
+                    {"kind": "not", "operand": discipline_selector("mep_hvac-2")},
+                    related_selector(
+                        ["IfcRelAggregates:either"],
+                        discipline_selector("structure"),
+                    ),
+                ],
+            },
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

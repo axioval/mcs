@@ -10,6 +10,13 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- A `discipline` selector, `{"kind": "discipline", "value": "<token>"}`
+  (`Selectors.DisciplineSelector`), that selects the objects of the sources
+  declaring that discipline; an object whose source declares none is not
+  evaluated, never a non-match. The token is 1 to 64 lowercase ASCII letters,
+  digits, `-`, or `_`, starting with a letter or digit, and no vocabulary is
+  fixed. Pkl and the binder reject any other token and any key besides `kind`
+  and `value`; the selector nests like any other selector.
 - `date` and `dateTime` values (`Values.DateValue`, `Values.DateTimeValue`) as
   parameter kinds and property `valueKind`s. The binder checks literals by the
   engine's rules: a real `YYYY-MM-DD` day in the years 0000 to 9999, and a

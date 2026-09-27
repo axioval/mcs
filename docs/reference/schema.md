@@ -15,7 +15,7 @@ folded by default so you can scan the concepts first.
 | `Types.pkl` | identifiers, semantic versions, localized text, package metadata |
 | `Citations.pkl` | bibliographic sources, locators, citations, parameter targets |
 | `Values.pkl` | tagged scalar/list values plus object/property references |
-| `Selectors.pkl` | object type, property, classification, related-object, boolean-composition selectors |
+| `Selectors.pkl` | object type, property, classification, related-object, discipline, boolean-composition selectors |
 | `Definitions.pkl` | vocabularies and reusable capability templates |
 | `RuleSets.pkl` | concrete rule instances and cosmetic folders |
 
@@ -230,6 +230,7 @@ Selectors are declarative and recursively validated:
 - `property` using a canonical property ID and optional set qualifier
 - `classification`
 - `related`, testing the objects a relationship path reaches
+- `discipline`, selecting the objects of sources that declare a discipline
 - `allOf`, `anyOf`, and `not`
 
 A comparison value on a property selector must match the referenced property's
@@ -336,6 +337,42 @@ empty name, or another direction, and any other `quantifier` value.
       }
     }
     ```
+
+### Discipline selectors
+
+A `discipline` selector selects the objects of the sources that play a
+discipline in the check, such as `architecture` or `structure`.
+
+??? example "Show JSON"
+    ```json
+    { "kind": "discipline", "value": "structure" }
+    ```
+
+A discipline belongs to a source, not to an object: the checking application
+declares one per source, so every object of a source matches or none does. An
+object whose source declares no discipline is not evaluated, never a non-match,
+so a discipline-scoped rule cannot pass over a model nobody classified.
+
+The `value` is a token of 1 to 64 lowercase ASCII letters, digits, `-`, or `_`,
+starting with a letter or digit (`[a-z0-9][a-z0-9_-]{0,63}`). No vocabulary is
+fixed; names compare exactly, and a project agrees on its names as it agrees on
+its rules. The selector has exactly these two keys. It may appear wherever a
+selector may: inside `allOf`, `anyOf`, and `not`, as a related selector's
+`selector`, and as a selector-typed parameter value. The binder rejects any
+other token and any other key.
+
+??? example "Show a clash matrix between two disciplines"
+    ```pkl
+    new Selectors.AllOfSelector {
+      operands {
+        new Selectors.EntityTypeSelector { objectType = "axioval:example.wall" }
+        new Selectors.DisciplineSelector { value = "architecture" }
+      }
+    }
+    ```
+
+    The rule's selector-typed `counterparts` parameter then takes
+    `new Selectors.DisciplineSelector { value = "structure" }`.
 
 ## Rich applicability
 

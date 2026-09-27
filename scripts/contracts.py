@@ -88,6 +88,8 @@ RELATED_QUANTIFIERS = {"any", "all", "none"}
 # A related-selector path step: a source relationship name, optionally
 # followed by its direction.
 RELATED_PATH_STEP = re.compile(r"[^:\s]+(:(forward|backward|either))?")
+# A discipline name a source declares; no vocabulary is fixed.
+DISCIPLINE_TOKEN = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 IMAGE_MEDIA_TYPES = {
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",
@@ -962,6 +964,16 @@ def validate_selector(
             or type(value["includeDescendants"]) is not bool
         ):
             fail(context, "invalid classification selector")
+    elif kind == "discipline":
+        exact_keys(value, {"kind", "value"}, set(), context)
+        if type(value["value"]) is not str or not DISCIPLINE_TOKEN.fullmatch(
+            value["value"]
+        ):
+            fail(
+                context,
+                "discipline must be 1 to 64 lowercase letters, digits, '-', "
+                "or '_', starting with a letter or digit",
+            )
     elif kind in {"allOf", "anyOf"}:
         exact_keys(value, {"kind", "operands"}, set(), context)
         operands = list_value(value["operands"], f"{context}.operands")

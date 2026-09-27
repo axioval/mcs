@@ -101,6 +101,22 @@ class ClassificationSelector extends Selector {
   includeDescendants: Boolean = false
 }
 
+/// A discipline name: 1 to 64 lowercase ASCII letters, digits, `-`, or `_`,
+/// starting with a letter or digit. No vocabulary is fixed; names compare
+/// exactly.
+typealias DisciplineToken = String(matches(Regex("[a-z0-9][a-z0-9_-]{0,63}")))
+
+/// Select the objects of every source that declares the discipline `value`.
+///
+/// A discipline belongs to a source, not to an object, so every object of a
+/// source matches or none does. The checking application declares each
+/// source's discipline; an object whose source declares none is not
+/// evaluated, never a non-match.
+class DisciplineSelector extends Selector {
+  kind: "discipline" = "discipline"
+  value: DisciplineToken
+}
+
 class AllOfSelector extends Selector {
   kind: "allOf" = "allOf"
   operands: Listing<Selector>(length > 0)
