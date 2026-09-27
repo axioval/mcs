@@ -28,6 +28,8 @@ VALUE_KINDS = {
     "stringList",
     "referenceList",
     "table",
+    "date",
+    "dateTime",
 }
 VALUE_KEYS = {kind: {"type", "value"} for kind in VALUE_KINDS}
 VALUE_KEYS["quantity"] = {"type", "value", "unit"}
@@ -70,7 +72,10 @@ ORDERING_OPERATORS = {
     "greaterThan",
     "greaterThanOrEquals",
 }
-ORDERED_VALUE_KINDS = {"integer", "number", "quantity", "string"}
+ORDERED_VALUE_KINDS = {"integer", "number", "quantity", "string", "date", "dateTime"}
+# Calendar value kinds, which alone take a selector `precision`.
+TEMPORAL_VALUE_KINDS = {"date", "dateTime"}
+TEMPORAL_PRECISIONS = {"day"}
 TEXT_PATTERN_OPERATORS = {"matches", "like", "contains"}
 LIST_OPERATORS = {"oneOf", "noneOf"}
 # Value kinds compared as text, so case folding and trimming apply.
@@ -113,6 +118,14 @@ LOCATOR_KINDS = {
     "other",
 }
 PUBLICATION_DATE = re.compile(r"^[0-9]{4}(?:-[0-9]{2}(?:-[0-9]{2})?)?$")
+# ISO 8601 extended date and date-time literals, as XML Schema writes
+# `xs:date` and `xs:dateTime`. The shape is checked here; the calendar, the
+# time of day, and the offset range are checked by `temporal_literal_error`.
+DATE_LITERAL = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})")
+DATE_TIME_LITERAL = re.compile(
+    r"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    r"(?:\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})"
+)
 
 
 def fail(context: str, message: str) -> None:
@@ -338,6 +351,54 @@ def table_rows(
             fail(row_context, f"missing required columns {missing}")
 
 
+def date_literal_error(literal: str) -> str | None:
+    """Why `literal` is not a real `YYYY-MM-DD` day in 0000 to 9999, if it is not."""
+    match = DATE_LITERAL.fullmatch(literal)
+    if match is None:
+        return "expected YYYY-MM-DD"
+    year, month, day = (int(part) for part in match.groups())
+    if not 1 <= month <= 12:
+        return "no such day"
+    leap = (year % 4 == 0 and year % 100 != 0) or year % 400 == 0
+    if month == 2:
+        days = 29 if leap else 28
+    elif month in {4, 6, 9, 11}:
+        days = 30
+    else:
+        days = 31
+    if not 1 <= day <= days:
+        return "no such day"
+    return None
+
+
+def date_time_literal_error(literal: str) -> str | None:
+    """Why `literal` is not a date-time with a UTC offset, if it is not.
+
+    Mirrors the engine: a real day, a time of day from 00:00:00 to 23:59:59
+    (no 24:00, no leap second), up to nine fraction digits, and an offset of
+    `Z` or `±hh:mm` of at most 14 hours; `-00:00` states no offset.
+    """
+    match = DATE_TIME_LITERAL.fullmatch(literal)
+    if match is None:
+        return "expected YYYY-MM-DDThh:mm:ss[.f{1,9}] and an offset Z or ±hh:mm"
+    day, hour, minute, second, offset = match.groups()
+    if (reason := date_literal_error(day)) is not None:
+        return reason
+    if offset != "Z":
+        hours, minutes = int(offset[1:3]), int(offset[4:6])
+        if minutes >= 60 or hours * 60 + minutes > 14 * 60:
+            return "an offset is at most 14:00"
+        if offset == "-00:00":
+            return "-00:00 states no offset"
+    if int(hour) == 24:
+        return "24:00 is refused; write 00:00 of the next day"
+    if int(second) == 60:
+        return "a leap second cannot be ordered"
+    if int(hour) > 23 or int(minute) > 59 or int(second) > 59:
+        return "no such time of day"
+    return None
+
+
 def parameter_value(
     value: Any,
     expected_kind: str | None,
@@ -392,6 +453,17 @@ def parameter_value(
     elif kind == "integer":
         if type(item) is not int:
             fail(context, "value must be an integer")
+    elif kind in TEMPORAL_VALUE_KINDS:
+        if type(item) is not str:
+            fail(context, "value must be a string")
+        if kind == "date":
+            reason = date_literal_error(item)
+            expected = "an ISO 8601 date (YYYY-MM-DD)"
+        else:
+            reason = date_time_literal_error(item)
+            expected = "an ISO 8601 date-time with a UTC offset"
+        if reason is not None:
+            fail(context, f"{item!r} is not {expected}: {reason}")
     elif kind in {"number", "quantity"}:
         if type(item) not in {int, float} or not math.isfinite(item):
             fail(context, "value must be a finite number")
@@ -764,7 +836,14 @@ def validate_selector(
         exact_keys(
             value,
             {"kind", "property", "operator"},
-            {"propertySet", "value", "caseSensitive", "trim", "quantifier"},
+            {
+                "propertySet",
+                "value",
+                "caseSensitive",
+                "trim",
+                "quantifier",
+                "precision",
+            },
             context,
         )
         operator = value["operator"]
@@ -785,6 +864,11 @@ def validate_selector(
             fail(context, "quantifier must be 'any' or 'all'")
         if operator == "exists" and "quantifier" in value:
             fail(context, "exists selector must not have a quantifier")
+        if "precision" in value and (
+            type(value["precision"]) is not str
+            or value["precision"] not in TEMPORAL_PRECISIONS
+        ):
+            fail(context, "precision must be 'day'")
         if properties is not None and value["property"] not in properties:
             fail(context, "unknown property concept")
         if "propertySet" in value and (
@@ -835,22 +919,37 @@ def validate_selector(
                         )
                 compared_kind = "string"
             else:
+                # Day precision reads a date-time as the day it states, so a
+                # date and a date-time then compare with each other.
+                day_precision = (
+                    "precision" in value and property_kind in TEMPORAL_VALUE_KINDS
+                )
                 checked = parameter_value(
-                    value["value"], property_kind, f"{context}.value"
+                    value["value"],
+                    None if day_precision else property_kind,
+                    f"{context}.value",
                 )
                 compared_kind = checked["type"]
+                if day_precision and compared_kind not in TEMPORAL_VALUE_KINDS:
+                    fail(
+                        context,
+                        f"expected a date or dateTime value, got {compared_kind!r}",
+                    )
                 if (
                     operator in ORDERING_OPERATORS
                     and compared_kind not in ORDERED_VALUE_KINDS
                 ):
                     fail(
                         context,
-                        f"{operator} requires an integer, number, quantity, or string value",
+                        f"{operator} requires an integer, number, quantity, "
+                        "string, date, or dateTime value",
                     )
         if (value.get("caseSensitive") is False or value.get("trim") is True) and (
             operator == "exists" or compared_kind not in TEXT_VALUE_KINDS
         ):
             fail(context, "caseSensitive and trim apply only to text comparisons")
+        if "precision" in value and compared_kind not in TEMPORAL_VALUE_KINDS:
+            fail(context, "precision applies only to a date or dateTime value")
     elif kind == "classification":
         exact_keys(
             value, {"kind", "system", "code", "includeDescendants"}, set(), context

@@ -10,6 +10,15 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- `date` and `dateTime` values (`Values.DateValue`, `Values.DateTimeValue`) as
+  parameter kinds and property `valueKind`s. The binder checks literals by the
+  engine's rules: a real `YYYY-MM-DD` day in the years 0000 to 9999, and a
+  date-time with a time from 00:00:00 to 23:59:59, up to nine fraction digits,
+  and a required offset `Z` or `±hh:mm` of at most 14 hours, refusing `-00:00`.
+  Property selectors order dates and date-times and take an optional
+  `precision` `day`, only with a `date` or `dateTime` value, that compares a
+  date-time with a date by the day it states; normalized JSON omits it when
+  unset.
 - A `related` selector that selects an object by the objects a relationship
   `path` reaches from it: steps `Relationship` or `Relationship:direction`
   (`forward`, `backward`, or `either`), a nested `selector`, and a `quantifier`

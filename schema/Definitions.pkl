@@ -5,8 +5,8 @@ import "Values.pkl"
 import "Selectors.pkl"
 import "Citations.pkl"
 
-typealias ParameterKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "objectTypeReference" | "propertyReference" | "selector" | "stringList" | "referenceList" | "table"
-typealias PropertyValueKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "stringList" | "referenceList"
+typealias ParameterKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "objectTypeReference" | "propertyReference" | "selector" | "stringList" | "referenceList" | "table" | "date" | "dateTime"
+typealias PropertyValueKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "stringList" | "referenceList" | "date" | "dateTime"
 
 /// One external-schema name for a canonical property or container concept.
 class ExternalName {

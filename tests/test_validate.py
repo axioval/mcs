@@ -1466,5 +1466,385 @@ class RelatedSelectorTests(unittest.TestCase):
         )
 
 
+
+def date(value: str) -> dict:
+    return {"type": "date", "value": value}
+
+
+def date_time(value: str) -> dict:
+    return {"type": "dateTime", "value": value}
+
+
+class DateValueTests(unittest.TestCase):
+    """Date and date-time literals follow the engine's rules exactly."""
+
+    properties = {
+        property_id: {"valueKind": kind} for property_id, kind in PROPERTY_KINDS.items()
+    } | {
+        "axioval:example.inspected-on": {"valueKind": "date"},
+        "axioval:example.installed-at": {"valueKind": "dateTime"},
+    }
+
+    def check(self, selector: dict) -> None:
+        from scripts.contracts import validate_selector
+
+        validate_selector(selector, "test", None, self.properties, None)
+
+    def assert_rejected(self, selector: dict) -> None:
+        with self.subTest(selector=selector), self.assertRaises(SystemExit):
+            self.check(selector)
+
+    def test_accepts_real_days(self) -> None:
+        from scripts.contracts import parameter_value
+
+        for literal in (
+            "0000-01-01",
+            "9999-12-31",
+            "2026-09-27",
+            "2024-02-29",
+            "2000-02-29",
+            "0000-02-29",
+            "2026-04-30",
+            "2026-01-31",
+        ):
+            with self.subTest(literal=literal):
+                parameter_value(date(literal), "date", "test")
+
+    def test_rejects_malformed_and_unreal_days(self) -> None:
+        from scripts.contracts import parameter_value
+
+        for literal in (
+            "",
+            "2026-9-27",
+            "26-09-27",
+            "2026/09/27",
+            "20260927",
+            "+2026-09-27",
+            "12026-09-27",
+            "2026-09-27Z",
+            "2026-09-27+02:00",
+            "2026-09-27T00:00:00Z",
+            " 2026-09-27",
+            "2026-09-27\n",
+            "２０２６-09-27",
+            "2026-00-10",
+            "2026-13-10",
+            "2026-09-00",
+            "2026-09-31",
+            "2026-02-29",
+            "1900-02-29",
+            "2026-04-31",
+        ):
+            with self.subTest(literal=literal), self.assertRaises(SystemExit):
+                parameter_value(date(literal), "date", "test")
+        for item in (20260927, None, ["2026-09-27"]):
+            with self.subTest(item=item), self.assertRaises(SystemExit):
+                parameter_value(date(item), "date", "test")
+
+    def test_accepts_date_times_with_an_offset(self) -> None:
+        from scripts.contracts import parameter_value
+
+        for literal in (
+            "2026-09-27T10:00:00Z",
+            "2026-09-27T10:00:00+02:00",
+            "2026-09-27T10:00:00.5+02:00",
+            "2026-09-27T10:00:00.123456789Z",
+            "2026-09-27T10:00:00.500Z",
+            "2026-09-27T00:00:00+00:00",
+            "2026-09-27T23:59:59-05:00",
+            "2026-09-27T12:00:00+14:00",
+            "2026-09-27T12:00:00-14:00",
+            "2026-09-27T12:00:00+05:45",
+            "0000-01-01T00:00:00Z",
+            "9999-12-31T23:59:59.999999999-14:00",
+            "2024-02-29T12:00:00Z",
+        ):
+            with self.subTest(literal=literal):
+                parameter_value(date_time(literal), "dateTime", "test")
+
+    def test_rejects_each_date_time_rule(self) -> None:
+        from scripts.contracts import parameter_value
+
+        for literal in (
+            # Shape.
+            "",
+            "2026-09-27",
+            "2026-09-27 10:00:00Z",
+            "2026-09-27t10:00:00Z",
+            "2026-09-27T10:00Z",
+            "2026-09-27T1:00:00Z",
+            "2026-09-27T10:00:00z",
+            # The offset is required.
+            "2026-09-27T10:00:00",
+            "2026-09-27T10:00:00.5",
+            # Offset shape and range.
+            "2026-09-27T10:00:00+02",
+            "2026-09-27T10:00:00+0200",
+            "2026-09-27T10:00:00+2:00",
+            "2026-09-27T10:00:00+14:01",
+            "2026-09-27T10:00:00-15:00",
+            "2026-09-27T10:00:00+01:60",
+            "2026-09-27T10:00:00-00:00",
+            "2026-09-27T10:00:00Z+01:00",
+            # Fraction of one to nine digits.
+            "2026-09-27T10:00:00.Z",
+            "2026-09-27T10:00:00.1234567890Z",
+            "2026-09-27T10:00:00,5Z",
+            # A real day.
+            "2026-02-29T10:00:00Z",
+            "2026-13-01T10:00:00Z",
+            "2026-09-31T10:00:00Z",
+            # A time of day from 00:00:00 to 23:59:59.
+            "2026-09-27T24:00:00Z",
+            "2026-09-27T25:00:00Z",
+            "2026-09-27T10:60:00Z",
+            "2026-09-27T23:59:60Z",
+            "2026-09-27T10:00:61Z",
+            # ASCII digits only.
+            "2026-09-27T１0:00:00Z",
+        ):
+            with self.subTest(literal=literal), self.assertRaises(SystemExit):
+                parameter_value(date_time(literal), "dateTime", "test")
+
+    def test_date_kinds_are_parameter_and_property_kinds(self) -> None:
+        from scripts.contracts import (
+            PROPERTY_VALUE_KINDS,
+            validate_concept,
+            validate_parameter_definition,
+        )
+
+        self.assertLessEqual({"date", "dateTime"}, PROPERTY_VALUE_KINDS)
+        for kind, value in (
+            ("date", date("2026-09-27")),
+            ("dateTime", date_time("2026-09-27T10:00:00Z")),
+        ):
+            with self.subTest(kind=kind):
+                validate_concept(
+                    {
+                        "id": "axioval:example.when",
+                        "name": {"default": "When", "translations": {}},
+                        "valueKind": kind,
+                        "externalNames": [
+                            {"typeSystem": "axioval:example.source", "name": "When"}
+                        ],
+                    },
+                    "axioval:example.when",
+                    "test",
+                    property_definition=True,
+                )
+                validate_parameter_definition(
+                    {
+                        "id": "target",
+                        "name": {"default": "Target", "translations": {}},
+                        "kind": kind,
+                        "required": True,
+                        "defaultValue": value,
+                        "allowedValues": [value],
+                        "citations": [],
+                    },
+                    "test",
+                )
+        with self.assertRaises(SystemExit):
+            validate_parameter_definition(
+                {
+                    "id": "target",
+                    "name": {"default": "Target", "translations": {}},
+                    "kind": "date",
+                    "required": True,
+                    "defaultValue": date_time("2026-09-27T10:00:00Z"),
+                    "allowedValues": [],
+                    "citations": [],
+                },
+                "test",
+            )
+
+    def test_selectors_compare_and_order_dates(self) -> None:
+        for operator in (
+            "equals",
+            "notEquals",
+            "lessThan",
+            "lessThanOrEquals",
+            "greaterThan",
+            "greaterThanOrEquals",
+        ):
+            for selector in (
+                property_selector(
+                    "axioval:example.inspected-on", operator, date("2026-09-27")
+                ),
+                property_selector(
+                    "axioval:example.installed-at",
+                    operator,
+                    date_time("2026-09-27T10:00:00+02:00"),
+                ),
+                property_selector(
+                    "axioval:example.inspected-on",
+                    operator,
+                    date("2026-09-27"),
+                    precision="day",
+                ),
+                # Day precision compares a date with a date-time either way.
+                property_selector(
+                    "axioval:example.inspected-on",
+                    operator,
+                    date_time("2026-09-27T22:30:00-05:00"),
+                    precision="day",
+                ),
+                property_selector(
+                    "axioval:example.installed-at",
+                    operator,
+                    date("2026-09-27"),
+                    precision="day",
+                ),
+                property_selector(
+                    "axioval:example.installed-at",
+                    operator,
+                    date_time("2026-09-27T10:00:00Z"),
+                    precision="day",
+                ),
+            ):
+                with self.subTest(selector=selector):
+                    self.check(selector)
+        self.check(property_selector("axioval:example.inspected-on", "exists"))
+
+    def test_selectors_reject_misplaced_precision_and_mismatched_dates(self) -> None:
+        for selector in (
+            # Without day precision a date-time never meets a date.
+            property_selector(
+                "axioval:example.inspected-on",
+                "equals",
+                date_time("2026-09-27T10:00:00Z"),
+            ),
+            property_selector(
+                "axioval:example.installed-at", "lessThan", date("2026-09-27")
+            ),
+            # Day precision does not make other kinds dates.
+            property_selector(
+                "axioval:example.inspected-on",
+                "equals",
+                text("2026-09-27"),
+                precision="day",
+            ),
+            # Precision applies to date and dateTime values only.
+            property_selector(
+                "axioval:example.text", "equals", text("a"), precision="day"
+            ),
+            property_selector(
+                "axioval:example.count",
+                "greaterThan",
+                {"type": "integer", "value": 1},
+                precision="day",
+            ),
+            property_selector(
+                "axioval:example.text", "matches", text("20.*"), precision="day"
+            ),
+            property_selector("axioval:example.inspected-on", "exists", precision="day"),
+            # Only `day` exists.
+            *(
+                property_selector(
+                    "axioval:example.inspected-on",
+                    "equals",
+                    date("2026-09-27"),
+                    precision=precision,
+                )
+                for precision in ("Day", "month", "second", "", None, True, ["day"])
+            ),
+            # Text options do not apply to dates.
+            property_selector(
+                "axioval:example.inspected-on",
+                "equals",
+                date("2026-09-27"),
+                caseSensitive=False,
+            ),
+            # Dates are not texts.
+            property_selector(
+                "axioval:example.inspected-on", "like", text("2026-*")
+            ),
+            property_selector(
+                "axioval:example.inspected-on", "oneOf", texts("2026-09-27")
+            ),
+            # Literals are checked in selectors too.
+            property_selector(
+                "axioval:example.inspected-on", "equals", date("2026-02-29")
+            ),
+            property_selector(
+                "axioval:example.installed-at",
+                "equals",
+                date_time("2026-09-27T10:00:00"),
+            ),
+        ):
+            self.assert_rejected(selector)
+        # Without a catalog, precision still needs a date or dateTime value.
+        from scripts.contracts import validate_selector
+
+        validate_selector(
+            property_selector(
+                "axioval:example.unbound",
+                "lessThan",
+                date_time("2026-09-27T10:00:00Z"),
+                precision="day",
+            ),
+            "test",
+        )
+        with self.assertRaises(SystemExit):
+            validate_selector(
+                property_selector(
+                    "axioval:example.unbound", "equals", text("a"), precision="day"
+                ),
+                "test",
+            )
+
+    def test_pkl_renders_dates_and_omits_an_unset_precision(self) -> None:
+        evaluated = validate.evaluate(validate.ROOT / "tests/fixtures/date-values.pkl")
+        validate.validate_definition_document(evaluated, "fixture")
+        parameters = evaluated["definitions"]["axioval:example.dated"]["parameters"]
+        self.assertEqual(parameters["target_date"]["defaultValue"], date("2024-02-29"))
+        self.assertEqual(
+            parameters["target_date_time"]["defaultValue"],
+            date_time("2026-09-27T10:00:00.5+02:00"),
+        )
+        by_day, dated = parameters["compared"]["defaultValue"]["value"]["operands"]
+        self.assertEqual(
+            by_day,
+            property_selector(
+                "axioval:example.installed-at",
+                "lessThan",
+                date("2026-09-27"),
+                precision="day",
+            ),
+        )
+        self.assertEqual(
+            dated,
+            property_selector(
+                "axioval:example.inspected-on",
+                "greaterThanOrEquals",
+                date("2000-01-01"),
+            ),
+        )
+
+    def test_pkl_refuses_date_literals_of_another_shape(self) -> None:
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            module = Path(tmp) / "value.pkl"
+
+            def evaluate(value_class: str, literal: str) -> dict:
+                module.write_text(
+                    f'import "../../schema/Values.pkl"\n'
+                    f'value = new Values.{value_class} {{ value = "{literal}" }}\n',
+                    encoding="utf-8",
+                )
+                return validate.evaluate(module)
+
+            self.assertEqual(
+                evaluate("DateTimeValue", "2026-09-27T10:00:00.5+02:00")["value"],
+                date_time("2026-09-27T10:00:00.5+02:00"),
+            )
+            for value_class, literal in (
+                ("DateValue", "27.09.2026"),
+                ("DateTimeValue", "2026-09-27T10:00:00"),
+                ("DateTimeValue", "2026-09-27T10:00:00.1234567890Z"),
+            ):
+                with self.subTest(literal=literal), self.assertRaises(SystemExit):
+                    evaluate(value_class, literal)
+
+
 if __name__ == "__main__":
     unittest.main()

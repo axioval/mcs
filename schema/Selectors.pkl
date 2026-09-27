@@ -23,7 +23,8 @@ class EntityTypeSelector extends Selector {
 ///
 /// - `equals` and `notEquals` compare with a value of the property's kind.
 /// - `lessThan`, `lessThanOrEquals`, `greaterThan`, and `greaterThanOrEquals`
-///   order integer, number, quantity, or string values.
+///   order integer, number, quantity, string, date, or dateTime values; dates
+///   and date-times order chronologically.
 /// - `matches` takes a `string` regular expression that must match the whole
 ///   value.
 /// - `like` takes a `string` wildcard pattern that must match the whole value:
@@ -42,6 +43,16 @@ typealias ComparisonOperator = "equals" | "notEquals" | "lessThan" | "lessThanOr
 ///
 /// A single value counts as a one-element list. `exists` takes no quantifier.
 typealias Quantifier = "any" | "all"
+
+/// How finely a property selector compares dates and date-times.
+///
+/// - `day` reads every date-time as the calendar day it states in its own
+///   offset, so a date-time then compares with a date, and two date-times
+///   compare by day.
+///
+/// Without a precision a date compares with a date, a date-time with a
+/// date-time as instants, and a date-time never with a date.
+typealias TemporalPrecision = "day"
 
 /// Select entities using a canonical property concept. `propertySet` is an
 /// optional exact container qualifier, never an ownership hierarchy.
@@ -66,6 +77,11 @@ class PropertySelector extends Selector {
   /// is then a value of the element kind (`string` or `reference`); rejected on
   /// `exists`. Normalized JSON omits it when unset.
   quantifier: Quantifier?
+  /// Compares a `date` or `dateTime` value at the given precision; rejected
+  /// with any other value and on `exists`. With `day`, a `date` property may
+  /// be compared with a `dateTime` value and the other way round. Normalized
+  /// JSON omits it when unset.
+  precision: TemporalPrecision?
 }
 
 /// Render a property selector without its default text-comparison flags so

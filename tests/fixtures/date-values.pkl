@@ -1,0 +1,74 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Selectors.pkl"
+import "../../schema/SelectorValues.pkl"
+import "../../schema/Values.pkl"
+
+package {
+  id = "axioval:example.date-values"
+  version = "0.1.0"
+  name { default = "Date values" }
+  description { default = "Date and date-time parameters, properties, and selectors." }
+}
+properties {
+  ["axioval:example.inspected-on"] {
+    id = "axioval:example.inspected-on"
+    name { default = "Inspected on" }
+    valueKind = "date"
+    externalNames {
+      new { typeSystem = "axioval:example.source"; name = "InspectedOn" }
+    }
+  }
+  ["axioval:example.installed-at"] {
+    id = "axioval:example.installed-at"
+    name { default = "Installed at" }
+    valueKind = "dateTime"
+    externalNames {
+      new { typeSystem = "axioval:example.source"; name = "InstalledAt" }
+    }
+  }
+}
+definitions {
+  ["axioval:example.dated"] {
+    id = "axioval:example.dated"
+    name { default = "Dated objects" }
+    capability = "axioval:example.dated"
+    parameters {
+      ["target_date"] {
+        id = "target_date"
+        name { default = "Target date" }
+        kind = "date"
+        defaultValue = new Values.DateValue { value = "2024-02-29" }
+      }
+      ["target_date_time"] {
+        id = "target_date_time"
+        name { default = "Target date-time" }
+        kind = "dateTime"
+        required = false
+        defaultValue = new Values.DateTimeValue { value = "2026-09-27T10:00:00.5+02:00" }
+      }
+      ["compared"] {
+        id = "compared"
+        name { default = "Compared objects" }
+        kind = "selector"
+        defaultValue = new SelectorValues.SelectorValue {
+          value = new Selectors.AllOfSelector {
+            operands {
+              new Selectors.PropertySelector {
+                property = "axioval:example.installed-at"
+                operator = "lessThan"
+                value = new Values.DateValue { value = "2026-09-27" }
+                precision = "day"
+              }
+              new Selectors.PropertySelector {
+                property = "axioval:example.inspected-on"
+                operator = "greaterThanOrEquals"
+                value = new Values.DateValue { value = "2000-01-01" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -163,6 +163,64 @@ Fähigkeit fest, nicht das Paket.
         }
         ```
 
+## Datums- und Zeitpunktwerte
+
+`date` und `dateTime` sind Wertarten von Parametern wie von
+Eigenschaftskonzepten. Ihre Literale sind Zeichenketten im erweiterten
+ISO-8601-Format, wie XML Schema `xs:date` und `xs:dateTime` schreibt, und der
+Binder lehnt jedes Literal ab, das die prüfende Engine ablehnen würde:
+
+- Ein `date` ist `YYYY-MM-DD`: ein tatsächlich existierender Tag des
+  proleptischen gregorianischen Kalenders in den Jahren `0000` bis `9999`.
+  `2024-02-29` ist daher gültig, `2026-02-29` nicht.
+- Ein `dateTime` ist `YYYY-MM-DDThh:mm:ss`, ein optionaler Bruchteil mit einer
+  bis neun Ziffern und ein verpflichtender UTC-Versatz, `Z` oder `±hh:mm` von
+  höchstens 14 Stunden. Die Uhrzeit reicht von `00:00:00` bis `23:59:59`:
+  `24:00:00` und Schaltsekunden werden abgelehnt, ebenso `-00:00`, das keinen
+  Versatz angibt. Ein Zeitpunkt ohne Versatz nennt eine Uhrzeit in einer
+  unbekannten Zeitzone und lässt sich nicht ordnen, er ist daher nicht
+  darstellbar.
+
+Nur ASCII-Ziffern zählen. Das Literal bleibt, wie es geschrieben ist; `Z` und
+`+00:00` sind beide zulässig.
+
+??? example "Datums- und Zeitpunktwerte anzeigen"
+    ```pkl
+    new Values.DateValue { value = "2026-09-27" }
+    new Values.DateTimeValue { value = "2026-09-27T10:00:00.5+02:00" }
+    ```
+
+Ein Datum wird mit einem Datum nach dem Tag verglichen, ein Zeitpunkt mit einem
+Zeitpunkt als Augenblick, unabhängig vom Versatz: `10:00:00+02:00` ist gleich
+`08:00:00Z`. Ein Zeitpunkt wird mit einem Datum nur bei der Genauigkeit `day`
+verglichen. Sie liest jeden Zeitpunkt als den Kalendertag, den er in seinem
+eigenen Versatz angibt, nicht als UTC-Tag: `2026-09-27T22:30:00-05:00` liegt am
+27.
+
+Ein Eigenschaftsselektor gibt sie als `precision = "day"` an. Das Feld ist
+optional, `day` ist sein einziger Wert, und es ist nur mit einem `date`- oder
+`dateTime`-Wert in `value` zulässig; normalisiertes JSON lässt es weg, wenn es
+nicht gesetzt ist. Mit ihm darf eine `date`-Eigenschaft mit einem
+`dateTime`-Wert verglichen werden und umgekehrt; ohne es muss der Wert von der
+Art der Eigenschaft sein.
+
+??? example "Selektor anzeigen, der eine Zeitpunkteigenschaft nach dem Tag vergleicht"
+    ```pkl
+    new Selectors.PropertySelector {
+      property = "axioval:example.installed-at"
+      operator = "lessThan"
+      value = new Values.DateValue { value = "2026-09-27" }
+      precision = "day"
+    }
+    ```
+
+Regeldefinitionen deklarieren die Datumsparameter der
+Eigenschaftsfähigkeiten (Eigenschaftsprädikat, Eigenschaftsvergleich und
+Eigenschaftswert) als Parameter der Art `date` oder `dateTime`, etwa `date`,
+`date_time`, `target_date` und `target_date_time`, und ihre `precision` als
+`string`-Parameter mit dem einzigen Wert `day`. Datumsspalten in
+`table`-Parametern werden nicht unterstützt.
+
 ## Selektoren
 
 Selektoren sind deklarativ und werden rekursiv validiert:
@@ -179,7 +237,7 @@ Ein Vergleichswert auf einem Eigenschaftsselektor muss zur katalogisierten `valu
 | Operator | Wert | Bedeutung |
 | --- | --- | --- |
 | `equals`, `notEquals` | Art der Eigenschaft | gleich oder ungleich |
-| `lessThan`, `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals` | `integer`, `number`, `quantity` oder `string` | geordneter Vergleich |
+| `lessThan`, `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals` | `integer`, `number`, `quantity`, `string`, `date` oder `dateTime` | geordneter Vergleich; Datums- und Zeitpunktwerte chronologisch |
 | `matches` | `string` | regulärer Ausdruck, der den ganzen Wert treffen muss |
 | `like` | `string` | Platzhaltermuster, das den ganzen Wert treffen muss: `*` beliebig viele Zeichen, `?` genau ein Zeichen, `\` maskiert das nächste Zeichen |
 | `contains` | `string` | der Wert enthält den Text als Teilzeichenkette |

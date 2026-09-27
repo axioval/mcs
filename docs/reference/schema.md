@@ -168,6 +168,59 @@ or every match) is the capability's contract, not the package's.
         }
         ```
 
+## Dates and date-times
+
+`date` and `dateTime` are value kinds of parameters and property concepts
+alike. Their literals are ISO 8601 extended strings, as XML Schema writes
+`xs:date` and `xs:dateTime`, and the binder refuses any literal the checking
+engine would refuse:
+
+- A `date` is `YYYY-MM-DD`: a real day of the proleptic Gregorian calendar in
+  the years `0000` to `9999`, so `2024-02-29` is valid and `2026-02-29` is not.
+- A `dateTime` is `YYYY-MM-DDThh:mm:ss`, an optional fraction of one to nine
+  digits, and a required UTC offset, `Z` or `±hh:mm` of at most 14 hours. The
+  time of day runs from `00:00:00` to `23:59:59`: `24:00:00` and leap seconds
+  are refused, and so is `-00:00`, which states no offset. A date-time without
+  an offset names a wall-clock time in an unknown zone and cannot be ordered, so
+  it is not representable.
+
+Only ASCII digits count. The literal is kept as written; `Z` and `+00:00` are
+both accepted.
+
+??? example "Show date and date-time values"
+    ```pkl
+    new Values.DateValue { value = "2026-09-27" }
+    new Values.DateTimeValue { value = "2026-09-27T10:00:00.5+02:00" }
+    ```
+
+A date compares with a date by day, and a date-time with a date-time as an
+instant, whatever the offsets: `10:00:00+02:00` equals `08:00:00Z`. A date-time
+compares with a date only at `day` precision, which reads every date-time as the
+calendar day it states in its own offset, not the UTC day:
+`2026-09-27T22:30:00-05:00` is on the 27th.
+
+A property selector states it as `precision = "day"`. The field is optional,
+`day` is its only value, and it is accepted only with a `date` or `dateTime`
+`value`; normalized JSON omits it when unset. With it, a `date` property may be
+compared with a `dateTime` value and the other way round; without it, the value
+must be of the property's kind.
+
+??? example "Show a selector comparing a date-time property by day"
+    ```pkl
+    new Selectors.PropertySelector {
+      property = "axioval:example.installed-at"
+      operator = "lessThan"
+      value = new Values.DateValue { value = "2026-09-27" }
+      precision = "day"
+    }
+    ```
+
+Rule definitions declare the date parameters of the property capabilities
+(property predicate, property comparison, and property value) as parameters of
+kind `date` or `dateTime`, such as `date`, `date_time`, `target_date`, and
+`target_date_time`, and their `precision` as a `string` parameter whose only
+value is `day`. Date columns in `table` parameters are not supported.
+
 ## Selectors
 
 Selectors are declarative and recursively validated:
@@ -186,7 +239,7 @@ operator requires one.
 | Operator | Value | Meaning |
 | --- | --- | --- |
 | `equals`, `notEquals` | the property's kind | equal or not equal |
-| `lessThan`, `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals` | `integer`, `number`, `quantity`, or `string` | ordered comparison |
+| `lessThan`, `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals` | `integer`, `number`, `quantity`, `string`, `date`, or `dateTime` | ordered comparison; dates and date-times chronologically |
 | `matches` | `string` | regular expression matching the whole value |
 | `like` | `string` | wildcard pattern matching the whole value: `*` any run of characters, `?` one character, `\` escapes the next character |
 | `contains` | `string` | the value contains the text as a substring |
