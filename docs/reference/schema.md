@@ -649,6 +649,59 @@ another's outcomes in a cycle.
     }
     ```
 
+## Derived classifications
+
+A ruleset may declare `classifications`, by ID: named classes it derives for
+every object from ordered rows, each a `selector` and the `class` name it
+assigns. Normalized JSON omits an empty map, so rulesets without
+classifications render unchanged.
+
+| `mode` | An object's class |
+| --- | --- |
+| `firstMatch` (default) | the class of the first matching row, once every row before it surely does not match: a string |
+| `allMatch` | every matching row's class, distinct, in row order, once every row is decided: a list of strings |
+
+Normalized JSON omits the default `firstMatch`. An object no row matches has no
+class, an exact absence. Every selector, property reference, and category level
+of the ruleset names a classification as the property `id` in the reserved set
+`axioval:classification`; that property binds to no concept, and a selector
+comparing an `allMatch` classification states a `quantifier`.
+
+The binder checks exact keys, that each map key equals its non-blank `id`, the
+`mode`, and that `rows` is non-empty and no `class` is blank. Row selectors
+bind against the concept catalogs like any other selector and never contain a
+`ruleOutcome` selector, since classes are derived before any rule runs;
+classifications may name one another, but never in a cycle. A property in
+`axioval:classification` must name a classification the ruleset declares.
+
+??? example "Show a classification and a selector naming it"
+    ```pkl
+    classifications {
+      ["space-use"] {
+        id = "space-use"
+        name { default = "Space use" }
+        rows {
+          new {
+            selector = new Selectors.PropertySelector {
+              property = "axioval:example.name"
+              operator = "like"
+              value = new Values.StringValue { value = "Office*" }
+            }
+            `class` = "office"
+          }
+        }
+      }
+    }
+
+    // Anywhere a selector goes:
+    new Selectors.PropertySelector {
+      propertySet = "axioval:classification"
+      property = "space-use"
+      operator = "equals"
+      value = new Values.StringValue { value = "office" }
+    }
+    ```
+
 ## Folders are cosmetic
 
 `RuleFolder` exists for presentation and organization. Its position does not

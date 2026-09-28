@@ -66,7 +66,9 @@ typealias TemporalPrecision = "day"
 class PropertySelector extends Selector {
   kind: "property" = "property"
   propertySet: Types.QualifiedIdentifier?
-  property: Types.QualifiedIdentifier
+  /// A property concept, or in the reserved set `axioval:classification` the
+  /// ID of a classification of the same ruleset.
+  property: String(Types.isPropertyName(propertySet, this))
   operator: ComparisonOperator
   value: Values.ParameterValue?
   /// `false` folds case for text comparisons: any operator comparing a

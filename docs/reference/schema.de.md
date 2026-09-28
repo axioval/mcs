@@ -677,6 +677,63 @@ lesen.
     }
     ```
 
+## Abgeleitete Klassifikationen
+
+Ein Regelsatz kann `classifications` nach ID deklarieren: benannte Klassen, die
+er für jedes Objekt aus geordneten Zeilen ableitet, jede ein `selector` und der
+Klassenname `class`, den sie vergibt. Normalisiertes JSON lässt eine leere Map
+weg, sodass Regelsätze ohne Klassifikationen unverändert gerendert werden.
+
+| `mode` | Klasse eines Objekts |
+| --- | --- |
+| `firstMatch` (Voreinstellung) | die Klasse der ersten passenden Zeile, sobald jede Zeile davor sicher nicht passt: ein String |
+| `allMatch` | die Klasse jeder passenden Zeile, ohne Wiederholung, in Zeilenreihenfolge, sobald jede Zeile entschieden ist: eine Liste von Strings |
+
+Normalisiertes JSON lässt die Voreinstellung `firstMatch` weg. Ein Objekt, auf
+das keine Zeile passt, hat keine Klasse, ein exaktes Fehlen. Jeder Selektor,
+jede Eigenschaftsreferenz und jede Kategorieebene des Regelsatzes nennt eine
+Klassifikation als Eigenschaft `id` in der reservierten Gruppe
+`axioval:classification`; diese Eigenschaft bindet an kein Konzept, und ein
+Selektor, der eine `allMatch`-Klassifikation vergleicht, gibt einen
+`quantifier` an.
+
+Der Binder prüft die exakten Schlüssel, dass jeder Map-Schlüssel seiner nicht
+leeren `id` gleicht, `mode` sowie, dass `rows` nicht leer und keine `class`
+leer ist. Zeilenselektoren werden wie jeder andere Selektor gegen die
+Konzeptkataloge gebunden und enthalten nie einen `ruleOutcome`-Selektor, da
+Klassen abgeleitet werden, bevor eine Regel läuft; Klassifikationen dürfen
+einander nennen, aber nie in einem Zyklus. Eine Eigenschaft in
+`axioval:classification` muss eine Klassifikation nennen, die der Regelsatz
+deklariert.
+
+??? example "Klassifikation und einen Selektor darauf anzeigen"
+    ```pkl
+    classifications {
+      ["space-use"] {
+        id = "space-use"
+        name { default = "Space use" }
+        rows {
+          new {
+            selector = new Selectors.PropertySelector {
+              property = "axioval:example.name"
+              operator = "like"
+              value = new Values.StringValue { value = "Office*" }
+            }
+            `class` = "office"
+          }
+        }
+      }
+    }
+
+    // Überall, wo ein Selektor steht:
+    new Selectors.PropertySelector {
+      propertySet = "axioval:classification"
+      property = "space-use"
+      operator = "equals"
+      value = new Values.StringValue { value = "office" }
+    }
+    ```
+
 ## Ordner sind kosmetisch
 
 `RuleFolder` dient Darstellung und Organisation. Seine Position ändert weder Selektorumfang, Regelidentität, Ausführungssemantik noch Vertrauen. Verbraucher können alternative Ansichten darstellen, ohne die Regeln umzuschreiben. Das [Gate](#regel-gates) eines Ordners ist die einzige Ausnahme: Es steht am Ordner, gilt aber für jede Regel darin, als hätte jede Regel es ebenfalls deklariert.

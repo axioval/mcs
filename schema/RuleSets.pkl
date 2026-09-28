@@ -81,8 +81,9 @@ class CategoryLevel {
   /// A property-set concept, or a reserved set such as `axioval:attributes`.
   /// Normalized JSON omits it when unset.
   propertySet: Types.QualifiedIdentifier?
-  /// A property concept.
-  property: Types.QualifiedIdentifier
+  /// A property concept, or in the reserved set `axioval:classification` the
+  /// ID of a classification of the same ruleset.
+  property: String(Types.isPropertyName(propertySet, this))
   /// Steps as a related selector's `path`, in which derived relationships
   /// (`axioval:derived.…`) are also allowed; empty reads the subject itself.
   /// Normalized JSON omits it when empty.
@@ -165,6 +166,45 @@ class RuleFolder {
   gate: RuleGate?
 }
 
+/// How a classification's rows assign classes.
+///
+/// - `firstMatch` assigns the class of the first matching row, once every row
+///   before it surely does not match: a string.
+/// - `allMatch` assigns every matching row's class, distinct, in row order,
+///   once every row is decided: a list of strings.
+typealias ClassificationMode = "firstMatch" | "allMatch"
+
+/// One row of a classification: objects `selector` selects take `class`.
+class ClassificationRow {
+  /// Names concepts like any other selector, and never a rule's outcome:
+  /// classes are derived before any rule runs.
+  selector: Selectors.Selector
+  `class`: String(!isBlank)
+}
+
+/// A named classification of objects the ruleset derives from ordered rows.
+///
+/// Every selector, property reference, and category level of the ruleset
+/// names it as the property `id` in the reserved set `axioval:classification`.
+/// An object no row matches has no value, an exact absence. Classifications
+/// may name one another, never in a cycle.
+class ClassificationDefinition {
+  id: String(!isBlank)
+  name: Types.LocalizedText
+  description: Types.LocalizedText?
+  /// Normalized JSON omits the default `firstMatch`.
+  mode: ClassificationMode = "firstMatch"
+  rows: Listing<ClassificationRow>(!isEmpty)
+}
+
+/// Render a classification without an unset description or the default mode.
+const function normalizedClassification(
+  classification: ClassificationDefinition
+): Map<String, Any> =
+  classification.toMap().filter((key, value) ->
+    value != null && !(key == "mode" && value == "firstMatch")
+  )
+
 /// Concrete ruleset package (ABox-like): instances reference definitions by
 /// stable ID. Definition and capability resolution happens in the consuming
 /// application and must fail closed when unavailable.
@@ -175,8 +215,19 @@ sources: Mapping<String, Citations.Source>(
 ) = new {}
 definitionPackages: Listing<Types.QualifiedIdentifier>(length > 0)
 root: RuleFolder
+/// Classifications the ruleset derives, by ID. Normalized JSON omits it when
+/// empty.
+classifications: Mapping<String, ClassificationDefinition>(
+  toMap().every((key, value) -> key == value.id)
+) = new {}
 
 output {
+  // Omit an empty `classifications`, so packages that declare none keep
+  // byte-identical normalized JSON.
+  value =
+    let (properties = module.toMap())
+      if (properties["classifications"].isEmpty) properties.remove("classifications")
+      else properties
   renderer {
     // Omit defaulted property-, property-pattern-, and source-selector flags,
     // related-selector quantifiers, unset classification codes, and empty rule
@@ -184,6 +235,7 @@ output {
     converters {
       [RuleInstance] = (it) -> normalizedRuleInstance(it)
       [CategoryLevel] = (it) -> normalizedCategoryLevel(it)
+      [ClassificationDefinition] = (it) -> normalizedClassification(it)
       [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
       [Selectors.PropertyPatternSelector] = (it) ->
         Selectors.normalizedPropertyPatternSelector(it)

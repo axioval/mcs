@@ -112,7 +112,15 @@ RESERVED_PROPERTY_SETS = {
     "axioval:presentation",
     "axioval:material",
     "axioval:body",
+    "axioval:classification",
 }
+# The reserved set naming the classes a ruleset's classifications derive: its
+# property names are classification IDs of the same ruleset.
+CLASSIFICATION_SET = "axioval:classification"
+# Reserved sets the engine derives rather than a source states: their property
+# names are engine or ruleset vocabulary and bind to no concept.
+DERIVED_PROPERTY_SETS = {CLASSIFICATION_SET}
+CLASSIFICATION_MODES = {"firstMatch", "allMatch"}
 SEVERITIES = {"info", "warning", "error"}
 # How another rule judged an object, as a rule-outcome selector selects it.
 RULE_OUTCOMES = {"passed", "failed"}
@@ -589,12 +597,14 @@ def parameter_value(
             fail(context, "invalid object-type reference")
         return value
     if kind == "propertyReference":
-        for field in ("property", "propertySet"):
-            if field in value and (
-                type(value[field]) is not str
-                or not QUALIFIED_ID.fullmatch(value[field])
-            ):
-                fail(context, f"{field} must be a qualified identifier")
+        if "propertySet" in value and (
+            type(value["propertySet"]) is not str
+            or not QUALIFIED_ID.fullmatch(value["propertySet"])
+        ):
+            fail(context, "propertySet must be a qualified identifier")
+        reason = property_name_error(value.get("propertySet"), value["property"])
+        if reason is not None:
+            fail(context, reason)
         return value
     item = value["value"]
     if kind == "selector":
@@ -658,8 +668,22 @@ def resolve_property_reference(
     property_sets: dict[str, dict[str, Any]],
     context: str,
     expected_value_kind: str | None = None,
+    classifications: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     if value["type"] != "propertyReference":
+        return
+    property_set = value.get("propertySet")
+    if property_set in DERIVED_PROPERTY_SETS:
+        # Derived sets name engine or ruleset vocabulary, never a concept.
+        kind = derived_property_kind(
+            property_set, value["property"], classifications or {}, context
+        )
+        if expected_value_kind is not None and kind != expected_value_kind:
+            fail(
+                context,
+                f"derived property has value kind {kind!r}, expected "
+                f"{expected_value_kind!r}",
+            )
         return
     if value["property"] not in properties:
         fail(context, f"unknown property concept {value['property']!r}")
@@ -681,10 +705,16 @@ def resolve_selector_value(
     properties: dict[str, dict[str, Any]],
     property_sets: dict[str, dict[str, Any]],
     context: str,
+    classifications: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     if value["type"] == "selector":
         validate_selector(
-            value["value"], context, object_types, properties, property_sets
+            value["value"],
+            context,
+            object_types,
+            properties,
+            property_sets,
+            classifications=classifications,
         )
     elif value["type"] == "table":
         # Selector cells name concepts like any selector parameter.
@@ -696,6 +726,7 @@ def resolve_selector_value(
                     properties,
                     property_sets,
                     f"{context}.value[{index}][{column_id!r}]",
+                    classifications,
                 )
 
 
@@ -1062,13 +1093,59 @@ def validate_property_comparison(
         fail(context, "precision applies only to a date or dateTime value")
 
 
+def property_name_error(property_set: Any, name: Any) -> str | None:
+    """Why `name` cannot name a property in `property_set`, if it cannot.
+
+    A property in a derived set is engine or ruleset vocabulary; any other
+    property is a qualified concept ID.
+    """
+    if type(name) is not str:
+        return "property must be a string"
+    if property_set == CLASSIFICATION_SET:
+        return None if name.strip() else "a classification id must not be blank"
+    if not QUALIFIED_ID.fullmatch(name):
+        return "property must be a qualified identifier"
+    return None
+
+
+def derived_property_kind(
+    property_set: str,
+    name: str,
+    classifications: dict[str, dict[str, Any]],
+    context: str,
+) -> str | None:
+    """Bind a property of a derived set and return its value kind, if known.
+
+    A classification is read by its ID: a string for a first-match
+    classification, a list of strings for an all-match one.
+    """
+    if property_set == CLASSIFICATION_SET:
+        classification = classifications.get(name)
+        if classification is None:
+            fail(context, f"unknown classification {name!r}")
+        return (
+            "stringList"
+            if classification.get("mode", "firstMatch") == "allMatch"
+            else "string"
+        )
+    return None
+
+
 def validate_selector(
     value: Any,
     context: str,
     object_types: dict[str, dict[str, Any]] | None = None,
     properties: dict[str, dict[str, Any]] | None = None,
     property_sets: dict[str, dict[str, Any]] | None = None,
+    *,
+    classifications: dict[str, dict[str, Any]] | None = None,
 ) -> None:
+    """Check a selector, and bind its concepts when the catalogs are given.
+
+    `classifications` are the ruleset's classifications by ID, which the
+    reserved set `axioval:classification` names; with the catalogs given and
+    no classifications, none is declared.
+    """
     value = object_value(value, context)
     kind = value.get("kind")
     if type(kind) is not str:
@@ -1099,28 +1176,33 @@ def validate_selector(
             },
             context,
         )
-        if type(value["property"]) is not str or not QUALIFIED_ID.fullmatch(
-            value["property"]
-        ):
-            fail(context, "invalid property selector")
-        if properties is not None and value["property"] not in properties:
-            fail(context, "unknown property concept")
         if "propertySet" in value and (
             type(value["propertySet"]) is not str
             or not QUALIFIED_ID.fullmatch(value["propertySet"])
         ):
             fail(context, "propertySet must be a qualified identifier")
-        if (
-            property_sets is not None
-            and "propertySet" in value
-            and value["propertySet"] not in property_sets
-        ):
-            fail(context, "unknown property-set concept")
-        property_kind = (
-            properties[value["property"]]["valueKind"]
-            if properties is not None and value["property"] in properties
-            else None
-        )
+        property_set = value.get("propertySet")
+        reason = property_name_error(property_set, value["property"])
+        if reason is not None:
+            fail(context, f"invalid property selector: {reason}")
+        property_kind = None
+        if property_set in DERIVED_PROPERTY_SETS:
+            # Derived sets name engine or ruleset vocabulary, never a concept.
+            if properties is not None:
+                property_kind = derived_property_kind(
+                    property_set, value["property"], classifications or {}, context
+                )
+        else:
+            if properties is not None and value["property"] not in properties:
+                fail(context, "unknown property concept")
+            if (
+                property_sets is not None
+                and property_set is not None
+                and property_set not in property_sets
+            ):
+                fail(context, "unknown property-set concept")
+            if properties is not None:
+                property_kind = properties[value["property"]]["valueKind"]
         validate_property_comparison(value, context, property_kind)
     elif kind == "propertyPattern":
         exact_keys(
@@ -1216,6 +1298,7 @@ def validate_selector(
                 object_types,
                 properties,
                 property_sets,
+                classifications=classifications,
             )
     elif kind == "not":
         exact_keys(value, {"kind", "operand"}, set(), context)
@@ -1225,6 +1308,7 @@ def validate_selector(
             object_types,
             properties,
             property_sets,
+            classifications=classifications,
         )
     elif kind == "related":
         exact_keys(value, {"kind", "path", "selector"}, {"quantifier"}, context)
@@ -1249,6 +1333,7 @@ def validate_selector(
             object_types,
             properties,
             property_sets,
+            classifications=classifications,
         )
     elif kind == "ruleOutcome":
         exact_keys(value, {"kind", "rule", "outcome"}, set(), context)
@@ -1373,6 +1458,7 @@ def validate_severity_overrides(
     object_types: dict[str, dict[str, Any]],
     properties: dict[str, dict[str, Any]],
     property_sets: dict[str, dict[str, Any]],
+    classifications: dict[str, dict[str, Any]],
 ) -> None:
     """Check a rule's `severityOverrides`, binding each selector's concepts."""
     overrides = list_value(value, context)
@@ -1388,6 +1474,7 @@ def validate_severity_overrides(
             object_types,
             properties,
             property_sets,
+            classifications=classifications,
         )
         if type(entry["severity"]) is not str or entry["severity"] not in SEVERITIES:
             fail(entry_context, "severity must be 'info', 'warning', or 'error'")
@@ -1398,6 +1485,7 @@ def validate_categories(
     context: str,
     properties: dict[str, dict[str, Any]],
     property_sets: dict[str, dict[str, Any]],
+    classifications: dict[str, dict[str, Any]],
 ) -> None:
     """Check a rule's `categories`: bound properties, sets, and paths."""
     levels = list_value(value, context)
@@ -1408,9 +1496,15 @@ def validate_categories(
         level = object_value(level, level_context)
         exact_keys(level, {"property"}, {"propertySet", "path"}, level_context)
         property_id = level["property"]
-        if type(property_id) is not str or not QUALIFIED_ID.fullmatch(property_id):
-            fail(level_context, "property must be a qualified identifier")
-        if property_id not in properties:
+        reason = property_name_error(level.get("propertySet"), property_id)
+        if reason is not None:
+            fail(level_context, reason)
+        if level.get("propertySet") in DERIVED_PROPERTY_SETS:
+            # Derived sets name engine or ruleset vocabulary, never a concept.
+            derived_property_kind(
+                level["propertySet"], property_id, classifications, level_context
+            )
+        elif property_id not in properties:
             fail(level_context, f"unknown property concept {property_id!r}")
         if "propertySet" in level:
             property_set = level["propertySet"]
@@ -1447,10 +1541,18 @@ def validate_applicability(
     object_types: dict[str, dict[str, Any]],
     properties: dict[str, dict[str, Any]],
     property_sets: dict[str, dict[str, Any]],
+    classifications: dict[str, dict[str, Any]],
 ) -> set[str]:
     value = object_value(value, context)
     if "kind" in value:
-        validate_selector(value, context, object_types, properties, property_sets)
+        validate_selector(
+            value,
+            context,
+            object_types,
+            properties,
+            property_sets,
+            classifications=classifications,
+        )
         return set()
     exact_keys(value, {"groups"}, set(), context)
     groups = object_value(value["groups"], f"{context}.groups")
@@ -1480,9 +1582,109 @@ def validate_applicability(
             object_types,
             properties,
             property_sets,
+            classifications=classifications,
         )
         group_ids.add(group_id)
     return group_ids
+
+
+def selector_classification_reads(value: dict[str, Any], out: set[str]) -> None:
+    """Collect the classifications the property selectors in a checked selector read."""
+    kind = value["kind"]
+    if kind == "property" and value.get("propertySet") == CLASSIFICATION_SET:
+        out.add(value["property"])
+    elif kind in {"allOf", "anyOf"}:
+        for operand in value["operands"]:
+            selector_classification_reads(operand, out)
+    elif kind == "not":
+        selector_classification_reads(value["operand"], out)
+    elif kind == "related":
+        selector_classification_reads(value["selector"], out)
+
+
+def validate_classifications(
+    value: Any,
+    context: str,
+    object_types: dict[str, dict[str, Any]],
+    properties: dict[str, dict[str, Any]],
+    property_sets: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Check a ruleset's `classifications` and return them by ID.
+
+    Each is keyed by its non-blank ID and has rows of a selector bound
+    against the concept catalogs and a non-blank class. Rows never read a
+    rule's outcome, since classes are derived before any rule runs, and
+    classifications never read one another in a cycle.
+    """
+    classifications = object_value(value, context)
+    if not classifications:
+        fail(context, "classifications is omitted when empty")
+    for key, classification in classifications.items():
+        entry_context = f"{context}[{key!r}]"
+        classification = object_value(classification, entry_context)
+        exact_keys(
+            classification,
+            {"id", "name", "rows"},
+            {"description", "mode"},
+            entry_context,
+        )
+        if type(classification["id"]) is not str or key != classification["id"]:
+            fail(entry_context, "classification map key and id must match")
+        if not key.strip():
+            fail(entry_context, "classification id must not be blank")
+        localized_text(classification["name"], f"{entry_context}.name")
+        if "description" in classification:
+            localized_text(
+                classification["description"], f"{entry_context}.description"
+            )
+        if "mode" in classification and (
+            type(classification["mode"]) is not str
+            or classification["mode"] not in CLASSIFICATION_MODES
+        ):
+            fail(entry_context, "mode must be 'firstMatch' or 'allMatch'")
+        if not list_value(classification["rows"], f"{entry_context}.rows"):
+            fail(entry_context, "a classification has at least one row")
+    reads: dict[str, set[str]] = {}
+    for key, classification in classifications.items():
+        read: set[str] = set()
+        for index, row in enumerate(classification["rows"]):
+            row_context = f"{context}[{key!r}].rows[{index}]"
+            row = object_value(row, row_context)
+            exact_keys(row, {"selector", "class"}, set(), row_context)
+            if type(row["class"]) is not str or not row["class"].strip():
+                fail(row_context, "class must be a non-blank string")
+            validate_selector(
+                row["selector"],
+                f"{row_context}.selector",
+                object_types,
+                properties,
+                property_sets,
+                classifications=classifications,
+            )
+            rules: set[str] = set()
+            selector_rule_references(row["selector"], rules)
+            if rules:
+                fail(
+                    row_context,
+                    "a row must not read a rule's outcome; classes are derived "
+                    "before any rule runs",
+                )
+            selector_classification_reads(row["selector"], read)
+        reads[key] = read
+    pending = set(reads)
+    while pending:
+        ready = sorted(
+            key for key in pending if not any(needed in pending for needed in reads[key])
+        )
+        if not ready:
+            fail(
+                context,
+                "the classifications "
+                + ", ".join(repr(key) for key in sorted(pending))
+                + " read one another in a cycle",
+            )
+        pending -= set(ready)
+    return classifications
 
 
 def validate_parameter_citations(
@@ -1716,7 +1918,7 @@ def bind_ruleset(
     exact_keys(
         value,
         {"schemaVersion", "package", "sources", "definitionPackages", "root"},
-        set(),
+        {"classifications"},
         context,
     )
     package_metadata(value["package"], f"{context}.package")
@@ -1782,6 +1984,15 @@ def bind_ruleset(
                     f"component id {component_id!r} is both {component_kinds[component_id]} and {kind}",
                 )
             component_kinds[component_id] = kind
+    classifications: dict[str, dict[str, Any]] = {}
+    if "classifications" in value:
+        classifications = validate_classifications(
+            value["classifications"],
+            f"{context}.classifications",
+            object_types,
+            properties,
+            property_sets,
+        )
     for definition_id, definition in definitions.items():
         for parameter_id, parameter in definition["parameters"].items():
             for field in ("defaultValue",):
@@ -1794,6 +2005,7 @@ def bind_ruleset(
                         properties,
                         property_sets,
                         value_context,
+                        classifications,
                     )
                     resolve_object_type_reference(
                         candidate, object_types, value_context
@@ -1804,6 +2016,7 @@ def bind_ruleset(
                         property_sets,
                         value_context,
                         parameter.get("referencedValueKind"),
+                        classifications,
                     )
             for index, allowed in enumerate(parameter["allowedValues"]):
                 allowed_context = f"{context}.definitions[{definition_id!r}].parameters[{parameter_id!r}].allowedValues[{index}]"
@@ -1813,6 +2026,7 @@ def bind_ruleset(
                     properties,
                     property_sets,
                     allowed_context,
+                    classifications,
                 )
                 resolve_object_type_reference(allowed, object_types, allowed_context)
                 resolve_property_reference(
@@ -1821,6 +2035,7 @@ def bind_ruleset(
                     property_sets,
                     allowed_context,
                     parameter.get("referencedValueKind"),
+                    classifications,
                 )
     if set(declared_list) != loaded_packages:
         fail(
@@ -1937,6 +2152,7 @@ def bind_ruleset(
                     properties,
                     property_sets,
                     f"{rule_context}.parameters[{parameter_id!r}].value",
+                    classifications,
                 )
                 resolve_object_type_reference(
                     checked,
@@ -1949,6 +2165,7 @@ def bind_ruleset(
                     property_sets,
                     f"{rule_context}.parameters[{parameter_id!r}]",
                     parameter.get("referencedValueKind"),
+                    classifications,
                 )
                 if (
                     parameter["allowedValues"]
@@ -1978,6 +2195,7 @@ def bind_ruleset(
                 object_types,
                 properties,
                 property_sets,
+                classifications,
             )
             validate_requirements(
                 rule.get("requirements", []),
@@ -2002,6 +2220,7 @@ def bind_ruleset(
                     object_types,
                     properties,
                     property_sets,
+                    classifications,
                 )
             if "categories" in rule:
                 validate_categories(
@@ -2009,6 +2228,7 @@ def bind_ruleset(
                     f"{rule_context}.categories",
                     properties,
                     property_sets,
+                    classifications,
                 )
             # Every rule this one reads: its folders' gates and its own, and
             # the rule-outcome selectors of its applicability, parameters

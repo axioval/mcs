@@ -53,7 +53,9 @@ class ObjectTypeReferenceValue extends ParameterValue {
 /// when membership in that exact property set is part of the requirement.
 class PropertyReferenceValue extends ParameterValue {
   type: "propertyReference" = "propertyReference"
-  property: Types.QualifiedIdentifier
+  /// A property concept, or in the reserved set `axioval:classification` the
+  /// ID of a classification of the same ruleset.
+  property: String(Types.isPropertyName(propertySet, this))
   propertySet: Types.QualifiedIdentifier?
 }
 

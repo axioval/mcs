@@ -10,6 +10,17 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Classifications a ruleset derives, mirroring the engine: `classifications`
+  (`RuleSets.ClassificationDefinition`, by ID) with a `name`, an optional
+  `description`, a `mode` `firstMatch` (default, omitted from normalized JSON)
+  or `allMatch`, and ordered `rows` (`RuleSets.ClassificationRow`) of a
+  `selector` and a `class`; normalized JSON omits an empty map. Selectors,
+  property references, and category levels name a classification as a
+  property in the reserved set `axioval:classification`, which binds to no
+  concept. The binder checks exact keys, non-blank IDs equal to their keys,
+  non-empty rows with non-blank classes, row selectors bound against the
+  concepts and free of `ruleOutcome` selectors, no cycle among
+  classifications, and that every reference names a declared classification.
 - Rule gates and rule-outcome selectors, mirroring the engine: a rule instance
   or rule folder may declare a `gate` (`RuleSets.RuleGate`) on another rule of
   the same ruleset, a `rule` ID and a `condition` `allIfPassed`, `allIfFailed`,

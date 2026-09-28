@@ -2968,5 +2968,287 @@ class RuleGateTests(unittest.TestCase):
                     validate.evaluate(path)
 
 
+
+CLASSIFICATION_SET = "axioval:classification"
+
+
+def classification_row(class_name: str, selector: dict | None = None) -> dict:
+    return {
+        "selector": selector or property_selector(REFERENCE, "like", text("W*")),
+        "class": class_name,
+    }
+
+
+def classification(class_id: str, *rows: dict, **fields) -> dict:
+    definition = {
+        "id": class_id,
+        "name": {"default": class_id, "translations": {}},
+        "rows": list(rows) or [classification_row("wall")],
+    }
+    definition.update(fields)
+    return definition
+
+
+def reads_class(class_id: str, operator: str = "exists", value=None, **fields) -> dict:
+    return property_selector(
+        class_id, operator, value, propertySet=CLASSIFICATION_SET, **fields
+    )
+
+
+class ClassificationTests(unittest.TestCase):
+    """A ruleset derives classes by ordered rows and reads them as properties."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def bind(self, classifications=None, **rule_fields) -> None:
+        ruleset = copy.deepcopy(self.ruleset)
+        rule = ruleset["root"]["rules"][0]
+        rule.pop("explanatoryImages", None)
+        rule.pop("requirements", None)
+        rule.update(copy.deepcopy(rule_fields))
+        if classifications is not None:
+            ruleset["classifications"] = copy.deepcopy(classifications)
+        validate.bind_ruleset(ruleset, [copy.deepcopy(self.definitions)], "test")
+
+    def assert_rejected(self, classifications=None, **rule_fields) -> None:
+        with (
+            self.subTest(classifications=classifications, rule=rule_fields),
+            self.assertRaises(SystemExit),
+        ):
+            self.bind(classifications, **rule_fields)
+
+    def test_accepts_classifications_and_their_absence(self) -> None:
+        self.bind()
+        self.bind(
+            {
+                "use": classification(
+                    "use",
+                    classification_row("office"),
+                    classification_row("other", {"kind": "all"}),
+                    description={"default": "Use", "translations": {}},
+                ),
+                "zone": classification(
+                    "zone",
+                    classification_row("dry", reads_class("use", "equals", text("office"))),
+                    classification_row(
+                        "wet",
+                        {
+                            "kind": "related",
+                            "path": ["IfcRelAggregates:backward"],
+                            "selector": {"kind": "not", "operand": reads_class("use")},
+                        },
+                    ),
+                    mode="allMatch",
+                ),
+                "any name at all": classification("any name at all", mode="firstMatch"),
+            }
+        )
+
+    def test_rejects_malformed_classifications(self) -> None:
+        for classifications in (
+            {},
+            [classification("use")],
+            {"use": classification("zone")},
+            {" ": classification(" ")},
+            {"": classification("")},
+            {"use": classification("use", mode="lastMatch")},
+            {"use": {**classification("use"), "rows": []}},
+            {"use": classification("use", classification_row(" "))},
+            {"use": classification("use", classification_row(""))},
+            {"use": classification("use", {"selector": {"kind": "all"}})},
+            {"use": classification("use", {**classification_row("a"), "weight": 1})},
+            {"use": {**classification("use"), "priority": 1}},
+            {"use": {k: v for k, v in classification("use").items() if k != "name"}},
+        ):
+            self.assert_rejected(classifications)
+
+    def test_rows_bind_against_the_concepts_and_read_no_rule(self) -> None:
+        for selector in (
+            property_selector("axioval:example.unknown", "exists"),
+            property_selector(REFERENCE, "exists", propertySet="axioval:example.unknown"),
+            property_selector(REFERENCE, "equals", {"type": "integer", "value": 1}),
+            {"kind": "entityType", "objectType": "axioval:example.unknown",
+             "includeSubtypes": True},
+            {"kind": "ruleOutcome", "rule": "wall-reference-required",
+             "outcome": "failed"},
+            {"kind": "not", "operand": {"kind": "ruleOutcome",
+             "rule": "wall-reference-required", "outcome": "passed"}},
+            reads_class("undeclared"),
+        ):
+            self.assert_rejected({"use": classification("use", classification_row("a", selector))})
+
+    def test_rejects_classifications_reading_one_another_in_a_cycle(self) -> None:
+        for classifications in (
+            {"use": classification("use", classification_row("a", reads_class("use")))},
+            {
+                "use": classification("use", classification_row("a", reads_class("zone"))),
+                "zone": classification(
+                    "zone",
+                    classification_row(
+                        "b", {"kind": "anyOf", "operands": [reads_class("use")]}
+                    ),
+                ),
+            },
+        ):
+            self.assert_rejected(classifications)
+
+    def test_references_name_declared_classifications(self) -> None:
+        declared = {
+            "use": classification("use"),
+            "zones": classification("zones", mode="allMatch"),
+        }
+        override = {"selector": reads_class("use", "equals", text("office")),
+                    "severity": "info"}
+        self.bind(
+            declared,
+            applicability={"kind": "not", "operand": reads_class("use", "isEmpty")},
+            severityOverrides=[
+                override,
+                {"selector": reads_class("zones", "equals", text("wet"),
+                                         quantifier="any"), "severity": "warning"},
+            ],
+            categories=[{"propertySet": CLASSIFICATION_SET, "property": "use"}],
+            parameters={
+                "property": {
+                    "type": "propertyReference",
+                    "propertySet": CLASSIFICATION_SET,
+                    "property": "use",
+                }
+            },
+        )
+        for fields in (
+            {"applicability": reads_class("undeclared")},
+            {"severityOverrides": [{**override, "selector": reads_class("undeclared")}]},
+            {"categories": [{"propertySet": CLASSIFICATION_SET, "property": "undeclared"}]},
+            {"categories": [{"propertySet": CLASSIFICATION_SET, "property": " "}]},
+            {"parameters": {"property": {"type": "propertyReference",
+                                         "propertySet": CLASSIFICATION_SET,
+                                         "property": "undeclared"}}},
+            # An all-match classification is a list, compared with a quantifier.
+            {"applicability": reads_class("zones", "equals", text("wet"))},
+            {"applicability": reads_class("use", "equals", {"type": "integer", "value": 1})},
+        ):
+            self.assert_rejected(declared, **fields)
+        # Without classifications, the reserved set names nothing.
+        self.assert_rejected(applicability=reads_class("use"))
+
+    def test_the_reserved_set_needs_no_concept_but_a_non_blank_name(self) -> None:
+        from scripts.contracts import parameter_value, validate_selector
+
+        validate_selector(reads_class("any name"), "test")
+        parameter_value(
+            {"type": "propertyReference", "propertySet": CLASSIFICATION_SET,
+             "property": "any name"},
+            "propertyReference",
+            "test",
+        )
+        for selector in (reads_class(" "), reads_class(""), property_selector("use", "exists")):
+            with self.subTest(selector=selector), self.assertRaises(SystemExit):
+                validate_selector(selector, "test")
+        with self.assertRaises(SystemExit):
+            parameter_value(
+                {"type": "propertyReference", "property": "use"},
+                "propertyReference",
+                "test",
+            )
+
+    def test_pkl_renders_classifications_and_omits_them_when_empty(self) -> None:
+        rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+        values = (validate.ROOT / "schema/Values.pkl").as_uri()
+
+        def module(body: str) -> str:
+            return (
+                f'amends "{rules}"\n\n'
+                f'import "{selectors}"\n'
+                f'import "{values}"\n\n'
+                'package { id = "axioval:example.classes"; version = "0.1.0"; '
+                'name { default = "Classes" } }\n'
+                'definitionPackages { "axioval:example.definitions" }\n'
+                'root { id = "root"; name { default = "Root" } }\n'
+                f"{body}\n"
+            )
+
+        body = f"""classifications {{
+  ["use"] {{
+    id = "use"
+    name {{ default = "Use" }}
+    rows {{
+      new {{
+        selector = new Selectors.PropertySelector {{
+          property = "{REFERENCE}"
+          operator = "like"
+          value = new Values.StringValue {{ value = "W*" }}
+        }}
+        `class` = "wall"
+      }}
+    }}
+  }}
+  ["zones"] {{
+    id = "zones"
+    name {{ default = "Zones" }}
+    mode = "allMatch"
+    rows {{
+      new {{
+        selector = new Selectors.PropertySelector {{
+          propertySet = "{CLASSIFICATION_SET}"
+          property = "use"
+          operator = "equals"
+          value = new Values.StringValue {{ value = "wall" }}
+        }}
+        `class` = "dry"
+      }}
+    }}
+  }}
+}}"""
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "classes.pkl"
+            path.write_text(module(body), encoding="utf-8")
+            evaluated = validate.evaluate(path)
+            self.assertEqual(
+                evaluated["classifications"],
+                {
+                    "use": classification(
+                        "use",
+                        classification_row("wall"),
+                        name={"default": "Use", "translations": {}},
+                    ),
+                    "zones": classification(
+                        "zones",
+                        classification_row(
+                            "dry", reads_class("use", "equals", text("wall"))
+                        ),
+                        name={"default": "Zones", "translations": {}},
+                        mode="allMatch",
+                    ),
+                },
+            )
+            path.write_text(module(""), encoding="utf-8")
+            self.assertNotIn("classifications", validate.evaluate(path))
+            path.write_text(module("classifications {}"), encoding="utf-8")
+            self.assertNotIn("classifications", validate.evaluate(path))
+            for broken in (
+                body.replace('["use"] {\n    id = "use"', '["use"] {\n    id = "other"'),
+                body.replace('`class` = "wall"', '`class` = " "'),
+                body.replace('mode = "allMatch"', 'mode = "lastMatch"'),
+                body.replace('property = "use"', 'property = " "'),
+                body.replace(f'propertySet = "{CLASSIFICATION_SET}"\n', ""),
+            ):
+                self.assertNotEqual(broken, body)
+                path.write_text(module(broken), encoding="utf-8")
+                with self.subTest(broken=broken), self.assertRaises(SystemExit):
+                    validate.evaluate(path)
+            path.write_text(
+                module('classifications { ["use"] { id = "use"; name { default = "Use" } } }'),
+                encoding="utf-8",
+            )
+            with self.assertRaises(SystemExit):
+                validate.evaluate(path)
+
+
 if __name__ == "__main__":
     unittest.main()

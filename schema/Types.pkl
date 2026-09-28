@@ -14,6 +14,17 @@ typealias SemanticVersion = String(matches(Regex(#"^(0|[1-9][0-9]*)\.(0|[1-9][0-
 
 typealias Severity = "info" | "warning" | "error"
 
+/// The reserved property set naming the classes a ruleset's classifications
+/// derive: its property names are classification IDs of the same ruleset.
+const classificationSet = "axioval:classification"
+
+/// Whether `name` can name a property in `propertySet`: a property in a
+/// derived set is engine or ruleset vocabulary, any other a qualified concept
+/// ID. The binder checks that the name is declared.
+const function isPropertyName(propertySet: String?, name: String): Boolean =
+  if (propertySet == classificationSet) !name.isBlank
+  else name.matches(Regex(#"^[a-z][a-z0-9+.-]*:.+$"#))
+
 class LocalizedText {
   /// Fallback text used when no requested translation exists.
   default: String
