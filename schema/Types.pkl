@@ -18,11 +18,34 @@ typealias Severity = "info" | "warning" | "error"
 /// derive: its property names are classification IDs of the same ruleset.
 const classificationSet = "axioval:classification"
 
+/// The reserved property set naming values the checking application measures
+/// from geometry, by the names in `measuredNames`.
+const measuredSet = "axioval:measured"
+
+/// The names in `measuredSet`, matched ignoring ASCII case: the body's extent
+/// along the world axes (`extent_x`, `extent_y`, `extent_z`), the elevation of
+/// its lowest and highest point (`bottom`, `top`), its footprint area (`area`),
+/// its enclosed volume (`volume`), the world coordinates of its placement
+/// origin (`x`, `y`, `z`), and a storey's height to the next storey
+/// (`level_height`). Two names take `;key=value` parameters after the name:
+/// `bottom_above_level;path=<steps>`, the bottom above the one level the
+/// `,`-separated related-selector steps reach, and
+/// `boundary_area;kind=<kind>[;plane=<metres>]`, a space's boundary area
+/// against elements of one source kind. Pkl checks the name before the
+/// parameters; the binder checks the parameters.
+const measuredNames: Set<String> = Set(
+  "extent_x", "extent_y", "extent_z", "bottom", "top", "area", "volume",
+  "x", "y", "z", "level_height", "bottom_above_level", "boundary_area"
+)
+
 /// Whether `name` can name a property in `propertySet`: a property in a
 /// derived set is engine or ruleset vocabulary, any other a qualified concept
-/// ID. The binder checks that the name is declared.
+/// ID. The binder checks that a classification ID is declared.
 const function isPropertyName(propertySet: String?, name: String): Boolean =
   if (propertySet == classificationSet) !name.isBlank
+  else if (propertySet == measuredSet)
+    let (base = name.split(";").first.trim())
+      base.matches(Regex("[A-Za-z_]+")) && measuredNames.contains(base.toLowerCase())
   else name.matches(Regex(#"^[a-z][a-z0-9+.-]*:.+$"#))
 
 class LocalizedText {

@@ -113,13 +113,43 @@ RESERVED_PROPERTY_SETS = {
     "axioval:material",
     "axioval:body",
     "axioval:classification",
+    "axioval:measured",
 }
 # The reserved set naming the classes a ruleset's classifications derive: its
 # property names are classification IDs of the same ruleset.
 CLASSIFICATION_SET = "axioval:classification"
 # Reserved sets the engine derives rather than a source states: their property
 # names are engine or ruleset vocabulary and bind to no concept.
-DERIVED_PROPERTY_SETS = {CLASSIFICATION_SET}
+# The reserved set of values measured from geometry, its names without
+# parameters, and its names taking `;key=value` parameters, matched ignoring
+# ASCII case.
+MEASURED_SET = "axioval:measured"
+MEASURED_NAMES = {
+    "extent_x",
+    "extent_y",
+    "extent_z",
+    "bottom",
+    "top",
+    "area",
+    "volume",
+    "x",
+    "y",
+    "z",
+    "level_height",
+}
+MEASURED_BOTTOM_ABOVE_LEVEL = "bottom_above_level"
+MEASURED_BOUNDARY_AREA = "boundary_area"
+# One step of a `bottom_above_level` path, as a related selector writes it:
+# `Relationship[:forward|backward|either][+]`.
+MEASURED_PATH_STEP = re.compile(r"[^:\s,;]+?(:(forward|backward|either))?\+?")
+# A decimal number as the engine parses one.
+DECIMAL = re.compile(r"[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?")
+# The whitespace the engine trims around names, keys, and values.
+TRIMMED = (
+    "\t\n\x0b\x0c\r \x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005"
+    "\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
+)
+DERIVED_PROPERTY_SETS = {CLASSIFICATION_SET, MEASURED_SET}
 CLASSIFICATION_MODES = {"firstMatch", "allMatch"}
 SEVERITIES = {"info", "warning", "error"}
 # How another rule judged an object, as a rule-outcome selector selects it.
@@ -1103,8 +1133,68 @@ def property_name_error(property_set: Any, name: Any) -> str | None:
         return "property must be a string"
     if property_set == CLASSIFICATION_SET:
         return None if name.strip() else "a classification id must not be blank"
+    if property_set == MEASURED_SET:
+        return measured_name_error(name)
     if not QUALIFIED_ID.fullmatch(name):
         return "property must be a qualified identifier"
+    return None
+
+
+def ascii_lower(text: str) -> str:
+    return "".join(
+        chr(ord(character) + 32) if "A" <= character <= "Z" else character
+        for character in text
+    )
+
+
+def measured_name_error(name: str) -> str | None:
+    """Why `name` is no name in `axioval:measured`, if it is none.
+
+    Mirrors the engine's parser: a name, ignoring ASCII case and surrounding
+    whitespace, then `;`-separated `key=value` parameters. Only
+    `bottom_above_level` (`path`, required: `,`-separated related-selector
+    steps) and `boundary_area` (`kind`, required, and `plane`, a length of at
+    least zero) take parameters.
+    """
+    base, *parts = name.split(";")
+    base = ascii_lower(base.strip(TRIMMED))
+    parameters: dict[str, str] = {}
+    for part in parts:
+        if "=" not in part:
+            return f"{part!r} is not 'key=value'"
+        key, value = part.split("=", 1)
+        key = ascii_lower(key.strip(TRIMMED))
+        if key in parameters:
+            return f"{key!r} is stated twice"
+        parameters[key] = value.strip(TRIMMED)
+    if base == MEASURED_BOTTOM_ABOVE_LEVEL:
+        path = parameters.pop("path", None)
+        if path is None:
+            return "'bottom_above_level' needs 'path'"
+        for step in path.split(","):
+            if not MEASURED_PATH_STEP.fullmatch(step.strip(TRIMMED)):
+                return (
+                    f"path step {step!r} must be 'Relationship', "
+                    "optionally followed by ':forward', ':backward', or "
+                    "':either' and '+'"
+                )
+    elif base == MEASURED_BOUNDARY_AREA:
+        if not parameters.pop("kind", ""):
+            return "'boundary_area' needs 'kind'"
+        plane = parameters.pop("plane", None)
+        if plane is not None and not (
+            DECIMAL.fullmatch(plane)
+            and math.isfinite(float(plane))
+            and float(plane) >= 0
+        ):
+            return f"'plane' {plane!r} is no length of at least zero"
+    elif base not in MEASURED_NAMES:
+        return (
+            f"{base!r} is not a measured name "
+            f"{sorted(MEASURED_NAMES | {MEASURED_BOTTOM_ABOVE_LEVEL, MEASURED_BOUNDARY_AREA})}"
+        )
+    if parameters:
+        return f"{base!r} takes no parameter {next(iter(parameters))!r}"
     return None
 
 
@@ -1117,8 +1207,14 @@ def derived_property_kind(
     """Bind a property of a derived set and return its value kind, if known.
 
     A classification is read by its ID: a string for a first-match
-    classification, a list of strings for an all-match one.
+    classification, a list of strings for an all-match one. A measured value
+    is a quantity, or an interval the application compares as one.
     """
+    if property_set == MEASURED_SET:
+        reason = property_name_error(property_set, name)
+        if reason is not None:
+            fail(context, reason)
+        return "quantity"
     if property_set == CLASSIFICATION_SET:
         classification = classifications.get(name)
         if classification is None:

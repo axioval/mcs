@@ -734,6 +734,51 @@ deklariert.
     }
     ```
 
+## Gemessene Werte
+
+Die reservierte Gruppe `axioval:measured` nennt Werte, die die prüfende
+Anwendung am Körper eines Objekts misst, statt sie aus einer Quelle zu lesen:
+
+| Name | Wert |
+| --- | --- |
+| `extent_x`, `extent_y` | die Ausdehnung entlang der x- oder y-Achse der Welt, eine Länge |
+| `extent_z` | die Höhe, eine Länge |
+| `bottom`, `top` | die Höhenlage des tiefsten und höchsten Punkts, eine Länge |
+| `area` | die Grundrissfläche, Überlappungen einmal gezählt |
+| `volume` | das umschlossene Volumen |
+| `x`, `y`, `z` | die Weltkoordinaten des Einfügepunkts, eine Länge |
+| `level_height` | die Höhe eines Geschosses bis zum nächsten Geschoss, eine Länge, wie die Quelle sie angibt |
+| `bottom_above_level;path=<steps>` | die Unterkante über der einen Ebene, die der Pfad erreicht, eine Länge |
+| `boundary_area;kind=<kind>[;plane=<metres>]` | die Begrenzungsfläche eines Raums gegen Elemente der Quellenart `kind` oder eines Untertyps |
+
+Zwei Namen nehmen nach dem Namen Parameter, durch `;` getrennte
+`key=value`-Paare, die Teil des Eigenschaftsnamens sind. `bottom_above_level`
+benötigt `path`, die durch `,` getrennten Schritte, wie ein Selektor für
+verbundene Objekte sie schreibt, `Relationship[:forward|backward|either][+]`,
+etwa `IfcRelContainedInSpatialStructure:backward`. `boundary_area` benötigt
+`kind` und nimmt optional `plane`, eine Zahl von Metern von mindestens null.
+
+Selektoren, Eigenschaftsreferenzen und Kategorieebenen nennen sie in dieser
+Gruppe, abgeglichen ohne Rücksicht auf ASCII-Groß- und Kleinschreibung und
+umgebenden Leerraum; sie binden an kein Konzept. Der Binder lehnt dort jeden
+anderen Namen ab, ebenso einen fehlenden benötigten Parameter, einen
+fehlerhaften Schritt oder `plane`, einen doppelt angegebenen und jeden anderen
+Parameter. Ein
+Selektor vergleicht einen gemessenen Wert mit einer `quantity`. Ein Wert, den
+die Anwendung nur innerhalb eines Intervalls bestimmt, etwa an einem
+triangulierten Körper, lässt ein Objekt unausgewertet, wenn das Intervall die
+Grenze überspannt.
+
+??? example "Selektor für Objekte niedriger als 50 mm anzeigen"
+    ```pkl
+    new Selectors.PropertySelector {
+      propertySet = "axioval:measured"
+      property = "extent_z"
+      operator = "lessThan"
+      value = new Values.QuantityValue { value = 0.05; unit = "m" }
+    }
+    ```
+
 ## Ordner sind kosmetisch
 
 `RuleFolder` dient Darstellung und Organisation. Seine Position ändert weder Selektorumfang, Regelidentität, Ausführungssemantik noch Vertrauen. Verbraucher können alternative Ansichten darstellen, ohne die Regeln umzuschreiben. Das [Gate](#regel-gates) eines Ordners ist die einzige Ausnahme: Es steht am Ordner, gilt aber für jede Regel darin, als hätte jede Regel es ebenfalls deklariert.

@@ -10,6 +10,15 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Values measured from geometry, mirroring the engine: the reserved set
+  `axioval:measured` names `extent_x`, `extent_y`, `extent_z`, `bottom`, `top`,
+  `area`, `volume`, `x`, `y`, `z`, and `level_height`, and, with `;key=value`
+  parameters, `bottom_above_level;path=<steps>` and
+  `boundary_area;kind=<kind>[;plane=<metres>]`, matched ignoring ASCII case, in
+  selectors, property references, and category levels. They bind to no
+  concept; the binder rejects any other name in that set, a missing `path` or
+  `kind`, malformed path steps, a `plane` below zero or not a number, repeated
+  and unknown parameters, and compares a measured value with a `quantity`.
 - Classifications a ruleset derives, mirroring the engine: `classifications`
   (`RuleSets.ClassificationDefinition`, by ID) with a `name`, an optional
   `description`, a `mode` `firstMatch` (default, omitted from normalized JSON)

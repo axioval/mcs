@@ -702,6 +702,48 @@ classifications may name one another, but never in a cycle. A property in
     }
     ```
 
+## Measured values
+
+The reserved set `axioval:measured` names values the checking application
+measures from an object's body rather than reads from a source:
+
+| Name | Value |
+| --- | --- |
+| `extent_x`, `extent_y` | the extent along the world x or y axis, a length |
+| `extent_z` | the height, a length |
+| `bottom`, `top` | the elevation of the lowest and highest point, a length |
+| `area` | the footprint area, overlaps counted once |
+| `volume` | the enclosed volume |
+| `x`, `y`, `z` | the world coordinates of the placement origin, a length |
+| `level_height` | a storey's height to the next storey, a length, as the source states it |
+| `bottom_above_level;path=<steps>` | the bottom above the one level the path reaches, a length |
+| `boundary_area;kind=<kind>[;plane=<metres>]` | a space's boundary area against elements of the source kind `kind` or a subtype |
+
+Two names take parameters after the name, `;`-separated `key=value` pairs that
+are part of the property name. `bottom_above_level` requires `path`, the
+`,`-separated steps a related selector writes,
+`Relationship[:forward|backward|either][+]`, such as
+`IfcRelContainedInSpatialStructure:backward`. `boundary_area` requires `kind`
+and takes an optional `plane`, a number of metres of at least zero.
+
+Selectors, property references, and category levels name them in that set,
+matched ignoring ASCII case and surrounding whitespace; they bind to no concept.
+The binder rejects any other name there, a missing required parameter, a
+malformed step or `plane`, a parameter stated twice, and any other parameter. A selector compares a measured value with a `quantity`. A
+value the application measures only to lie within an interval, such as from a
+tessellated body, leaves an object not evaluated when the interval straddles
+the bound.
+
+??? example "Show a selector for objects lower than 50 mm"
+    ```pkl
+    new Selectors.PropertySelector {
+      propertySet = "axioval:measured"
+      property = "extent_z"
+      operator = "lessThan"
+      value = new Values.QuantityValue { value = 0.05; unit = "m" }
+    }
+    ```
+
 ## Folders are cosmetic
 
 `RuleFolder` exists for presentation and organization. Its position does not

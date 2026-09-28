@@ -3250,5 +3250,180 @@ class ClassificationTests(unittest.TestCase):
                 validate.evaluate(path)
 
 
+
+MEASURED_SET = "axioval:measured"
+
+
+def measured(name: str, operator: str = "lessThan", value=None, **fields) -> dict:
+    if value is None and operator not in {"exists", "isEmpty", "isNotEmpty"}:
+        value = {"type": "quantity", "value": 0.05, "unit": "m"}
+    return property_selector(name, operator, value, propertySet=MEASURED_SET, **fields)
+
+
+class MeasuredValueTests(unittest.TestCase):
+    """Values measured from geometry are properties of a reserved set."""
+
+    NAMES = (
+        "extent_x",
+        "extent_y",
+        "extent_z",
+        "bottom",
+        "top",
+        "area",
+        "volume",
+        "x",
+        "y",
+        "z",
+        "level_height",
+        "bottom_above_level;path=IfcRelContainedInSpatialStructure:backward",
+        "bottom_above_level;path=IfcRelAggregates:backward+,IfcRelNests",
+        "boundary_area;kind=IfcWall",
+        "boundary_area;kind=IfcWall;plane=0.05",
+    )
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def bind(self, **rule_fields) -> None:
+        ruleset = copy.deepcopy(self.ruleset)
+        rule = ruleset["root"]["rules"][0]
+        rule.pop("explanatoryImages", None)
+        rule.pop("requirements", None)
+        rule.update(copy.deepcopy(rule_fields))
+        validate.bind_ruleset(ruleset, [copy.deepcopy(self.definitions)], "test")
+
+    def assert_rejected(self, **rule_fields) -> None:
+        with self.subTest(rule=rule_fields), self.assertRaises(SystemExit):
+            self.bind(**rule_fields)
+
+    def test_accepts_every_name_ignoring_ascii_case(self) -> None:
+        from scripts.contracts import validate_selector
+
+        for name in (
+            *self.NAMES,
+            "EXTENT_Z",
+            "Volume",
+            " top ",
+            "Bottom_Above_Level; PATH = IfcRelAggregates:either+ , IfcRelNests",
+            "boundary_area;plane=1e-2;Kind=IfcCovering",
+            "boundary_area;kind=IfcWall;plane=0",
+        ):
+            with self.subTest(name=name):
+                validate_selector(measured(name), "test")
+                self.bind(
+                    applicability=measured(name),
+                    severityOverrides=[
+                        {"selector": measured(name, "exists"), "severity": "info"}
+                    ],
+                    categories=[{"propertySet": MEASURED_SET, "property": name}],
+                    parameters={
+                        "property": {
+                            "type": "propertyReference",
+                            "propertySet": MEASURED_SET,
+                            "property": name,
+                        }
+                    },
+                )
+
+    def test_rejects_other_names_and_non_quantity_comparisons(self) -> None:
+        for name in (
+            "height",
+            "extent",
+            "extent-z",
+            "",
+            "EXTENT_\u017f",
+            "axioval:example.ifc.reference",
+            "\u212aelvin",
+            "extent_z;",
+            "extent_z;path=IfcRelAggregates",
+            "level_height;plane=0",
+            "bottom_above_level",
+            "bottom_above_level;path=",
+            "bottom_above_level;path=IfcRelAggregates,,IfcRelNests",
+            "bottom_above_level;path=IfcRelAggregates:up",
+            "bottom_above_level;path=Ifc Rel",
+            "bottom_above_level;path=IfcRelAggregates;kind=IfcWall",
+            "bottom_above_level;path",
+            "boundary_area",
+            "boundary_area;kind=",
+            "boundary_area;plane=0.5",
+            "boundary_area;kind=IfcWall;plane=-0.5",
+            "boundary_area;kind=IfcWall;plane=inf",
+            "boundary_area;kind=IfcWall;plane=NaN",
+            "boundary_area;kind=IfcWall;plane=1_0",
+            "boundary_area;kind=IfcWall;plane=",
+            "boundary_area;kind=IfcWall;kind=IfcSlab",
+            "boundary_area;kind=IfcWall;depth=1",
+        ):
+            self.assert_rejected(applicability=measured(name))
+            self.assert_rejected(
+                categories=[{"propertySet": MEASURED_SET, "property": name}]
+            )
+            self.assert_rejected(
+                parameters={
+                    "property": {
+                        "type": "propertyReference",
+                        "propertySet": MEASURED_SET,
+                        "property": name,
+                    }
+                }
+            )
+        for selector in (
+            measured("extent_z", "equals", text("tall")),
+            measured("extent_z", "lessThan", {"type": "number", "value": 0.05}),
+            measured("extent_z", "like", text("1*")),
+            measured("extent_z", "exists", caseSensitive=False),
+        ):
+            self.assert_rejected(applicability=selector)
+
+    def test_pkl_accepts_measured_names_only_in_the_reserved_set(self) -> None:
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+        values = (validate.ROOT / "schema/Values.pkl").as_uri()
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "measured.pkl"
+
+            def evaluate(property_set: str | None, name: str) -> dict:
+                qualifier = (
+                    f'propertySet = "{property_set}"' if property_set else ""
+                )
+                path.write_text(
+                    f'import "{selectors}"\n'
+                    f'import "{values}"\n\n'
+                    "selector = new Selectors.PropertySelector {\n"
+                    f"  {qualifier}\n"
+                    f'  property = "{name}"\n'
+                    '  operator = "lessThan"\n'
+                    '  value = new Values.QuantityValue { value = 0.05; unit = "m" }\n'
+                    "}\n"
+                    "reference = new Values.PropertyReferenceValue {\n"
+                    f"  {qualifier}\n"
+                    f'  property = "{name}"\n'
+                    "}\n",
+                    encoding="utf-8",
+                )
+                return validate.evaluate(path)
+
+            evaluated = evaluate(MEASURED_SET, "Extent_Z")
+            self.assertEqual(evaluated["selector"]["property"], "Extent_Z")
+            self.assertEqual(evaluated["reference"]["propertySet"], MEASURED_SET)
+            name = "boundary_area;kind=IfcWall;plane=0.05"
+            self.assertEqual(
+                evaluate(MEASURED_SET, name)["reference"]["property"], name
+            )
+            for property_set, name in (
+                (MEASURED_SET, "height"),
+                (MEASURED_SET, "height;path=IfcRelAggregates"),
+                (MEASURED_SET, "axioval:example.height"),
+                (None, "extent_z"),
+                ("axioval:attributes", "extent_z"),
+            ):
+                with self.subTest(property_set=property_set, name=name):
+                    with self.assertRaises(SystemExit):
+                        evaluate(property_set, name)
+
+
 if __name__ == "__main__":
     unittest.main()
