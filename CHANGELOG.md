@@ -10,6 +10,10 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- A `related` selector's `path` may name relationships the checking
+  application derives from geometry, as a category path may:
+  `axioval:derived.<name>` with optional `;key=value` tolerances, a direction,
+  and `+`, such as `axioval:derived.adjacent-space;reach=1`.
 - Values measured from geometry, mirroring the engine: the reserved set
   `axioval:measured` names `extent_x`, `extent_y`, `extent_z`, `bottom`, `top`,
   `area`, `volume`, `x`, `y`, `z`, and `level_height`, and, with `;key=value`

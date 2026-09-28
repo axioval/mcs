@@ -285,7 +285,9 @@ typealias RelatedQuantifier = "any" | "all" | "none"
 /// `forward` (the default), `backward`, or `either`; the steps are walked one
 /// after another and never reach the object itself. Relationship names are the
 /// source's own names, not concepts, while the nested `selector` names concepts
-/// like any other selector.
+/// like any other selector. A step may also name a relationship the checking
+/// application derives, `axioval:derived.<name>` with optional `;key=value`
+/// tolerances (`axioval:derived.adjacent-space;reach=1`), a direction, and `+`.
 class RelatedSelector extends Selector {
   kind: "related" = "related"
   /// Relationship steps walked in order from the selected object.

@@ -98,8 +98,8 @@ SOURCE_FIELDS = {"fileName", "application", "schema", "project"}
 # followed by its direction.
 RELATED_PATH_STEP = re.compile(r"[^:\s]+(:(forward|backward|either))?")
 # A derived relationship the checking engine computes, with its optional
-# tolerances, as a category path step may name it: optionally followed by a
-# direction and by `+` for one or more steps.
+# tolerances, as a related-selector or category path step may name it:
+# optionally followed by a direction and by `+` for one or more steps.
 DERIVED_PATH_STEP = re.compile(
     r"axioval:derived\.[a-z][a-z0-9-]*(;[a-z]+=[0-9]+(\.[0-9]+)?)*"
     r"(:(forward|backward|either))?\+?"
@@ -1412,11 +1412,14 @@ def validate_selector(
         if not path:
             fail(context, "related selector requires a path")
         for index, step in enumerate(path):
-            if type(step) is not str or not RELATED_PATH_STEP.fullmatch(step):
+            if type(step) is not str or not (
+                RELATED_PATH_STEP.fullmatch(step) or DERIVED_PATH_STEP.fullmatch(step)
+            ):
                 fail(
                     f"{context}.path[{index}]",
                     "path step must be 'Relationship' or "
-                    "'Relationship:forward|backward|either'",
+                    "'Relationship:forward|backward|either', or a derived "
+                    "relationship 'axioval:derived.<name>'",
                 )
         if "quantifier" in value and (
             type(value["quantifier"]) is not str

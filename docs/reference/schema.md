@@ -372,7 +372,10 @@ direction `forward` (the default), `backward`, or `either`. The steps are
 walked one after another and never reach the object itself. Relationship names
 are the source's own names, such as IFC relationship entity names, not concepts;
 the nested `selector` names concepts like any other selector and binds against
-the same catalogs.
+the same catalogs. A step may also name a relationship the checking application
+derives from geometry, `axioval:derived.<name>` with optional `;key=value`
+tolerances, such as `axioval:derived.adjacent-space;reach=1`, followed by a
+direction and `+` as a category path allows.
 
 | `quantifier` | Selects when |
 | --- | --- |
@@ -382,7 +385,8 @@ the same catalogs.
 
 Normalized JSON omits the default `any`, and the nested selector keeps its own
 normalization. The binder rejects an empty `path`, a step with whitespace, an
-empty name, or another direction, and any other `quantifier` value.
+empty name, another direction, or a malformed derived relationship, and any
+other `quantifier` value.
 
 ??? example "Show a selector for doors in compartment walls"
     ```pkl

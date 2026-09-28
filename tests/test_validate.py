@@ -1379,6 +1379,16 @@ class RelatedSelectorTests(unittest.TestCase):
             related_selector(["IfcRelAggregates"]),
             related_selector(["IfcRelAggregates:forward"], quantifier="any"),
             related_selector(
+                [
+                    "axioval:derived.adjacent-space",
+                    "axioval:derived.contained-in-space;horizontal=0.25;vertical=0.5",
+                    "axioval:derived.overlapping-group-space;ratio=0.9:backward",
+                    "axioval:derived.intersects:either+",
+                    "IfcRelContainedInSpatialStructure:backward",
+                ],
+                quantifier="none",
+            ),
+            related_selector(
                 ["IfcRelVoidsElement", "IfcRelFillsElement:either"],
                 {
                     "kind": "entityType",
@@ -1422,6 +1432,12 @@ class RelatedSelectorTests(unittest.TestCase):
             related_selector([":forward"]),
             related_selector(["Ifc Rel"]),
             related_selector(["IfcRelAggregates "]),
+            related_selector(["axioval:derived."]),
+            related_selector(["axioval:derived.Adjacent-Space"]),
+            related_selector(["axioval:derived.adjacent-space;reach"]),
+            related_selector(["axioval:derived.adjacent-space;reach=-1"]),
+            related_selector(["axioval:derived.adjacent-space:sideways"]),
+            related_selector(["axioval:other.adjacent-space"]),
             related_selector({"kind": "unknown"}),
             related_selector(None),
         ):

@@ -380,6 +380,10 @@ Beziehungspfad `path` von ihm aus erreicht. Jeder Schritt ist `Beziehung` oder
 Objekt selbst. Beziehungsnamen sind die eigenen Namen der Quelle, etwa
 IFC-Beziehungsentitäten, keine Konzepte; der verschachtelte `selector` nennt
 Konzepte wie jeder andere Selektor und wird gegen dieselben Kataloge gebunden.
+Ein Schritt darf auch eine Beziehung nennen, die die prüfende Anwendung aus der
+Geometrie ableitet, `axioval:derived.<name>` mit optionalen
+`;key=value`-Toleranzen, etwa `axioval:derived.adjacent-space;reach=1`, gefolgt
+von einer Richtung und `+`, wie ein Kategoriepfad es erlaubt.
 
 | `quantifier` | Wählt aus, wenn |
 | --- | --- |
@@ -389,8 +393,9 @@ Konzepte wie jeder andere Selektor und wird gegen dieselben Kataloge gebunden.
 
 Normalisiertes JSON lässt den Standardwert `any` weg, und der verschachtelte
 Selektor behält seine eigene Normalisierung. Der Binder lehnt einen leeren
-`path`, einen Schritt mit Leerraum, einen leeren Namen oder eine andere Richtung
-sowie jeden anderen Wert für `quantifier` ab.
+`path`, einen Schritt mit Leerraum, einen leeren Namen, eine andere Richtung
+oder eine fehlerhafte abgeleitete Beziehung sowie jeden anderen Wert für
+`quantifier` ab.
 
 ??? example "Selektor für Türen in Brandwänden anzeigen"
     ```pkl
