@@ -1380,6 +1380,14 @@ class RelatedSelectorTests(unittest.TestCase):
             related_selector(["IfcRelAggregates:forward"], quantifier="any"),
             related_selector(
                 [
+                    "IfcRelAggregates:backward+",
+                    "IfcRelNests:either+",
+                    "IfcRelContainedInSpatialStructure:forward+",
+                    "IfcRelAggregates+",
+                ]
+            ),
+            related_selector(
+                [
                     "axioval:derived.adjacent-space",
                     "axioval:derived.contained-in-space;horizontal=0.25;vertical=0.5",
                     "axioval:derived.overlapping-group-space;ratio=0.9:backward",
@@ -1429,6 +1437,10 @@ class RelatedSelectorTests(unittest.TestCase):
             related_selector(["IfcRelAggregates:up"]),
             related_selector(["IfcRelAggregates:Forward"]),
             related_selector(["IfcRelAggregates:forward:backward"]),
+            related_selector(["IfcRelAggregates:backward++"]),
+            related_selector(["IfcRelAggregates:+"]),
+            related_selector(["IfcRelAggregates:up+"]),
+            related_selector(["IfcRelAggregates:backward +"]),
             related_selector([":forward"]),
             related_selector(["Ifc Rel"]),
             related_selector(["IfcRelAggregates "]),
@@ -2318,6 +2330,7 @@ class RuleRefinementTests(unittest.TestCase):
                 category(propertySet="axioval:type-attributes"),
                 category(path=["IfcRelContainedInSpatialStructure:backward"]),
                 category(path=["IfcRelAggregates+", "IfcRelNests:either"]),
+                category(path=["IfcRelAggregates:backward+", "IfcRelNests:either+"]),
                 category(
                     propertySet="axioval:attributes",
                     path=[

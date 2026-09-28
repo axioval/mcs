@@ -390,7 +390,9 @@ so existing packages render unchanged. The binder rejects any other key.
 
 A `related` selector selects an object by the objects a relationship `path`
 reaches from it. Each step is `Relationship` or `Relationship:direction`, with
-direction `forward` (the default), `backward`, or `either`. The steps are
+direction `forward` (the default), `backward`, or `either`, optionally followed
+by `+` to take the step one or more times, reaching every object along the
+relationship's chain, such as `IfcRelAggregates:backward+`. The steps are
 walked one after another and never reach the object itself. Relationship names
 are the source's own names, such as IFC relationship entity names, not concepts;
 the nested `selector` names concepts like any other selector and binds against

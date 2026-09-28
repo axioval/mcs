@@ -95,8 +95,8 @@ RELATED_QUANTIFIERS = {"any", "all", "none"}
 # The source metadata fields a source selector compares.
 SOURCE_FIELDS = {"fileName", "application", "schema", "project"}
 # A related-selector path step: a source relationship name, optionally
-# followed by its direction.
-RELATED_PATH_STEP = re.compile(r"[^:\s]+(:(forward|backward|either))?")
+# followed by its direction and by `+` for one or more steps.
+RELATED_PATH_STEP = re.compile(r"[^:\s]+?(:(forward|backward|either))?\+?")
 # A derived relationship the checking engine computes, with its optional
 # tolerances, as a related-selector or category path step may name it:
 # optionally followed by a direction and by `+` for one or more steps.
@@ -1427,8 +1427,9 @@ def validate_selector(
                 fail(
                     f"{context}.path[{index}]",
                     "path step must be 'Relationship' or "
-                    "'Relationship:forward|backward|either', or a derived "
-                    "relationship 'axioval:derived.<name>'",
+                    "'Relationship:forward|backward|either', optionally "
+                    "followed by '+', or a derived relationship "
+                    "'axioval:derived.<name>'",
                 )
         if "quantifier" in value and (
             type(value["quantifier"]) is not str
@@ -1638,8 +1639,9 @@ def validate_categories(
                     fail(
                         f"{level_context}.path[{step_index}]",
                         "path step must be 'Relationship' or "
-                        "'Relationship:forward|backward|either', or a derived "
-                        "relationship 'axioval:derived.<name>'",
+                        "'Relationship:forward|backward|either', optionally "
+                        "followed by '+', or a derived relationship "
+                        "'axioval:derived.<name>'",
                     )
 
 

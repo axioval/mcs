@@ -284,8 +284,9 @@ typealias RelatedQuantifier = "any" | "all" | "none"
 /// Select an object by the objects a relationship `path` reaches from it.
 ///
 /// Each step is `Relationship` or `Relationship:direction`, where direction is
-/// `forward` (the default), `backward`, or `either`; the steps are walked one
-/// after another and never reach the object itself. Relationship names are the
+/// `forward` (the default), `backward`, or `either`, optionally followed by `+`
+/// to take the step one or more times (`IfcRelAggregates:backward+`); the steps
+/// are walked one after another and never reach the object itself. Relationship names are the
 /// source's own names, not concepts, while the nested `selector` names concepts
 /// like any other selector. A step may also name a relationship the checking
 /// application derives, `axioval:derived.<name>` with optional `;key=value`

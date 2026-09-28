@@ -10,6 +10,10 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- A step of a `related` selector's or a category level's `path` may end in `+`
+  after a direction, such as `IfcRelAggregates:backward+`, to take the step one
+  or more times, as the engine's traversal does; before, `+` was accepted only
+  on a step without a direction.
 - Property selectors and property references name the reserved attribute sets
   `axioval:attributes`, `axioval:type-attributes`, `axioval:presentation`,
   `axioval:material`, and `axioval:body`, as category levels already do. The

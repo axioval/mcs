@@ -400,7 +400,9 @@ Schlüssel ab.
 Ein `related`-Selektor wählt ein Objekt anhand der Objekte aus, die ein
 Beziehungspfad `path` von ihm aus erreicht. Jeder Schritt ist `Beziehung` oder
 `Beziehung:Richtung`, mit der Richtung `forward` (Standard), `backward` oder
-`either`. Die Schritte werden nacheinander durchlaufen und erreichen nie das
+`either`, optional gefolgt von `+`, um den Schritt ein- oder mehrmals zu gehen
+und so jedes Objekt entlang der Kette der Beziehung zu erreichen, etwa
+`IfcRelAggregates:backward+`. Die Schritte werden nacheinander durchlaufen und erreichen nie das
 Objekt selbst. Beziehungsnamen sind die eigenen Namen der Quelle, etwa
 IFC-Beziehungsentitäten, keine Konzepte; der verschachtelte `selector` nennt
 Konzepte wie jeder andere Selektor und wird gegen dieselben Kataloge gebunden.
