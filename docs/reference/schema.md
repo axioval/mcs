@@ -95,7 +95,7 @@ minimum area per space type, instead of one rule per row. It declares its
 | `boolean` | `boolean` |
 | `selector` | `selector` |
 | `reference` | `reference` |
-| `date` | `date`, a real day written `YYYY-MM-DD` |
+| `date` | `date`, a real day written `YYYY-MM-DD`, optionally with a time zone |
 | `dateTime` | `dateTime`, an instant with its UTC offset |
 
 A table value is a list of rows. Each row maps column IDs to cells of the
@@ -200,6 +200,10 @@ engine would refuse:
 
 - A `date` is `YYYY-MM-DD`: a real day of the proleptic Gregorian calendar in
   the years `0000` to `9999`, so `2024-02-29` is valid and `2026-02-29` is not.
+  It may state its time zone, `Z` or `±hh:mm` of at most 14 hours, as
+  `xs:date` allows (`2022-01-01+00:00`); `-00:00` is refused. A date with a
+  time zone never equals one without, and the two are ordered only when more
+  than 14 hours apart, as XML Schema orders them.
 - A `dateTime` is `YYYY-MM-DDThh:mm:ss`, an optional fraction of one to nine
   digits, and a required UTC offset, `Z` or `±hh:mm` of at most 14 hours. The
   time of day runs from `00:00:00` to `23:59:59`: `24:00:00` and leap seconds

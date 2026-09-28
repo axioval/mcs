@@ -10,6 +10,10 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- A `date` literal may state its time zone, `Z` or `±hh:mm` of at most 14
+  hours, as `xs:date` allows (`2022-01-01+00:00`), mirroring the engine; the
+  binder refuses `-00:00` and an offset past 14:00. A date with a time zone
+  never equals one without.
 - A relationship path step may name several relationships separated by `|`,
   such as `IfcRelFillsElement|IfcRelVoidsElement:backward+`, as the engine's
   step grammar does: one direction after the last alternative applies to all,

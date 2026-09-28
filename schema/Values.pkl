@@ -64,11 +64,14 @@ class PropertyReferenceValue extends ParameterValue {
 }
 
 /// A calendar day of the proleptic Gregorian calendar in the years 0000 to
-/// 9999, written `YYYY-MM-DD` as `xs:date` writes it. The binder refuses a day
-/// that does not exist, such as `2026-02-29`.
+/// 9999, written `YYYY-MM-DD` as `xs:date` writes it, optionally followed by
+/// the time zone it is stated in, `Z` or `±hh:mm` of at most 14 hours. The
+/// binder refuses a day that does not exist, such as `2026-02-29`, and `-00:00`.
+/// A date with a time zone never equals one without: XML Schema leaves them
+/// unordered unless more than 14 hours apart.
 class DateValue extends ParameterValue {
   type: "date" = "date"
-  value: String(matches(Regex(#"[0-9]{4}-[0-9]{2}-[0-9]{2}"#)))
+  value: String(matches(Regex(#"[0-9]{4}-[0-9]{2}-[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})?"#)))
 }
 
 /// An instant with the UTC offset it is stated in, written

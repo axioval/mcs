@@ -207,7 +207,7 @@ PUBLICATION_DATE = re.compile(r"^[0-9]{4}(?:-[0-9]{2}(?:-[0-9]{2})?)?$")
 # ISO 8601 extended date and date-time literals, as XML Schema writes
 # `xs:date` and `xs:dateTime`. The shape is checked here; the calendar, the
 # time of day, and the offset range are checked by `temporal_literal_error`.
-DATE_LITERAL = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})")
+DATE_LITERAL = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})(Z|[+-][0-9]{2}:[0-9]{2})?")
 DATE_TIME_LITERAL = re.compile(
     r"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})"
     r"(?:\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})"
@@ -556,12 +556,19 @@ def table_rows(
             fail(row_context, f"missing required columns {missing}")
 
 
-def date_literal_error(literal: str) -> str | None:
-    """Why `literal` is not a real `YYYY-MM-DD` day in 0000 to 9999, if it is not."""
-    match = DATE_LITERAL.fullmatch(literal)
-    if match is None:
-        return "expected YYYY-MM-DD"
-    year, month, day = (int(part) for part in match.groups())
+def offset_error(offset: str) -> str | None:
+    """Why `offset` (`Z` or `±hh:mm`) is not a UTC offset, if it is not."""
+    if offset != "Z":
+        hours, minutes = int(offset[1:3]), int(offset[4:6])
+        if minutes >= 60 or hours * 60 + minutes > 14 * 60:
+            return "an offset is at most 14:00"
+        if offset == "-00:00":
+            return "-00:00 states no offset"
+    return None
+
+
+def day_error(year: int, month: int, day: int) -> str | None:
+    """Why `year-month-day` is not a real day of the proleptic Gregorian calendar."""
     if not 1 <= month <= 12:
         return "no such day"
     leap = (year % 4 == 0 and year % 100 != 0) or year % 400 == 0
@@ -576,6 +583,21 @@ def date_literal_error(literal: str) -> str | None:
     return None
 
 
+def date_literal_error(literal: str) -> str | None:
+    """Why `literal` is not a real `YYYY-MM-DD` day in 0000 to 9999, if it is not.
+
+    Mirrors the engine: the day may state a time zone, `Z` or `±hh:mm` of at
+    most 14 hours, as `xs:date` allows; `-00:00` states no time zone.
+    """
+    match = DATE_LITERAL.fullmatch(literal)
+    if match is None:
+        return "expected YYYY-MM-DD and an optional time zone Z or ±hh:mm"
+    year, month, day, offset = match.groups()
+    if (reason := day_error(int(year), int(month), int(day))) is not None:
+        return reason
+    return None if offset is None else offset_error(offset)
+
+
 def date_time_literal_error(literal: str) -> str | None:
     """Why `literal` is not a date-time with a UTC offset, if it is not.
 
@@ -587,14 +609,10 @@ def date_time_literal_error(literal: str) -> str | None:
     if match is None:
         return "expected YYYY-MM-DDThh:mm:ss[.f{1,9}] and an offset Z or ±hh:mm"
     day, hour, minute, second, offset = match.groups()
-    if (reason := date_literal_error(day)) is not None:
+    if (reason := day_error(*(int(part) for part in day.split("-")))) is not None:
         return reason
-    if offset != "Z":
-        hours, minutes = int(offset[1:3]), int(offset[4:6])
-        if minutes >= 60 or hours * 60 + minutes > 14 * 60:
-            return "an offset is at most 14:00"
-        if offset == "-00:00":
-            return "-00:00 states no offset"
+    if (reason := offset_error(offset)) is not None:
+        return reason
     if int(hour) == 24:
         return "24:00 is refused; write 00:00 of the next day"
     if int(second) == 60:

@@ -88,7 +88,7 @@ ist (die Voreinstellung):
 | `boolean` | `boolean` |
 | `selector` | `selector` |
 | `reference` | `reference` |
-| `date` | `date`, ein realer Tag in der Form `YYYY-MM-DD` |
+| `date` | `date`, ein realer Tag in der Form `YYYY-MM-DD`, optional mit Zeitzone |
 | `dateTime` | `dateTime`, ein Zeitpunkt mit seinem UTC-Versatz |
 
 Ein Tabellenwert ist eine Liste von Zeilen. Jede Zeile ordnet Spalten-IDs Zellen
@@ -196,7 +196,11 @@ Binder lehnt jedes Literal ab, das die prüfende Engine ablehnen würde:
 
 - Ein `date` ist `YYYY-MM-DD`: ein tatsächlich existierender Tag des
   proleptischen gregorianischen Kalenders in den Jahren `0000` bis `9999`.
-  `2024-02-29` ist daher gültig, `2026-02-29` nicht.
+  `2024-02-29` ist daher gültig, `2026-02-29` nicht. Er darf seine Zeitzone
+  angeben, `Z` oder `±hh:mm` von höchstens 14 Stunden, wie `xs:date` es
+  erlaubt (`2022-01-01+00:00`); `-00:00` wird abgelehnt. Ein Datum mit
+  Zeitzone ist nie gleich einem ohne, und beide sind nur geordnet, wenn sie
+  mehr als 14 Stunden auseinanderliegen, wie XML Schema sie ordnet.
 - Ein `dateTime` ist `YYYY-MM-DDThh:mm:ss`, ein optionaler Bruchteil mit einer
   bis neun Ziffern und ein verpflichtender UTC-Versatz, `Z` oder `±hh:mm` von
   höchstens 14 Stunden. Die Uhrzeit reicht von `00:00:00` bis `23:59:59`:
