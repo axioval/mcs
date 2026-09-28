@@ -500,6 +500,7 @@ satisfies a comparison:
 | `application` | name of every application it states wrote it |
 | `schema` | declared schema, such as `IFC4` |
 | `project` | name of the project it describes |
+| `timestamp` | statement of when it was written, as written, such as IFC's `FILE_NAME.time_stamp` |
 
 Source metadata is not an object fact: every object of a source matches or none
 does. `operator`, `value`, `caseSensitive`, `trim`, and `quantifier` compare the

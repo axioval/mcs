@@ -2660,6 +2660,8 @@ class SourceSelectorTests(unittest.TestCase):
             source_selector("schema", "oneOf", texts("IFC4", "IFC4X3_ADD2")),
             source_selector("project", "matches", text("P-[0-9]+")),
             source_selector("project", "greaterThan", text("A")),
+            source_selector("timestamp", "like", text("2026-09-*")),
+            source_selector("timestamp", "lessThan", text("2026-09-28T00:00:00")),
             source_selector("application", "exists"),
             {"kind": "not", "operand": source_selector("schema", "isEmpty")},
         ):
@@ -2670,6 +2672,8 @@ class SourceSelectorTests(unittest.TestCase):
         for selector in (
             source_selector("author", "equals", text("x")),
             source_selector("FileName", "equals", text("x")),
+            source_selector("Timestamp", "equals", text("x")),
+            source_selector("timestamp", "lessThan", date("2026-09-28")),
             source_selector(None, "equals", text("x")),
             source_selector("schema", "equals"),
             source_selector("schema", "equals", {"type": "integer", "value": 4}),
@@ -2714,6 +2718,7 @@ class PresenceClassificationSourceRenderingTests(unittest.TestCase):
                 ),
                 source_selector("schema", "equals", text("IFC4")),
                 source_selector("project", "isNotEmpty"),
+                source_selector("timestamp", "like", text("2026-*")),
             ],
         )
 

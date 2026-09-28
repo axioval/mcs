@@ -514,6 +514,7 @@ Ein `source`-Selektor wählt die Objekte der Quellen aus, deren Metadatenfeld
 | `application` | der Name jeder Anwendung, die sie nach eigener Angabe geschrieben hat |
 | `schema` | das deklarierte Schema, etwa `IFC4` |
 | `project` | der Name des beschriebenen Projekts |
+| `timestamp` | die Angabe, wann sie geschrieben wurde, wie angegeben, etwa `FILE_NAME.time_stamp` in IFC |
 
 Quellenmetadaten sind keine Objekteigenschaft: Alle Objekte einer Quelle passen
 oder keines. `operator`, `value`, `caseSensitive`, `trim` und `quantifier`

@@ -10,6 +10,9 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- A `source` selector's `field` may be `timestamp`, when the source states it
+  was written, as written, such as IFC's `FILE_NAME.time_stamp`, compared as
+  text like the other fields.
 - A step of a `related` selector's or a category level's `path` may end in `+`
   after a direction, such as `IfcRelAggregates:backward+`, to take the step one
   or more times, as the engine's traversal does; before, `+` was accepted only

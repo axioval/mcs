@@ -93,7 +93,7 @@ QUANTIFIERS = {"any", "all"}
 LIST_ELEMENT_KINDS = {"stringList": "string", "referenceList": "reference"}
 RELATED_QUANTIFIERS = {"any", "all", "none"}
 # The source metadata fields a source selector compares.
-SOURCE_FIELDS = {"fileName", "application", "schema", "project"}
+SOURCE_FIELDS = {"fileName", "application", "schema", "project", "timestamp"}
 # A related-selector path step: a source relationship name, optionally
 # followed by its direction and by `+` for one or more steps.
 RELATED_PATH_STEP = re.compile(r"[^:\s]+?(:(forward|backward|either))?\+?")
@@ -1377,7 +1377,8 @@ def validate_selector(
         if type(value["field"]) is not str or value["field"] not in SOURCE_FIELDS:
             fail(
                 context,
-                "field must be 'fileName', 'application', 'schema', or 'project'",
+                "field must be 'fileName', 'application', 'schema', 'project', "
+                "or 'timestamp'",
             )
         # Source metadata is text the source states, never a concept.
         validate_property_comparison(value, context, "string")

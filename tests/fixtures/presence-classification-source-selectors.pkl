@@ -69,6 +69,11 @@ definitions {
                 field = "project"
                 operator = "isNotEmpty"
               }
+              new Selectors.SourceSelector {
+                field = "timestamp"
+                operator = "like"
+                value = new Values.StringValue { value = "2026-*" }
+              }
             }
           }
         }
