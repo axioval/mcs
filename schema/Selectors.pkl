@@ -234,6 +234,25 @@ class DisciplineSelector extends Selector {
   value: DisciplineToken
 }
 
+/// Which judgement of another rule a rule-outcome selector selects.
+///
+/// - `passed` holds for an object the rule selected and reported nothing about.
+/// - `failed` holds for an object that is the subject of one of its findings.
+typealias RuleOutcome = "passed" | "failed"
+
+/// Select objects by how another rule of the same ruleset judged them.
+///
+/// `rule` is the ID of a rule instance of the same ruleset, also a disabled
+/// one, never the rule the selector belongs to; rules must not depend on one
+/// another's outcomes in a cycle. An object the other rule left not evaluated,
+/// or could not decide whether it selected, is not evaluated, never a match or
+/// a non-match. The checking application runs `rule` first.
+class RuleOutcomeSelector extends Selector {
+  kind: "ruleOutcome" = "ruleOutcome"
+  rule: Types.Identifier
+  outcome: RuleOutcome
+}
+
 class AllOfSelector extends Selector {
   kind: "allOf" = "allOf"
   operands: Listing<Selector>(length > 0)

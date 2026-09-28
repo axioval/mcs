@@ -95,6 +95,26 @@ const function normalizedCategoryLevel(level: CategoryLevel): Map<String, Any> =
     value != null && !(key == "path" && value.isEmpty)
   )
 
+/// When a gated rule runs, and on what.
+///
+/// - `allIfPassed` runs it on its whole selection if the other rule passed.
+/// - `allIfFailed` runs it on its whole selection if the other rule failed.
+/// - `passedObjects` narrows its selection to the objects the other rule passed.
+/// - `failedObjects` narrows its selection to the objects the other rule failed.
+///
+/// A whole-rule gate that does not hold skips the rule; the object conditions
+/// narrow its applicability as a `ruleOutcome` selector does.
+typealias GateCondition = "allIfPassed" | "allIfFailed" | "passedObjects" | "failedObjects"
+
+/// A gate on another rule of the same ruleset: the gated rule runs, or
+/// selects, only as that rule's outcome allows.
+class RuleGate {
+  /// The ID of the rule whose outcome gates: a rule instance of the same
+  /// ruleset, also a disabled one, never the gated rule itself.
+  rule: Types.Identifier
+  condition: GateCondition
+}
+
 class RuleInstance {
   id: Types.Identifier
   definitionId: Types.QualifiedIdentifier
@@ -120,6 +140,9 @@ class RuleInstance {
   /// Nested categories headed before each finding's message, outermost first.
   /// Normalized JSON omits it when empty.
   categories: Listing<CategoryLevel> = new {}
+  /// Runs the rule only as another rule's outcome allows. Normalized JSON
+  /// omits it when unset.
+  gate: RuleGate?
 }
 
 /// Render a rule instance without unset fields or empty refinements, so
@@ -136,6 +159,10 @@ class RuleFolder {
   description: Types.LocalizedText?
   rules: Listing<RuleInstance> = new {}
   folders: Listing<RuleFolder> = new {}
+  /// A gate every rule in the folder and its subfolders takes, together with
+  /// each rule's own. It names a rule outside the folder. Normalized JSON
+  /// omits it when unset.
+  gate: RuleGate?
 }
 
 /// Concrete ruleset package (ABox-like): instances reference definitions by

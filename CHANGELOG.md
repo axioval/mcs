@@ -10,6 +10,16 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Rule gates and rule-outcome selectors, mirroring the engine: a rule instance
+  or rule folder may declare a `gate` (`RuleSets.RuleGate`) on another rule of
+  the same ruleset, a `rule` ID and a `condition` `allIfPassed`, `allIfFailed`,
+  `passedObjects`, or `failedObjects`; a folder's gate applies to every rule in
+  it and must name a rule outside it. A `ruleOutcome` selector
+  (`Selectors.RuleOutcomeSelector`) selects the objects another rule `passed`
+  or `failed`. Normalized JSON omits an unset gate. The binder checks exact
+  keys, that every referenced rule is a rule instance of the same ruleset,
+  also a disabled one, and rejects a rule depending on its own outcome and
+  rules depending on one another's outcomes in a cycle.
 - The presence operators `isEmpty` (present but null, blank text, or a list of
   nothing else) and `isNotEmpty` (present with a value), which, like `exists`,
   take no value, no quantifier, and no text option on property,

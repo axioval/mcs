@@ -239,6 +239,8 @@ Selektoren sind deklarativ und werden rekursiv validiert:
 - `discipline`, der die Objekte von Quellen mit einer deklarierten Disziplin auswählt
 - `source`, der vergleicht, was eine Quelle über sich selbst angibt, etwa die
   Anwendung, die sie geschrieben hat
+- `ruleOutcome`, der danach auswählt, wie eine andere Regel des Regelsatzes ein
+  Objekt beurteilt hat
 - `allOf`, `anyOf` und `not`
 
 Ein Vergleichswert auf einem Eigenschaftsselektor muss zur katalogisierten `valueKind` der referenzierten Eigenschaft passen. Die Anwesenheitsoperatoren `exists`, `isEmpty` und `isNotEmpty` lehnen einen Vergleichswert ab. Jeder andere Operator benötigt einen.
@@ -506,6 +508,33 @@ jeden anderen Schlüssel ab; ein Quellenselektor nimmt keine `precision`.
     }
     ```
 
+### Regelergebnisselektoren
+
+Ein `ruleOutcome`-Selektor wählt Objekte danach aus, wie eine andere Regel
+desselben Regelsatzes sie beurteilt hat. `rule` ist die ID dieser Regel und
+`outcome` ist `passed` für ein Objekt, das die Regel ausgewählt und zu dem sie
+nichts berichtet hat, oder `failed` für ein Objekt, das Prüfobjekt eines ihrer
+Befunde ist. Ein Objekt, das die andere Regel nicht ausgewertet hat oder bei
+dem sie nicht entscheiden konnte, ob sie es auswählt, wird nicht ausgewertet
+und ist nie Treffer oder Nichttreffer. Die prüfende Anwendung führt die andere
+Regel zuerst aus.
+
+Der Selektor steht überall, wo in einem Regelsatz ein Selektor steht: in einer
+Anwendbarkeit, einer Zielgruppe, einem Selektorparameter oder einer
+Tabellenzelle und einer Schwereüberschreibung. Der Binder prüft die exakten
+Schlüssel und `outcome` sowie, dass `rule` eine Regelinstanz desselben
+Regelsatzes ist, auch eine deaktivierte; eine Regel, die ihr eigenes Ergebnis
+liest, und Regeln, die zusammen mit ihren [Gates](#regel-gates) gegenseitig
+ihre Ergebnisse in einem Zyklus lesen, werden abgelehnt.
+
+??? example "Selektor für die Türen anzeigen, an denen eine Türtypregel scheiterte"
+    ```pkl
+    new Selectors.RuleOutcomeSelector {
+      rule = "door-type"
+      outcome = "failed"
+    }
+    ```
+
 ## Umfangreiche Anwendbarkeit
 
 Eine Regel mit mehreren Populationen verwendet ein `Applicability`-Objekt. Die
@@ -612,9 +641,45 @@ erreichte Werte teilen sich eine Überschrift, und kein Wert ergibt `[-]`.
     }
     ```
 
+## Regel-Gates
+
+Eine Regelinstanz oder ein Regelordner kann ein `gate` auf eine andere Regel
+desselben Regelsatzes deklarieren: die ID der anderen Regel als `rule` und eine
+`condition`. Normalisiertes JSON lässt ein nicht gesetztes Gate weg, sodass
+Regeln und Ordner ohne Gate unverändert gerendert werden.
+
+| `condition` | Die Regel mit Gate läuft |
+| --- | --- |
+| `allIfPassed` | auf ihrer ganzen Auswahl, wenn die andere Regel bestanden hat |
+| `allIfFailed` | auf ihrer ganzen Auswahl, wenn die andere Regel gescheitert ist |
+| `passedObjects` | nur auf den Objekten, die die andere Regel bestanden haben |
+| `failedObjects` | nur auf den Objekten, an denen die andere Regel gescheitert ist |
+
+Ein Gate auf die ganze Regel, das nicht erfüllt ist, überspringt die Regel, die
+dann nichts berichtet. Die Objektbedingungen schränken die Anwendbarkeit der
+Regel ein wie ein [`ruleOutcome`-Selektor](#regelergebnisselektoren). Das Gate
+eines Ordners gilt für jede Regel im Ordner und seinen Unterordnern, zusammen
+mit dem eigenen Gate jeder Regel, und muss eine Regel außerhalb des Ordners
+nennen.
+
+Der Binder prüft die exakten Schlüssel und `condition` sowie, dass `rule` eine
+Regelinstanz desselben Regelsatzes ist, auch eine deaktivierte, und kein
+Ordner. Er lehnt eine Regel mit einem Gate auf sich selbst ab und Regeln, deren
+Gates und `ruleOutcome`-Selektoren gegenseitig ihre Ergebnisse in einem Zyklus
+lesen.
+
+??? example "Ordner anzeigen, der nur Türen mit gescheitertem Typ prüft"
+    ```pkl
+    new RuleSets.RuleFolder {
+      id = "door-hardware"
+      name { default = "Door hardware" }
+      gate { rule = "door-type"; condition = "failedObjects" }
+    }
+    ```
+
 ## Ordner sind kosmetisch
 
-`RuleFolder` dient Darstellung und Organisation. Seine Position ändert weder Selektorumfang, Regelidentität, Ausführungssemantik noch Vertrauen. Verbraucher können alternative Ansichten darstellen, ohne die Regeln umzuschreiben.
+`RuleFolder` dient Darstellung und Organisation. Seine Position ändert weder Selektorumfang, Regelidentität, Ausführungssemantik noch Vertrauen. Verbraucher können alternative Ansichten darstellen, ohne die Regeln umzuschreiben. Das [Gate](#regel-gates) eines Ordners ist die einzige Ausnahme: Es steht am Ordner, gilt aber für jede Regel darin, als hätte jede Regel es ebenfalls deklariert.
 
 ## Kompatibilitätsstatus
 

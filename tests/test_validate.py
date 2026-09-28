@@ -2689,5 +2689,284 @@ class PresenceClassificationSourceRenderingTests(unittest.TestCase):
         )
 
 
+
+def rule_outcome(rule: str, outcome: str = "failed") -> dict:
+    return {"kind": "ruleOutcome", "rule": rule, "outcome": outcome}
+
+
+def gate(rule: str, condition: str = "failedObjects") -> dict:
+    return {"rule": rule, "condition": condition}
+
+
+SELECTED = "axioval:example.selected"
+
+
+class RuleGateTests(unittest.TestCase):
+    """Rules gate on, and select by, other rules' outcomes in one ruleset."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def documents(self, default: dict | None = None) -> tuple[dict, dict]:
+        """Root rules `a` and `b`, and rule `c` in folder `sub`."""
+        ruleset = copy.deepcopy(self.ruleset)
+        definitions = copy.deepcopy(self.definitions)
+        parameter = {
+            "id": "subject",
+            "name": {"default": "Subject", "translations": {}},
+            "kind": "selector",
+            "required": default is None,
+            "allowedValues": [],
+        }
+        if default is not None:
+            parameter["defaultValue"] = {"type": "selector", "value": default}
+        definitions["definitions"][SELECTED] = {
+            "id": SELECTED,
+            "name": {"default": "Selected", "translations": {}},
+            "capability": "axioval:capability.selected",
+            "parameters": {"subject": parameter},
+            "tags": [],
+        }
+        template = ruleset["root"]["rules"][0]
+        template.pop("explanatoryImages", None)
+        template.pop("requirements", None)
+
+        def rule(rule_id: str) -> dict:
+            instance = copy.deepcopy(template)
+            instance["id"] = rule_id
+            return instance
+
+        ruleset["root"]["rules"] = [rule("a"), rule("b")]
+        ruleset["root"]["folders"] = [
+            {
+                "id": "sub",
+                "name": {"default": "Sub", "translations": {}},
+                "rules": [rule("c")],
+                "folders": [],
+            }
+        ]
+        return ruleset, definitions
+
+    @staticmethod
+    def rules(ruleset: dict) -> dict:
+        root = ruleset["root"]
+        return {rule["id"]: rule for rule in root["rules"] + root["folders"][0]["rules"]}
+
+    def bind(self, ruleset: dict, definitions: dict) -> None:
+        validate.bind_ruleset(ruleset, [definitions], "test")
+
+    def assert_rejected(self, ruleset: dict, definitions: dict) -> None:
+        with self.assertRaises(SystemExit):
+            self.bind(ruleset, definitions)
+
+    def selecting(self, rules: dict, rule_id: str, selector: dict) -> None:
+        rules[rule_id]["definitionId"] = SELECTED
+        rules[rule_id]["parameters"] = {
+            "subject": {"type": "selector", "value": selector}
+        }
+
+    def test_accepts_gates_on_rules_and_folders(self) -> None:
+        ruleset, definitions = self.documents()
+        self.bind(ruleset, definitions)
+        rules = self.rules(ruleset)
+        for condition in ("allIfPassed", "allIfFailed", "passedObjects", "failedObjects"):
+            rules["b"]["gate"] = gate("a", condition)
+            ruleset["root"]["folders"][0]["gate"] = gate("b", condition)
+            with self.subTest(condition=condition):
+                self.bind(ruleset, definitions)
+        # A disabled rule may gate another.
+        rules["a"]["enabled"] = False
+        self.bind(ruleset, definitions)
+
+    def test_accepts_rule_outcome_selectors_wherever_selectors_go(self) -> None:
+        ruleset, definitions = self.documents()
+        rules = self.rules(ruleset)
+        rules["b"]["applicability"] = {
+            "kind": "allOf",
+            "operands": [
+                rule_outcome("a"),
+                {"kind": "not", "operand": rule_outcome("c", "passed")},
+            ],
+        }
+        rules["c"]["severityOverrides"] = [
+            {"selector": rule_outcome("a", "passed"), "severity": "warning"}
+        ]
+        self.selecting(
+            rules,
+            "a",
+            {
+                "kind": "related",
+                "path": ["IfcRelFillsElement:backward"],
+                "selector": {"kind": "not", "operand": {"kind": "all"}},
+            },
+        )
+        self.bind(ruleset, definitions)
+        # `c` reads `a`, so `a` reading `c` closes a cycle.
+        rules["a"]["parameters"]["subject"]["value"]["selector"] = rule_outcome("c")
+        self.assert_rejected(ruleset, definitions)
+
+    def test_rejects_malformed_gates_and_selectors(self) -> None:
+        for field, candidate in (
+            ("gate", gate("a", "sometimes")),
+            ("gate", gate("")),
+            ("gate", gate("Not-An-Id")),
+            ("gate", {"rule": "a"}),
+            ("gate", {**gate("a"), "negated": True}),
+            ("gate", None),
+            ("gate", "a"),
+            ("applicability", rule_outcome("a", "undecided")),
+            ("applicability", {"kind": "ruleOutcome", "rule": "a"}),
+            ("applicability", {**rule_outcome("a"), "negated": True}),
+            ("applicability", rule_outcome(7)),
+        ):
+            ruleset, definitions = self.documents()
+            self.rules(ruleset)["b"][field] = candidate
+            with self.subTest(field=field, candidate=candidate):
+                self.assert_rejected(ruleset, definitions)
+        ruleset, definitions = self.documents()
+        ruleset["root"]["folders"][0]["gate"] = gate("a", "never")
+        self.assert_rejected(ruleset, definitions)
+
+    def test_rejects_unknown_rules_and_folder_ids(self) -> None:
+        for field, candidate in (
+            ("gate", gate("missing")),
+            ("gate", gate("sub")),
+            ("gate", gate("root")),
+            ("applicability", rule_outcome("missing")),
+        ):
+            ruleset, definitions = self.documents()
+            self.rules(ruleset)["b"][field] = candidate
+            with self.subTest(field=field, candidate=candidate):
+                self.assert_rejected(ruleset, definitions)
+        ruleset, definitions = self.documents()
+        ruleset["root"]["folders"][0]["gate"] = gate("missing")
+        self.assert_rejected(ruleset, definitions)
+
+    def test_rejects_self_references_and_cycles(self) -> None:
+        cases = (
+            {"a": {"gate": gate("a")}},
+            {"a": {"applicability": rule_outcome("a")}},
+            {"a": {"severityOverrides": [
+                {"selector": rule_outcome("a"), "severity": "info"}
+            ]}},
+            {"a": {"gate": gate("b")}, "b": {"gate": gate("a", "allIfPassed")}},
+            {
+                "a": {"gate": gate("b")},
+                "b": {"applicability": rule_outcome("c")},
+                "c": {"severityOverrides": [
+                    {"selector": rule_outcome("a"), "severity": "info"}
+                ]},
+            },
+        )
+        for case in cases:
+            ruleset, definitions = self.documents()
+            rules = self.rules(ruleset)
+            for rule_id, fields in case.items():
+                rules[rule_id].update(copy.deepcopy(fields))
+            with self.subTest(case=case):
+                self.assert_rejected(ruleset, definitions)
+        # A cycle through a selector parameter, and through a folder's gate.
+        ruleset, definitions = self.documents()
+        rules = self.rules(ruleset)
+        self.selecting(rules, "a", rule_outcome("c"))
+        rules["c"]["gate"] = gate("a")
+        self.assert_rejected(ruleset, definitions)
+        ruleset, definitions = self.documents()
+        ruleset["root"]["folders"][0]["gate"] = gate("a")
+        self.rules(ruleset)["a"]["applicability"] = rule_outcome("c")
+        self.assert_rejected(ruleset, definitions)
+
+    def test_a_folder_gate_names_a_rule_outside_the_folder(self) -> None:
+        ruleset, definitions = self.documents()
+        ruleset["root"]["folders"][0]["gate"] = gate("c")
+        self.assert_rejected(ruleset, definitions)
+        ruleset["root"]["gate"] = gate("a")
+        del ruleset["root"]["folders"][0]["gate"]
+        self.assert_rejected(ruleset, definitions)
+
+    def test_defaulted_selector_parameters_count_as_references(self) -> None:
+        ruleset, definitions = self.documents(default=rule_outcome("b"))
+        rules = self.rules(ruleset)
+        rules["a"]["definitionId"] = SELECTED
+        rules["a"]["parameters"] = {}
+        self.bind(ruleset, definitions)
+        rules["b"]["gate"] = gate("a")
+        self.assert_rejected(ruleset, definitions)
+        # A bound value replaces the default.
+        rules["a"]["parameters"] = {
+            "subject": {"type": "selector", "value": {"kind": "all"}}
+        }
+        self.bind(ruleset, definitions)
+
+    def test_pkl_renders_gates_and_rule_outcome_selectors(self) -> None:
+        rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+
+        def module(body: str) -> str:
+            return (
+                f'amends "{rules}"\n\n'
+                f'import "{selectors}"\n\n'
+                'package { id = "axioval:example.gates"; version = "0.1.0"; '
+                'name { default = "Gates" } }\n'
+                'definitionPackages { "axioval:example.definitions" }\n'
+                "root {\n"
+                '  id = "root"\n'
+                '  name { default = "Root" }\n'
+                f"{body}\n"
+                "}\n"
+            )
+
+        body = """  rules {
+    new {
+      id = "door-type"
+      definitionId = "axioval:example.property-exists"
+      name { default = "Door type" }
+    }
+  }
+  folders {
+    new {
+      id = "hardware"
+      name { default = "Hardware" }
+      gate { rule = "door-type"; condition = "failedObjects" }
+      rules {
+        new {
+          id = "closer"
+          definitionId = "axioval:example.property-exists"
+          name { default = "Closer" }
+          gate { rule = "door-type"; condition = "allIfFailed" }
+          applicability = new Selectors.RuleOutcomeSelector {
+            rule = "door-type"
+            outcome = "passed"
+          }
+        }
+      }
+    }
+  }"""
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "gates.pkl"
+            path.write_text(module(body), encoding="utf-8")
+            evaluated = validate.evaluate(path)
+            door_type = evaluated["root"]["rules"][0]
+            hardware = evaluated["root"]["folders"][0]
+            closer = hardware["rules"][0]
+            self.assertNotIn("gate", door_type)
+            self.assertNotIn("gate", evaluated["root"])
+            self.assertEqual(hardware["gate"], gate("door-type"))
+            self.assertEqual(closer["gate"], gate("door-type", "allIfFailed"))
+            self.assertEqual(closer["applicability"], rule_outcome("door-type", "passed"))
+            for broken in (
+                body.replace('condition = "failedObjects"', 'condition = "sometimes"'),
+                body.replace('outcome = "passed"', 'outcome = "undecided"'),
+                body.replace('rule = "door-type"\n', 'rule = "Door Type"\n'),
+            ):
+                self.assertNotEqual(broken, body)
+                path.write_text(module(broken), encoding="utf-8")
+                with self.subTest(broken=broken), self.assertRaises(SystemExit):
+                    validate.evaluate(path)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -239,6 +239,7 @@ Selectors are declarative and recursively validated:
 - `discipline`, selecting the objects of sources that declare a discipline
 - `source`, comparing what a source states about itself, such as the
   application that wrote it
+- `ruleOutcome`, selecting by how another rule of the ruleset judged an object
 - `allOf`, `anyOf`, and `not`
 
 A comparison value on a property selector must match the referenced property's
@@ -495,6 +496,30 @@ takes no `precision`.
     }
     ```
 
+### Rule-outcome selectors
+
+A `ruleOutcome` selector selects objects by how another rule of the same
+ruleset judged them. `rule` is that rule's ID and `outcome` is `passed`, for an
+object the rule selected and reported nothing about, or `failed`, for an object
+that is the subject of one of its findings. An object the other rule left not
+evaluated, or could not decide whether it selected, is not evaluated, never a
+match or a non-match. The checking application runs the other rule first.
+
+The selector goes wherever a selector goes in a ruleset: an applicability, a
+target group, a selector parameter or table cell, and a severity override. The
+binder checks exact keys and the `outcome`, and that `rule` is a rule instance
+of the same ruleset, also a disabled one; a rule reading its own outcome, and
+rules reading one another's outcomes in a cycle, together with their
+[gates](#rule-gates), are rejected.
+
+??? example "Show a selector for the doors a door-type rule failed"
+    ```pkl
+    new Selectors.RuleOutcomeSelector {
+      rule = "door-type"
+      outcome = "failed"
+    }
+    ```
+
 ## Rich applicability
 
 A rule that involves several populations uses an `Applicability` object. Its
@@ -591,11 +616,46 @@ share one heading and no value heads `[-]`.
     }
     ```
 
+## Rule gates
+
+A rule instance, or a rule folder, may declare a `gate` on another rule of the
+same ruleset: the other rule's ID as `rule` and a `condition`. Normalized JSON
+omits an unset gate, so rules and folders without one render unchanged.
+
+| `condition` | The gated rule runs |
+| --- | --- |
+| `allIfPassed` | on its whole selection, if the other rule passed |
+| `allIfFailed` | on its whole selection, if the other rule failed |
+| `passedObjects` | on the objects the other rule passed only |
+| `failedObjects` | on the objects the other rule failed only |
+
+A whole-rule gate that does not hold skips the rule, which then reports
+nothing. The object conditions narrow the rule's applicability as a
+[`ruleOutcome` selector](#rule-outcome-selectors) does. A folder's gate applies
+to every rule in the folder and its subfolders, together with each rule's own
+gate, and must name a rule outside the folder.
+
+The binder checks exact keys and the `condition`, and that `rule` is a rule
+instance of the same ruleset, also a disabled one, not a folder. It rejects a
+rule gated on itself and rules whose gates and `ruleOutcome` selectors read one
+another's outcomes in a cycle.
+
+??? example "Show a folder checked only on doors that failed their type"
+    ```pkl
+    new RuleSets.RuleFolder {
+      id = "door-hardware"
+      name { default = "Door hardware" }
+      gate { rule = "door-type"; condition = "failedObjects" }
+    }
+    ```
+
 ## Folders are cosmetic
 
 `RuleFolder` exists for presentation and organization. Its position does not
 change selector scope, rule identity, execution semantics, or trust. Consumers
-may render alternative views without rewriting the rules.
+may render alternative views without rewriting the rules. A folder's
+[gate](#rule-gates) is the one exception: it is stated on the folder but applies
+to each rule in it, as if each rule declared it too.
 
 ## Compatibility status
 

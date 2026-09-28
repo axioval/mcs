@@ -114,6 +114,10 @@ RESERVED_PROPERTY_SETS = {
     "axioval:body",
 }
 SEVERITIES = {"info", "warning", "error"}
+# How another rule judged an object, as a rule-outcome selector selects it.
+RULE_OUTCOMES = {"passed", "failed"}
+# When a gated rule runs, and on what.
+GATE_CONDITIONS = {"allIfPassed", "allIfFailed", "passedObjects", "failedObjects"}
 # A discipline name a source declares; no vocabulary is fixed.
 DISCIPLINE_TOKEN = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 # The Unicode general categories an XML Schema `\p{...}` escape may name.
@@ -1246,8 +1250,97 @@ def validate_selector(
             properties,
             property_sets,
         )
+    elif kind == "ruleOutcome":
+        exact_keys(value, {"kind", "rule", "outcome"}, set(), context)
+        # Whether `rule` names a rule of the same ruleset is checked once the
+        # whole ruleset is known; see `validate_rule_dependencies`.
+        if type(value["rule"]) is not str or not IDENTIFIER.fullmatch(value["rule"]):
+            fail(context, "rule must be a rule id")
+        if type(value["outcome"]) is not str or value["outcome"] not in RULE_OUTCOMES:
+            fail(context, "outcome must be 'passed' or 'failed'")
     else:
         fail(context, f"unknown selector kind {kind!r}")
+
+
+def selector_rule_references(value: dict[str, Any], out: set[str]) -> None:
+    """Collect the rules the `ruleOutcome` selectors in a checked selector read."""
+    kind = value["kind"]
+    if kind == "ruleOutcome":
+        out.add(value["rule"])
+    elif kind in {"allOf", "anyOf"}:
+        for operand in value["operands"]:
+            selector_rule_references(operand, out)
+    elif kind == "not":
+        selector_rule_references(value["operand"], out)
+    elif kind == "related":
+        selector_rule_references(value["selector"], out)
+
+
+def value_rule_references(value: dict[str, Any], out: set[str]) -> None:
+    """Collect the rules a checked selector value or table's cells read."""
+    if value["type"] == "selector":
+        selector_rule_references(value["value"], out)
+    elif value["type"] == "table":
+        for row in value["value"]:
+            for cell in row.values():
+                value_rule_references(cell, out)
+
+
+def validate_gate(value: Any, context: str) -> dict[str, Any]:
+    """Check a rule's or folder's `gate` shape; its rule is checked later."""
+    gate = object_value(value, context)
+    exact_keys(gate, {"rule", "condition"}, set(), context)
+    if type(gate["rule"]) is not str or not IDENTIFIER.fullmatch(gate["rule"]):
+        fail(context, "rule must be a rule id")
+    if (
+        type(gate["condition"]) is not str
+        or gate["condition"] not in GATE_CONDITIONS
+    ):
+        fail(
+            context,
+            "condition must be 'allIfPassed', 'allIfFailed', 'passedObjects', "
+            "or 'failedObjects'",
+        )
+    return gate
+
+
+def validate_rule_dependencies(
+    reads: dict[str, set[str]], rule_contexts: dict[str, str]
+) -> None:
+    """Refuse rules reading their own outcome or reading one another in a cycle.
+
+    `reads` maps every rule ID to the rules its gates and `ruleOutcome`
+    selectors read, each already checked to be a rule of the ruleset.
+    """
+    for rule_id, parents in reads.items():
+        if rule_id in parents:
+            fail(rule_contexts[rule_id], "the rule depends on its own outcome")
+    state: dict[str, int] = {}
+    for start in sorted(reads):
+        if state.get(start):
+            continue
+        # Iterative depth-first search; 1 is on the stack, 2 is finished.
+        stack: list[tuple[str, list[str]]] = [(start, sorted(reads[start]))]
+        state[start] = 1
+        while stack:
+            node, pending = stack[-1]
+            if not pending:
+                state[node] = 2
+                stack.pop()
+                continue
+            parent = pending.pop()
+            if state.get(parent) == 1:
+                cycle = [entry for entry, _ in stack]
+                cycle = cycle[cycle.index(parent) :]
+                fail(
+                    rule_contexts[start],
+                    "the rules "
+                    + ", ".join(repr(entry) for entry in cycle)
+                    + " depend on one another's outcomes in a cycle",
+                )
+            if not state.get(parent):
+                state[parent] = 1
+                stack.append((parent, sorted(reads[parent])))
 
 
 def validate_severity_bands(value: Any, context: str) -> None:
@@ -1735,13 +1828,18 @@ def bind_ruleset(
             f"declared definition packages {sorted(declared_list)} do not match loaded packages {sorted(loaded_packages)}",
         )
     seen_ids: set[str] = set()
+    # The rules each rule's gates and rule-outcome selectors read, checked
+    # once every rule of the ruleset is known.
+    reads: dict[str, set[str]] = {}
+    rule_contexts: dict[str, str] = {}
 
-    def walk(folder: Any, folder_context: str) -> None:
+    def walk(folder: Any, folder_context: str, inherited: tuple[str, ...]) -> set[str]:
+        """Check `folder` and return the IDs of the rules in it and below."""
         folder = object_value(folder, folder_context)
         exact_keys(
             folder,
             {"id", "name", "rules", "folders"},
-            {"description"},
+            {"description", "gate"},
             folder_context,
         )
         folder_id = folder["id"]
@@ -1753,6 +1851,11 @@ def bind_ruleset(
         localized_text(folder["name"], f"{folder_context}.name")
         if "description" in folder:
             localized_text(folder["description"], f"{folder_context}.description")
+        folder_gate = None
+        if "gate" in folder:
+            folder_gate = validate_gate(folder["gate"], f"{folder_context}.gate")
+            inherited = (*inherited, folder_gate["rule"])
+        subtree: set[str] = set()
         for index, rule in enumerate(
             list_value(folder["rules"], f"{folder_context}.rules")
         ):
@@ -1780,6 +1883,7 @@ def bind_ruleset(
                     "severityBands",
                     "severityOverrides",
                     "categories",
+                    "gate",
                 },
                 rule_context,
             )
@@ -1906,9 +2010,46 @@ def bind_ruleset(
                     properties,
                     property_sets,
                 )
+            # Every rule this one reads: its folders' gates and its own, and
+            # the rule-outcome selectors of its applicability, parameters
+            # (bound or defaulted), and severity overrides.
+            read = set(inherited)
+            if "gate" in rule:
+                read.add(validate_gate(rule["gate"], f"{rule_context}.gate")["rule"])
+            applicability = rule["applicability"]
+            if "kind" in applicability:
+                selector_rule_references(applicability, read)
+            else:
+                for group in applicability["groups"].values():
+                    selector_rule_references(group["selector"], read)
+            for parameter_id, parameter in parameters.items():
+                effective = bindings.get(parameter_id, parameter.get("defaultValue"))
+                if effective is not None:
+                    value_rule_references(effective, read)
+            for entry in rule.get("severityOverrides", []):
+                selector_rule_references(entry["selector"], read)
+            reads[rule_id] = read
+            rule_contexts[rule_id] = rule_context
+            subtree.add(rule_id)
         for index, child in enumerate(
             list_value(folder["folders"], f"{folder_context}.folders")
         ):
-            walk(child, f"{folder_context}.folders[{index}]")
+            subtree |= walk(child, f"{folder_context}.folders[{index}]", inherited)
+        if folder_gate is not None and folder_gate["rule"] in subtree:
+            fail(
+                f"{folder_context}.gate",
+                f"a folder's gate must name a rule outside the folder, not "
+                f"{folder_gate['rule']!r}",
+            )
+        return subtree
 
-    walk(value["root"], f"{context}.root")
+    walk(value["root"], f"{context}.root", ())
+    for rule_id, read in reads.items():
+        unknown = sorted(read - reads.keys())
+        if unknown:
+            fail(
+                rule_contexts[rule_id],
+                f"the rule depends on rules {unknown}, which the ruleset does "
+                "not define",
+            )
+    validate_rule_dependencies(reads, rule_contexts)
