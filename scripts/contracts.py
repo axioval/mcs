@@ -725,7 +725,13 @@ def resolve_property_reference(
             context,
             f"property concept has value kind {properties[value['property']]['valueKind']!r}, expected {expected_value_kind!r}",
         )
-    if "propertySet" in value and value["propertySet"] not in property_sets:
+    # Reserved sets are engine vocabulary and bind to themselves; the property
+    # in them is still a concept.
+    if (
+        "propertySet" in value
+        and value["propertySet"] not in RESERVED_PROPERTY_SETS
+        and value["propertySet"] not in property_sets
+    ):
         fail(context, f"unknown property-set concept {value['propertySet']!r}")
 
 
@@ -1291,9 +1297,12 @@ def validate_selector(
         else:
             if properties is not None and value["property"] not in properties:
                 fail(context, "unknown property concept")
+            # Reserved sets are engine vocabulary and bind to themselves; the
+            # property in them is still a concept.
             if (
                 property_sets is not None
                 and property_set is not None
+                and property_set not in RESERVED_PROPERTY_SETS
                 and property_set not in property_sets
             ):
                 fail(context, "unknown property-set concept")

@@ -170,6 +170,27 @@ or every match) is the capability's contract, not the package's.
         }
         ```
 
+### Attribute sets
+
+The reserved sets `axioval:attributes`, `axioval:type-attributes`,
+`axioval:presentation`, `axioval:material`, and `axioval:body` name what a
+source states outside its own property sets, such as an object's attributes,
+its material layers, or its body. They are no package concepts and bind to
+themselves, so property selectors, property references, and category levels
+name them without a property-set concept. The property inside them is an
+ordinary property concept, bound through the catalogs like any other: a package
+declares `space-number` for a source attribute and references it in
+`axioval:attributes`.
+
+??? example "Show JSON"
+    ```json
+    {
+      "type": "propertyReference",
+      "property": "axioval:example.ifc.reference",
+      "propertySet": "axioval:attributes"
+    }
+    ```
+
 ## Dates and date-times
 
 `date` and `dateTime` are value kinds of parameters and property concepts
@@ -333,7 +354,8 @@ properties (`Pset_.*Common`).
 `propertyPattern` and the optional `propertySetPattern` match the whole name the
 source states, never a concept: they are not bound through the concept catalogs,
 so a pattern names no catalogued property. Without `propertySetPattern` every
-property set is searched. Both patterns are non-empty XML Schema regular
+property set is searched, never a reserved set such as `axioval:attributes`,
+which a `property` selector names. Both patterns are non-empty XML Schema regular
 expressions, in which `^` and `$` are ordinary characters. The binder rejects a
 pattern that does not compile and the constructs the checking application
 cannot match exactly: character-class subtraction (`[a-z-[aeiou]]`), the `\i`

@@ -3441,5 +3441,126 @@ class MeasuredValueTests(unittest.TestCase):
                         evaluate(property_set, name)
 
 
+
+ATTRIBUTE_SETS = (
+    "axioval:attributes",
+    "axioval:type-attributes",
+    "axioval:presentation",
+    "axioval:material",
+    "axioval:body",
+)
+
+
+class ReservedAttributeSetTests(unittest.TestCase):
+    """The attribute sets bind to themselves; their properties are concepts."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def bind(self, **rule_fields) -> None:
+        ruleset = copy.deepcopy(self.ruleset)
+        rule = ruleset["root"]["rules"][0]
+        rule.pop("explanatoryImages", None)
+        rule.pop("requirements", None)
+        rule.update(copy.deepcopy(rule_fields))
+        validate.bind_ruleset(ruleset, [copy.deepcopy(self.definitions)], "test")
+
+    def assert_rejected(self, **rule_fields) -> None:
+        with self.subTest(rule=rule_fields), self.assertRaises(SystemExit):
+            self.bind(**rule_fields)
+
+    @staticmethod
+    def uses(property_set: str, property_id: str = REFERENCE) -> dict:
+        selector = property_selector(property_id, "exists", propertySet=property_set)
+        return {
+            "applicability": {
+                "kind": "allOf",
+                "operands": [
+                    selector,
+                    related_selector(["IfcRelAggregates:backward"], selector),
+                ],
+            },
+            "severityOverrides": [{"selector": selector, "severity": "info"}],
+            "categories": [{"propertySet": property_set, "property": property_id}],
+            "parameters": {
+                "property": {
+                    "type": "propertyReference",
+                    "propertySet": property_set,
+                    "property": property_id,
+                }
+            },
+        }
+
+    def test_accepts_every_attribute_set_around_a_property_concept(self) -> None:
+        for property_set in ATTRIBUTE_SETS:
+            uses = self.uses(property_set)
+            for field, value in uses.items():
+                with self.subTest(property_set=property_set, field=field):
+                    self.bind(**{field: value})
+            self.bind(**uses)
+
+    def test_property_in_an_attribute_set_is_still_bound(self) -> None:
+        for property_set in ATTRIBUTE_SETS:
+            for property_id in ("axioval:unknown.property", "Name", ""):
+                uses = self.uses(property_set, property_id)
+                for field, value in uses.items():
+                    self.assert_rejected(**{field: value})
+
+    def test_other_sets_are_still_concepts(self) -> None:
+        for property_set in ("axioval:unknown.set", "axioval:attribute"):
+            uses = self.uses(property_set)
+            for field, value in uses.items():
+                self.assert_rejected(**{field: value})
+
+    def test_property_set_patterns_are_never_bound(self) -> None:
+        from scripts.contracts import validate_selector
+
+        for property_set in ATTRIBUTE_SETS:
+            with self.subTest(property_set=property_set):
+                validate_selector(
+                    pattern_selector("Name", propertySetPattern=property_set),
+                    "test",
+                    {},
+                    {},
+                    {},
+                )
+
+    def test_pkl_accepts_attribute_sets_around_property_concepts(self) -> None:
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+        values = (validate.ROOT / "schema/Values.pkl").as_uri()
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "attributes.pkl"
+
+            def evaluate(property_set: str, name: str) -> dict:
+                path.write_text(
+                    f'import "{selectors}"\n'
+                    f'import "{values}"\n\n'
+                    "selector = new Selectors.PropertySelector {\n"
+                    f'  propertySet = "{property_set}"\n'
+                    f'  property = "{name}"\n'
+                    '  operator = "exists"\n'
+                    "}\n"
+                    "reference = new Values.PropertyReferenceValue {\n"
+                    f'  propertySet = "{property_set}"\n'
+                    f'  property = "{name}"\n'
+                    "}\n",
+                    encoding="utf-8",
+                )
+                return validate.evaluate(path)
+
+            for property_set in ATTRIBUTE_SETS:
+                with self.subTest(property_set=property_set):
+                    evaluated = evaluate(property_set, REFERENCE)
+                    self.assertEqual(
+                        evaluated["selector"]["propertySet"], property_set
+                    )
+                    self.assertEqual(evaluated["reference"]["property"], REFERENCE)
+                    with self.assertRaises(SystemExit):
+                        evaluate(property_set, "Name")
+
+
 if __name__ == "__main__":
     unittest.main()

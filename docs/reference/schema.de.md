@@ -165,6 +165,28 @@ Fähigkeit fest, nicht das Paket.
         }
         ```
 
+### Attributsets
+
+Die reservierten Sets `axioval:attributes`, `axioval:type-attributes`,
+`axioval:presentation`, `axioval:material` und `axioval:body` benennen, was
+eine Quelle außerhalb ihrer eigenen Eigenschaftssets angibt, etwa die Attribute
+eines Objekts, seine Materialschichten oder seinen Körper. Sie sind keine
+Paketkonzepte und binden an sich selbst, sodass Eigenschaftsselektoren,
+Eigenschaftsreferenzen und Kategorieebenen sie ohne Eigenschaftsset-Konzept
+benennen. Die Eigenschaft darin ist ein gewöhnliches Eigenschaftskonzept und
+wird wie jedes andere über die Kataloge gebunden: Ein Paket deklariert
+`space-number` für ein Attribut der Quelle und referenziert es in
+`axioval:attributes`.
+
+??? example "JSON anzeigen"
+    ```json
+    {
+      "type": "propertyReference",
+      "property": "axioval:example.ifc.reference",
+      "propertySet": "axioval:attributes"
+    }
+    ```
+
 ## Datums- und Zeitpunktwerte
 
 `date` und `dateTime` sind Wertarten von Parametern wie von
@@ -336,7 +358,9 @@ Eigenschaftssets und Eigenschaften benennt (`Pset_.*Common`).
 `propertyPattern` und das optionale `propertySetPattern` passen auf den ganzen
 Namen, den die Quelle angibt, nie auf ein Konzept: Sie werden nicht über die
 Konzeptkataloge gebunden, ein Muster benennt also keine katalogisierte
-Eigenschaft. Ohne `propertySetPattern` wird jedes Eigenschaftsset durchsucht.
+Eigenschaft. Ohne `propertySetPattern` wird jedes Eigenschaftsset durchsucht,
+nie aber ein reserviertes Set wie `axioval:attributes`, das ein
+`property`-Selektor benennt.
 Beide Muster sind nicht leere reguläre Ausdrücke nach XML Schema, in denen `^`
 und `$` gewöhnliche Zeichen sind. Der Binder lehnt ein Muster ab, das sich nicht
 kompilieren lässt, sowie die Konstrukte, die die prüfende Anwendung nicht exakt

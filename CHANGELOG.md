@@ -10,6 +10,11 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Property selectors and property references name the reserved attribute sets
+  `axioval:attributes`, `axioval:type-attributes`, `axioval:presentation`,
+  `axioval:material`, and `axioval:body`, as category levels already do. The
+  set binds to itself; the property in it is still a property concept bound
+  through the catalogs. A property-set pattern never searches these sets.
 - A `related` selector's `path` may name relationships the checking
   application derives from geometry, as a category path may:
   `axioval:derived.<name>` with optional `;key=value` tolerances, a direction,

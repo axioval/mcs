@@ -58,6 +58,8 @@ class PropertyReferenceValue extends ParameterValue {
   /// `axioval:measured` a measured name such as `extent_z` or
   /// `boundary_area;kind=IfcWall`.
   property: String(Types.isPropertyName(propertySet, this))
+  /// A property-set concept, or a reserved set such as `axioval:attributes`,
+  /// which binds to itself while `property` stays a property concept.
   propertySet: Types.QualifiedIdentifier?
 }
 
