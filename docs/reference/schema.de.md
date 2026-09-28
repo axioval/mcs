@@ -411,6 +411,21 @@ Geometrie ableitet, `axioval:derived.<name>` mit optionalen
 `;key=value`-Toleranzen, etwa `axioval:derived.adjacent-space;reach=1`, gefolgt
 von einer Richtung und `+`, wie ein Kategoriepfad es erlaubt.
 
+Ein Schritt darf mehrere Beziehungen nennen, getrennt durch `|`, und jede von
+ihnen gehen. Eine Richtung, nach der letzten geschrieben, gilt für alle, und mit
+`+` mischt die Kette sie, jeder Schritt über eine beliebige Alternative:
+`IfcRelFillsElement|IfcRelVoidsElement:backward+` steigt von einer Tür über die
+Öffnung, die sie füllt, zur Wand, die die Öffnung ausspart. Jeder
+Beziehungspfad, in Selektoren für verbundene Objekte, Kategorieebenen und
+`bottom_above_level`, teilt diese Schrittgrammatik mit der Prüf-Engine.
+
+??? note "Schrittgrammatik anzeigen"
+    ```text
+    step          = relationships [ ":" direction ] [ "+" ]
+    relationships = relationship { "|" relationship }
+    direction     = "forward" | "backward" | "either"
+    ```
+
 | `quantifier` | Wählt aus, wenn |
 | --- | --- |
 | `any` (Standard) | mindestens ein erreichtes Objekt passt |
@@ -419,9 +434,13 @@ von einer Richtung und `+`, wie ein Kategoriepfad es erlaubt.
 
 Normalisiertes JSON lässt den Standardwert `any` weg, und der verschachtelte
 Selektor behält seine eigene Normalisierung. Der Binder lehnt einen leeren
-`path`, einen Schritt mit Leerraum, einen leeren Namen, eine andere Richtung
-oder eine fehlerhafte abgeleitete Beziehung sowie jeden anderen Wert für
-`quantifier` ab.
+`path`, einen Schritt mit Leerraum, einen leeren Namen oder eine leere
+Alternative, eine in einem Schritt zweimal genannte Beziehung, eine Richtung
+innerhalb einer Alternative statt nach der letzten, eine andere Richtung oder
+eine fehlerhafte abgeleitete Beziehung sowie jeden anderen Wert für
+`quantifier` ab. Eine abgeleitete Beziehung behält ihren eigenen Doppelpunkt:
+Nur ein Doppelpunkt, dem ein Richtungswort folgt, beendet die letzte
+Alternative.
 
 ??? example "Selektor für Türen in Brandwänden anzeigen"
     ```pkl
@@ -797,7 +816,8 @@ Anwendung am Körper eines Objekts misst, statt sie aus einer Quelle zu lesen:
 Zwei Namen nehmen nach dem Namen Parameter, durch `;` getrennte
 `key=value`-Paare, die Teil des Eigenschaftsnamens sind. `bottom_above_level`
 benötigt `path`, die durch `,` getrennten Schritte, wie ein Selektor für
-verbundene Objekte sie schreibt, `Relationship[:forward|backward|either][+]`,
+verbundene Objekte sie schreibt,
+`Relationship[|Relationship...][:forward|backward|either][+]`,
 etwa `IfcRelContainedInSpatialStructure:backward`. `boundary_area` benötigt
 `kind` und nimmt optional `plane`, eine Zahl von Metern von mindestens null.
 

@@ -1388,6 +1388,15 @@ class RelatedSelectorTests(unittest.TestCase):
             ),
             related_selector(
                 [
+                    "IfcRelFillsElement|IfcRelVoidsElement:backward+",
+                    "IfcRelAggregates|IfcRelNests",
+                    "IfcRelNests|axioval:derived.same-level;by=1:either",
+                    "axioval:derived.intersects|IfcRelNests",
+                    "axioval:derived.adjacent-space;reach=1|axioval:derived.intersects+",
+                ]
+            ),
+            related_selector(
+                [
                     "axioval:derived.adjacent-space",
                     "axioval:derived.contained-in-space;horizontal=0.25;vertical=0.5",
                     "axioval:derived.overlapping-group-space;ratio=0.9:backward",
@@ -1450,6 +1459,19 @@ class RelatedSelectorTests(unittest.TestCase):
             related_selector(["axioval:derived.adjacent-space;reach=-1"]),
             related_selector(["axioval:derived.adjacent-space:sideways"]),
             related_selector(["axioval:other.adjacent-space"]),
+            related_selector(["IfcRelNests|"]),
+            related_selector(["|IfcRelNests"]),
+            related_selector(["IfcRelNests||IfcRelAggregates"]),
+            related_selector(["IfcRelNests|IfcRelNests"]),
+            related_selector(["IfcRelNests|IfcRelNests:backward+"]),
+            related_selector(["IfcRelNests:backward|IfcRelAggregates"]),
+            related_selector(["IfcRelNests:backward|IfcRelAggregates:backward"]),
+            related_selector(["axioval:derived.intersects:either|IfcRelNests"]),
+            related_selector(["IfcRelNests | IfcRelAggregates"]),
+            related_selector(["IfcRelNests|IfcRelAggregates:sideways"]),
+            related_selector(["IfcRelNests|axioval:derived.intersects:up"]),
+            related_selector(["|"]),
+            related_selector(["+"]),
             related_selector({"kind": "unknown"}),
             related_selector(None),
         ):
@@ -2332,6 +2354,12 @@ class RuleRefinementTests(unittest.TestCase):
                 category(path=["IfcRelAggregates+", "IfcRelNests:either"]),
                 category(path=["IfcRelAggregates:backward+", "IfcRelNests:either+"]),
                 category(
+                    path=[
+                        "IfcRelFillsElement|IfcRelVoidsElement:backward+",
+                        "IfcRelNests|axioval:derived.adjacent-space",
+                    ]
+                ),
+                category(
                     propertySet="axioval:attributes",
                     path=[
                         "axioval:derived.adjacent-space",
@@ -2393,6 +2421,9 @@ class RuleRefinementTests(unittest.TestCase):
             [category(path=[""])],
             [category(path=["Ifc Rel"])],
             [category(path=["IfcRelAggregates:sideways"])],
+            [category(path=["IfcRelAggregates|"])],
+            [category(path=["IfcRelAggregates|IfcRelAggregates"])],
+            [category(path=["IfcRelAggregates:backward|IfcRelNests"])],
             [category(path=["axioval:derived."])],
             [category(path=["axioval:derived.adjacent-space;reach"])],
             [category(path=["axioval:derived.adjacent-space:sideways"])],
@@ -3375,6 +3406,9 @@ class MeasuredValueTests(unittest.TestCase):
         "level_height",
         "bottom_above_level;path=IfcRelContainedInSpatialStructure:backward",
         "bottom_above_level;path=IfcRelAggregates:backward+,IfcRelNests",
+        "bottom_above_level;path=IfcRelFillsElement|IfcRelVoidsElement:backward+,"
+        "IfcRelContainedInSpatialStructure:backward",
+        "bottom_above_level;path=IfcRelAggregates|axioval:derived.intersects:either",
         "boundary_area;kind=IfcWall",
         "boundary_area;kind=IfcWall;plane=0.05",
     )
@@ -3442,6 +3476,9 @@ class MeasuredValueTests(unittest.TestCase):
             "bottom_above_level;path=",
             "bottom_above_level;path=IfcRelAggregates,,IfcRelNests",
             "bottom_above_level;path=IfcRelAggregates:up",
+            "bottom_above_level;path=IfcRelAggregates|",
+            "bottom_above_level;path=IfcRelAggregates|IfcRelAggregates",
+            "bottom_above_level;path=IfcRelAggregates:backward|IfcRelNests",
             "bottom_above_level;path=Ifc Rel",
             "bottom_above_level;path=IfcRelAggregates;kind=IfcWall",
             "bottom_above_level;path",

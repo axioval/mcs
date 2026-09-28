@@ -401,6 +401,21 @@ derives from geometry, `axioval:derived.<name>` with optional `;key=value`
 tolerances, such as `axioval:derived.adjacent-space;reach=1`, followed by a
 direction and `+` as a category path allows.
 
+A step may name several relationships separated by `|` and takes any of them.
+One direction, written after the last, applies to all of them, and with `+` the
+chain mixes them, each hop taking any alternative:
+`IfcRelFillsElement|IfcRelVoidsElement:backward+` climbs from a door through
+the opening it fills to the wall the opening voids. Every relationship path, in
+related selectors, category levels, and `bottom_above_level`, shares this step
+grammar with the checking engine.
+
+??? note "Show the step grammar"
+    ```text
+    step          = relationships [ ":" direction ] [ "+" ]
+    relationships = relationship { "|" relationship }
+    direction     = "forward" | "backward" | "either"
+    ```
+
 | `quantifier` | Selects when |
 | --- | --- |
 | `any` (default) | at least one reached object matches |
@@ -409,8 +424,11 @@ direction and `+` as a category path allows.
 
 Normalized JSON omits the default `any`, and the nested selector keeps its own
 normalization. The binder rejects an empty `path`, a step with whitespace, an
-empty name, another direction, or a malformed derived relationship, and any
-other `quantifier` value.
+empty name or alternative, a relationship named twice in one step, a direction
+inside an alternative rather than after the last, another direction, or a
+malformed derived relationship, and any other `quantifier` value. A derived
+relationship keeps its own colon: only a colon followed by a direction word
+ends the last alternative.
 
 ??? example "Show a selector for doors in compartment walls"
     ```pkl
@@ -761,7 +779,7 @@ measures from an object's body rather than reads from a source:
 Two names take parameters after the name, `;`-separated `key=value` pairs that
 are part of the property name. `bottom_above_level` requires `path`, the
 `,`-separated steps a related selector writes,
-`Relationship[:forward|backward|either][+]`, such as
+`Relationship[|Relationship...][:forward|backward|either][+]`, such as
 `IfcRelContainedInSpatialStructure:backward`. `boundary_area` requires `kind`
 and takes an optional `plane`, a number of metres of at least zero.
 

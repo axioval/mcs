@@ -94,15 +94,22 @@ LIST_ELEMENT_KINDS = {"stringList": "string", "referenceList": "reference"}
 RELATED_QUANTIFIERS = {"any", "all", "none"}
 # The source metadata fields a source selector compares.
 SOURCE_FIELDS = {"fileName", "application", "schema", "project", "timestamp"}
-# A related-selector path step: a source relationship name, optionally
-# followed by its direction and by `+` for one or more steps.
-RELATED_PATH_STEP = re.compile(r"[^:\s]+?(:(forward|backward|either))?\+?")
+# The directions a relationship path step may state.
+PATH_DIRECTIONS = ("forward", "backward", "either")
+# A source relationship name in a related-selector or category path step.
+RELATED_PATH_RELATIONSHIP = re.compile(r"[^:\s|]+")
+# A source relationship name in a `bottom_above_level` path step, which the
+# measured name's own `;` and the path's `,` separate.
+MEASURED_PATH_RELATIONSHIP = re.compile(r"[^:\s|,;]+")
 # A derived relationship the checking engine computes, with its optional
-# tolerances, as a related-selector or category path step may name it:
-# optionally followed by a direction and by `+` for one or more steps.
-DERIVED_PATH_STEP = re.compile(
+# tolerances, as a path step may name it.
+DERIVED_RELATIONSHIP = re.compile(
     r"axioval:derived\.[a-z][a-z0-9-]*(;[a-z]+=[0-9]+(\.[0-9]+)?)*"
-    r"(:(forward|backward|either))?\+?"
+)
+PATH_STEP_GRAMMAR = (
+    "'Relationship[|Relationship...][:forward|backward|either][+]', each "
+    "relationship a source relationship name or a derived relationship "
+    "'axioval:derived.<name>'"
 )
 # Reserved property sets: engine vocabulary that binds to itself, never a
 # package concept.
@@ -139,9 +146,6 @@ MEASURED_NAMES = {
 }
 MEASURED_BOTTOM_ABOVE_LEVEL = "bottom_above_level"
 MEASURED_BOUNDARY_AREA = "boundary_area"
-# One step of a `bottom_above_level` path, as a related selector writes it:
-# `Relationship[:forward|backward|either][+]`.
-MEASURED_PATH_STEP = re.compile(r"[^:\s,;]+?(:(forward|backward|either))?\+?")
 # A decimal number as the engine parses one.
 DECIMAL = re.compile(r"[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?")
 # The whitespace the engine trims around names, keys, and values.
@@ -1153,6 +1157,51 @@ def ascii_lower(text: str) -> str:
     )
 
 
+def path_step_error(
+    step: Any, relationship_name: re.Pattern[str] = RELATED_PATH_RELATIONSHIP
+) -> str | None:
+    """Why `step` is no relationship path step, if it is none.
+
+    Mirrors the engine's step grammar:
+
+        step          = relationships [ ":" direction ] [ "+" ]
+        relationships = relationship { "|" relationship }
+        direction     = "forward" | "backward" | "either"
+
+    One direction, written after the last alternative, applies to all of
+    them. An empty alternative, an alternative named twice, or a direction
+    inside an alternative is refused. A derived identity keeps its own colon:
+    only a colon followed by a direction word ends the last alternative.
+    """
+    if type(step) is not str:
+        return "path step must be a string"
+    body = step[:-1] if step.endswith("+") else step
+    *alternatives, last = body.split("|")
+    relationship, colon, stated = last.rpartition(":")
+    if colon and stated in PATH_DIRECTIONS:
+        last = relationship
+    alternatives.append(last)
+    seen: set[str] = set()
+    for alternative in alternatives:
+        _, colon, stated = alternative.rpartition(":")
+        if colon and stated in PATH_DIRECTIONS:
+            return (
+                f"path step {step!r} states a direction inside {alternative!r}; "
+                "one direction follows the last alternative and applies to all"
+            )
+        if not alternative:
+            return f"path step {step!r} names an empty relationship"
+        if not (
+            relationship_name.fullmatch(alternative)
+            or DERIVED_RELATIONSHIP.fullmatch(alternative)
+        ):
+            return f"path step {step!r} must be {PATH_STEP_GRAMMAR}"
+        if alternative in seen:
+            return f"path step {step!r} names {alternative!r} more than once"
+        seen.add(alternative)
+    return None
+
+
 def measured_name_error(name: str) -> str | None:
     """Why `name` is no name in `axioval:measured`, if it is none.
 
@@ -1178,12 +1227,9 @@ def measured_name_error(name: str) -> str | None:
         if path is None:
             return "'bottom_above_level' needs 'path'"
         for step in path.split(","):
-            if not MEASURED_PATH_STEP.fullmatch(step.strip(TRIMMED)):
-                return (
-                    f"path step {step!r} must be 'Relationship', "
-                    "optionally followed by ':forward', ':backward', or "
-                    "':either' and '+'"
-                )
+            error = path_step_error(step.strip(TRIMMED), MEASURED_PATH_RELATIONSHIP)
+            if error is not None:
+                return error
     elif base == MEASURED_BOUNDARY_AREA:
         if not parameters.pop("kind", ""):
             return "'boundary_area' needs 'kind'"
@@ -1422,16 +1468,9 @@ def validate_selector(
         if not path:
             fail(context, "related selector requires a path")
         for index, step in enumerate(path):
-            if type(step) is not str or not (
-                RELATED_PATH_STEP.fullmatch(step) or DERIVED_PATH_STEP.fullmatch(step)
-            ):
-                fail(
-                    f"{context}.path[{index}]",
-                    "path step must be 'Relationship' or "
-                    "'Relationship:forward|backward|either', optionally "
-                    "followed by '+', or a derived relationship "
-                    "'axioval:derived.<name>'",
-                )
+            error = path_step_error(step)
+            if error is not None:
+                fail(f"{context}.path[{index}]", error)
         if "quantifier" in value and (
             type(value["quantifier"]) is not str
             or value["quantifier"] not in RELATED_QUANTIFIERS
@@ -1633,17 +1672,9 @@ def validate_categories(
             if not path:
                 fail(level_context, "path is omitted when empty")
             for step_index, step in enumerate(path):
-                if type(step) is not str or not (
-                    RELATED_PATH_STEP.fullmatch(step)
-                    or DERIVED_PATH_STEP.fullmatch(step)
-                ):
-                    fail(
-                        f"{level_context}.path[{step_index}]",
-                        "path step must be 'Relationship' or "
-                        "'Relationship:forward|backward|either', optionally "
-                        "followed by '+', or a derived relationship "
-                        "'axioval:derived.<name>'",
-                    )
+                error = path_step_error(step)
+                if error is not None:
+                    fail(f"{level_context}.path[{step_index}]", error)
 
 
 def validate_applicability(

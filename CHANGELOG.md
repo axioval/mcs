@@ -10,6 +10,16 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- A relationship path step may name several relationships separated by `|`,
+  such as `IfcRelFillsElement|IfcRelVoidsElement:backward+`, as the engine's
+  step grammar does: one direction after the last alternative applies to all,
+  and with `+` the chain mixes them. `related` selector paths, category level
+  paths, and `bottom_above_level;path=` steps share the grammar. The binder
+  rejects an empty alternative, a relationship named twice in one step, and a
+  direction inside an alternative; a derived relationship keeps its own colon,
+  since only a colon followed by a direction word ends the last alternative.
+  A `bottom_above_level` step may now also name a derived relationship without
+  tolerances.
 - Auxiliary rules, mirroring the engine: a rule instance may declare
   `auxiliary` (`true`; normalized JSON omits the default `false`), which runs
   it only for the rules that read its outcome through a gate or a

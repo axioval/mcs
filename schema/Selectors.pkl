@@ -287,7 +287,11 @@ typealias RelatedQuantifier = "any" | "all" | "none"
 ///
 /// Each step is `Relationship` or `Relationship:direction`, where direction is
 /// `forward` (the default), `backward`, or `either`, optionally followed by `+`
-/// to take the step one or more times (`IfcRelAggregates:backward+`); the steps
+/// to take the step one or more times (`IfcRelAggregates:backward+`). A step may
+/// name several relationships separated by `|`, with one direction after the
+/// last applying to all, and takes any of them, mixing them along a chain
+/// (`IfcRelFillsElement|IfcRelVoidsElement:backward+`); no relationship is named
+/// twice and none states a direction of its own. The steps
 /// are walked one after another and never reach the object itself. Relationship names are the
 /// source's own names, not concepts, while the nested `selector` names concepts
 /// like any other selector. A step may also name a relationship the checking
