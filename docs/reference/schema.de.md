@@ -700,6 +700,17 @@ Ordner. Er lehnt eine Regel mit einem Gate auf sich selbst ab und Regeln, deren
 Gates und `ruleOutcome`-Selektoren gegenseitig ihre Ergebnisse in einem Zyklus
 lesen.
 
+Eine Regelinstanz kann `auxiliary = true` deklarieren. Eine Hilfsregel läuft
+nur für die Regeln, die ihr Ergebnis über ein Gate oder einen
+`ruleOutcome`-Selektor lesen, und berichtet selbst keine Befunde, Tabellen oder
+Zusammenfassung; was sie unentschieden lässt, bleibt in den lesenden Regeln
+nicht ausgewertet. Eine solche Regel wählt etwa eine Population, die kein
+Selektor exakt angibt. Normalisiertes JSON lässt `auxiliary` weg, wenn es
+`false` ist, und der Binder lehnt ein ausdrückliches `false` ab. Er lehnt eine
+aktivierte Hilfsregel ab, die keine aktivierte Regel des Regelsatzes über ein
+Gate, das Gate eines Ordners oder einen `ruleOutcome`-Selektor liest, da ihr
+Ergebnis den Bericht nie erreichen würde.
+
 ??? example "Ordner anzeigen, der nur Türen mit gescheitertem Typ prüft"
     ```pkl
     new RuleSets.RuleFolder {

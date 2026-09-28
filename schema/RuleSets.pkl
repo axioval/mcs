@@ -146,14 +146,21 @@ class RuleInstance {
   /// Runs the rule only as another rule's outcome allows. Normalized JSON
   /// omits it when unset.
   gate: RuleGate?
+  /// Runs the rule only for the rules that gate on it or select by its
+  /// outcome with a `ruleOutcome` selector, and reports nothing of its own. At
+  /// least one enabled rule of the ruleset must do so for an enabled auxiliary
+  /// rule. Normalized JSON omits it when `false`.
+  auxiliary: Boolean = false
 }
 
-/// Render a rule instance without unset fields or empty refinements, so
-/// packages that declare none keep byte-identical normalized JSON.
+/// Render a rule instance without unset fields, empty refinements, or a false
+/// `auxiliary`, so packages that declare none keep byte-identical normalized
+/// JSON.
 const function normalizedRuleInstance(rule: RuleInstance): Map<String, Any> =
   rule.toMap().filter((key, value) ->
     value != null
     && !(Set("severityBands", "severityOverrides", "categories").contains(key) && value.isEmpty)
+    && !(key == "auxiliary" && value == false)
   )
 
 class RuleFolder {

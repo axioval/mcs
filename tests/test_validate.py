@@ -2935,6 +2935,66 @@ class RuleGateTests(unittest.TestCase):
         }
         self.bind(ruleset, definitions)
 
+    def test_accepts_auxiliary_rules_an_enabled_rule_reads(self) -> None:
+        cases = (
+            {"b": {"gate": gate("a")}},
+            {"b": {"gate": gate("a", "allIfPassed")}},
+            {"b": {"applicability": rule_outcome("a")}},
+            {"c": {"severityOverrides": [
+                {"selector": rule_outcome("a", "passed"), "severity": "info"}
+            ]}},
+            # An auxiliary rule may read another; the chain ends in a report.
+            {"b": {"gate": gate("a"), "auxiliary": True}, "c": {"gate": gate("b")}},
+        )
+        for case in cases:
+            ruleset, definitions = self.documents()
+            rules = self.rules(ruleset)
+            rules["a"]["auxiliary"] = True
+            for rule_id, fields in case.items():
+                rules[rule_id].update(copy.deepcopy(fields))
+            with self.subTest(case=case):
+                self.bind(ruleset, definitions)
+        # Through a folder's gate, and through a defaulted selector parameter.
+        ruleset, definitions = self.documents()
+        self.rules(ruleset)["a"]["auxiliary"] = True
+        ruleset["root"]["folders"][0]["gate"] = gate("a")
+        self.bind(ruleset, definitions)
+        ruleset, definitions = self.documents(default=rule_outcome("a"))
+        rules = self.rules(ruleset)
+        rules["a"]["auxiliary"] = True
+        rules["b"]["definitionId"] = SELECTED
+        rules["b"]["parameters"] = {}
+        self.bind(ruleset, definitions)
+        # A disabled auxiliary rule never runs, so nothing need read it.
+        ruleset, definitions = self.documents()
+        rules = self.rules(ruleset)
+        rules["a"].update(auxiliary=True, enabled=False)
+        self.bind(ruleset, definitions)
+
+    def test_rejects_unread_and_malformed_auxiliary_rules(self) -> None:
+        ruleset, definitions = self.documents()
+        self.rules(ruleset)["a"]["auxiliary"] = True
+        self.assert_rejected(ruleset, definitions)
+        # Read only by a disabled rule, or only by another unread one.
+        for case in (
+            {"b": {"gate": gate("a"), "enabled": False}},
+            {"b": {"applicability": rule_outcome("a"), "auxiliary": True}},
+        ):
+            ruleset, definitions = self.documents()
+            rules = self.rules(ruleset)
+            rules["a"]["auxiliary"] = True
+            for rule_id, fields in case.items():
+                rules[rule_id].update(copy.deepcopy(fields))
+            with self.subTest(case=case):
+                self.assert_rejected(ruleset, definitions)
+        for flag in (False, "true", 1, None, [True]):
+            ruleset, definitions = self.documents()
+            rules = self.rules(ruleset)
+            rules["a"]["auxiliary"] = flag
+            rules["b"]["gate"] = gate("a")
+            with self.subTest(flag=flag):
+                self.assert_rejected(ruleset, definitions)
+
     def test_pkl_renders_gates_and_rule_outcome_selectors(self) -> None:
         rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
         selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
@@ -2958,6 +3018,7 @@ class RuleGateTests(unittest.TestCase):
       id = "door-type"
       definitionId = "axioval:example.property-exists"
       name { default = "Door type" }
+      auxiliary = true
     }
   }
   folders {
@@ -2987,6 +3048,8 @@ class RuleGateTests(unittest.TestCase):
             hardware = evaluated["root"]["folders"][0]
             closer = hardware["rules"][0]
             self.assertNotIn("gate", door_type)
+            self.assertIs(door_type["auxiliary"], True)
+            self.assertNotIn("auxiliary", closer)
             self.assertNotIn("gate", evaluated["root"])
             self.assertEqual(hardware["gate"], gate("door-type"))
             self.assertEqual(closer["gate"], gate("door-type", "allIfFailed"))
@@ -2995,6 +3058,7 @@ class RuleGateTests(unittest.TestCase):
                 body.replace('condition = "failedObjects"', 'condition = "sometimes"'),
                 body.replace('outcome = "passed"', 'outcome = "undecided"'),
                 body.replace('rule = "door-type"\n', 'rule = "Door Type"\n'),
+                body.replace("auxiliary = true", 'auxiliary = "yes"'),
             ):
                 self.assertNotEqual(broken, body)
                 path.write_text(module(broken), encoding="utf-8")

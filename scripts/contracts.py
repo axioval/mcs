@@ -2158,6 +2158,9 @@ def bind_ruleset(
     # once every rule of the ruleset is known.
     reads: dict[str, set[str]] = {}
     rule_contexts: dict[str, str] = {}
+    # The enabled rules, and those of them that are auxiliary.
+    enabled: set[str] = set()
+    auxiliary: set[str] = set()
 
     def walk(folder: Any, folder_context: str, inherited: tuple[str, ...]) -> set[str]:
         """Check `folder` and return the IDs of the rules in it and below."""
@@ -2210,6 +2213,7 @@ def bind_ruleset(
                     "severityOverrides",
                     "categories",
                     "gate",
+                    "auxiliary",
                 },
                 rule_context,
             )
@@ -2227,6 +2231,13 @@ def bind_ruleset(
                 or rule["severity"] not in SEVERITIES
             ):
                 fail(rule_context, "invalid enabled flag or severity")
+            # Normalized JSON omits a false `auxiliary`.
+            if "auxiliary" in rule and rule["auxiliary"] is not True:
+                fail(rule_context, "auxiliary is true or omitted")
+            if rule["enabled"]:
+                enabled.add(rule_id)
+                if rule.get("auxiliary", False):
+                    auxiliary.add(rule_id)
             localized_text(rule["name"], f"{rule_context}.name")
             for field in ("description", "message"):
                 if field in rule:
@@ -2384,3 +2395,12 @@ def bind_ruleset(
                 "not define",
             )
     validate_rule_dependencies(reads, rule_contexts)
+    # An auxiliary rule reports only through the rules that read it, so one
+    # no enabled rule reads would never reach the report.
+    for rule_id in sorted(auxiliary):
+        if not any(rule_id in reads[reader] for reader in enabled):
+            fail(
+                rule_contexts[rule_id],
+                "the rule is auxiliary, but no enabled rule reads its outcome "
+                "through a gate or a ruleOutcome selector",
+            )

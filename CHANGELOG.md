@@ -10,6 +10,11 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Auxiliary rules, mirroring the engine: a rule instance may declare
+  `auxiliary` (`true`; normalized JSON omits the default `false`), which runs
+  it only for the rules that read its outcome through a gate or a
+  `ruleOutcome` selector and reports nothing of its own. The binder rejects an
+  explicit `false` and an enabled auxiliary rule no enabled rule reads.
 - A `source` selector's `field` may be `timestamp`, when the source states it
   was written, as written, such as IFC's `FILE_NAME.time_stamp`, compared as
   text like the other fields.

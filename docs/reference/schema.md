@@ -669,6 +669,16 @@ instance of the same ruleset, also a disabled one, not a folder. It rejects a
 rule gated on itself and rules whose gates and `ruleOutcome` selectors read one
 another's outcomes in a cycle.
 
+A rule instance may declare `auxiliary = true`. An auxiliary rule runs only for
+the rules that read its outcome through a gate or a `ruleOutcome` selector, and
+reports no findings, tables, or summary of its own; what it leaves undecided
+stays not evaluated in the rules that read it. Such a rule chooses a population
+no selector states exactly, for example. Normalized JSON omits `auxiliary` when
+`false`, and the binder rejects an explicit `false`. It rejects an enabled
+auxiliary rule that no enabled rule of the ruleset reads through a gate, a
+folder's gate, or a `ruleOutcome` selector, since its outcome would never reach
+the report.
+
 ??? example "Show a folder checked only on doors that failed their type"
     ```pkl
     new RuleSets.RuleFolder {
