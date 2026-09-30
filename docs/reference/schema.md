@@ -813,6 +813,12 @@ may render alternative views without rewriting the rules. A folder's
 [gate](#rule-gates) is the one exception: it is stated on the folder but applies
 to each rule in it, as if each rule declared it too.
 
+A folder may also carry `annotations`: text keyed `scheme:name` that an
+importer keeps for a round trip, such as the source IDS specification of a
+folder translated from an IDS document (`ids:specification`). Checking never
+reads them. Normalized JSON omits them when empty, and the binder rejects an
+empty map, a key without a lowercase scheme, and a value that is not text.
+
 ## Compatibility status
 
 The current schema version is `0.1.0` and pre-stable. See the

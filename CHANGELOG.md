@@ -10,6 +10,10 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Rule folders may carry `annotations`, namespaced text keyed `scheme:name`
+  that an importer keeps for a round trip (`ids:specification` for a folder
+  translated from IDS), mirroring the engine. Checking never reads them;
+  normalized JSON omits them when empty.
 - A `date` literal may state its time zone, `Z` or `±hh:mm` of at most 14
   hours, as `xs:date` allows (`2022-01-01+00:00`), mirroring the engine; the
   binder refuses `-00:00` and an offset past 14:00. A date with a time zone

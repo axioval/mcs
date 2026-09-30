@@ -2217,7 +2217,7 @@ def bind_ruleset(
         exact_keys(
             folder,
             {"id", "name", "rules", "folders"},
-            {"description", "gate"},
+            {"description", "gate", "annotations"},
             folder_context,
         )
         folder_id = folder["id"]
@@ -2229,6 +2229,17 @@ def bind_ruleset(
         localized_text(folder["name"], f"{folder_context}.name")
         if "description" in folder:
             localized_text(folder["description"], f"{folder_context}.description")
+        if "annotations" in folder:
+            annotations = object_value(
+                folder["annotations"], f"{folder_context}.annotations"
+            )
+            if not annotations:
+                fail(folder_context, "empty annotations are omitted, not written")
+            for key, text in annotations.items():
+                if not QUALIFIED_ID.fullmatch(key):
+                    fail(folder_context, f"annotation key {key!r} is not scheme:name")
+                if type(text) is not str:
+                    fail(folder_context, f"annotation {key!r} is not text")
         folder_gate = None
         if "gate" in folder:
             folder_gate = validate_gate(folder["gate"], f"{folder_context}.gate")

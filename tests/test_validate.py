@@ -2856,6 +2856,28 @@ class RuleGateTests(unittest.TestCase):
         rules["a"]["enabled"] = False
         self.bind(ruleset, definitions)
 
+    def test_accepts_namespaced_folder_annotations(self) -> None:
+        ruleset, definitions = self.documents()
+        ruleset["root"]["folders"][0]["annotations"] = {
+            "ids:specification": "<specification name=\"Walls\"/>",
+            "ids:info.title": "Walls",
+        }
+        self.bind(ruleset, definitions)
+
+    def test_rejects_malformed_folder_annotations(self) -> None:
+        for annotations in (
+            {},
+            {"specification": "x"},
+            {"IDS:specification": "x"},
+            {"ids:": "x"},
+            {"ids:specification": 1},
+            ["ids:specification"],
+        ):
+            ruleset, definitions = self.documents()
+            ruleset["root"]["folders"][0]["annotations"] = annotations
+            with self.subTest(annotations=annotations):
+                self.assert_rejected(ruleset, definitions)
+
     def test_accepts_rule_outcome_selectors_wherever_selectors_go(self) -> None:
         ruleset, definitions = self.documents()
         rules = self.rules(ruleset)

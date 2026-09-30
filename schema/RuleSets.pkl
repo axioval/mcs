@@ -173,7 +173,17 @@ class RuleFolder {
   /// each rule's own. It names a rule outside the folder. Normalized JSON
   /// omits it when unset.
   gate: RuleGate?
+  /// Namespaced text an importer keeps for a round trip, such as the source
+  /// specification of a folder translated from another format, keyed
+  /// `scheme:name` (`ids:specification`). Checking never reads it. Normalized
+  /// JSON omits it when empty.
+  annotations: Mapping<String(matches(Regex(#"[a-z][a-z0-9+.-]*:.+"#))), String> = new {}
 }
+
+/// Render a folder without empty annotations, so packages that declare none
+/// keep byte-identical normalized JSON.
+const function normalizedRuleFolder(folder: RuleFolder): Map<String, Any> =
+  folder.toMap().filter((key, value) -> !(key == "annotations" && value.isEmpty))
 
 /// How a classification's rows assign classes.
 ///
@@ -243,6 +253,7 @@ output {
     // refinements from normalized JSON.
     converters {
       [RuleInstance] = (it) -> normalizedRuleInstance(it)
+      [RuleFolder] = (it) -> normalizedRuleFolder(it)
       [CategoryLevel] = (it) -> normalizedCategoryLevel(it)
       [ClassificationDefinition] = (it) -> normalizedClassification(it)
       [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)

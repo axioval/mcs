@@ -850,6 +850,8 @@ Grenze überspannt.
 
 `RuleFolder` dient Darstellung und Organisation. Seine Position ändert weder Selektorumfang, Regelidentität, Ausführungssemantik noch Vertrauen. Verbraucher können alternative Ansichten darstellen, ohne die Regeln umzuschreiben. Das [Gate](#regel-gates) eines Ordners ist die einzige Ausnahme: Es steht am Ordner, gilt aber für jede Regel darin, als hätte jede Regel es ebenfalls deklariert.
 
+Ein Ordner kann außerdem `annotations` tragen: Text unter Schlüsseln der Form `scheme:name`, den ein Importeur für einen Rundweg aufbewahrt, etwa die IDS-Spezifikation, aus der ein Ordner übersetzt wurde (`ids:specification`). Die Prüfung liest sie nie. Normalisiertes JSON lässt sie weg, wenn sie leer sind, und der Binder lehnt eine leere Abbildung, einen Schlüssel ohne kleingeschriebenes Schema und einen Wert, der kein Text ist, ab.
+
 ## Kompatibilitätsstatus
 
 Die aktuelle Schemaversion ist `0.1.0` und noch nicht stabil. Die geplante Kompatibilitätspolitik steht in der [Roadmap](../community/roadmap.de.md), Vertragsänderungen im [Changelog](../community/changelog.de.md).
