@@ -10,6 +10,18 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Hierarchical classifications, mirroring the engine: a ruleset
+  classification may declare `classes`, a tree of classes with an `id`, an
+  optional `code`, a localized `name`, and an optional `parent`, whose rows
+  then assign declared classes, leaves or inner ones. `<id>;level=<n>` in
+  `axioval:classification` reads the class at level `n` of the tree, so a
+  takeoff groups by any level. The new `derivedClass` selector selects a
+  derived class, with `includeDescendants` together with every class below
+  it. Pkl rejects repeated class IDs and codes; the binder also rejects
+  undeclared or cyclic parents, rows assigning undeclared classes, levels
+  beyond the tree or on a flat classification, and a `derivedClass` naming an
+  undeclared class. Normalized JSON omits empty `classes`, so flat
+  classifications render byte-identically.
 - Rule folders may carry `annotations`, namespaced text keyed `scheme:name`
   that an importer keeps for a round trip (`ids:specification` for a folder
   translated from IDS), mirroring the engine. Checking never reads them;

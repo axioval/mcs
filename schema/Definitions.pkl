@@ -127,6 +127,7 @@ output {
       [Selectors.ClassificationSelector] = (it) ->
         Selectors.normalizedClassificationSelector(it)
       [Selectors.SourceSelector] = (it) -> Selectors.normalizedSourceSelector(it)
+      [Selectors.DerivedClassSelector] = (it) -> Selectors.normalizedDerivedClassSelector(it)
     }
   }
 }

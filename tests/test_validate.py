@@ -3411,6 +3411,230 @@ class ClassificationTests(unittest.TestCase):
                 validate.evaluate(path)
 
 
+def declared_class(class_id: str, parent: str | None = None, **fields) -> dict:
+    declared = {"id": class_id, "name": {"default": class_id, "translations": {}}}
+    if parent is not None:
+        declared["parent"] = parent
+    declared.update(fields)
+    return declared
+
+
+def cost_groups(*rows: dict, **fields) -> dict:
+    """A three-level cost-group tree whose rows assign leaves and an inner class."""
+    return classification(
+        "cost-group",
+        *(
+            rows
+            or (
+                classification_row("kg-331"),
+                classification_row("kg-330", {"kind": "all"}),
+            )
+        ),
+        classes=[
+            declared_class("kg-300", code="300"),
+            declared_class("kg-330", "kg-300", code="330"),
+            declared_class("kg-331", "kg-330", code="331"),
+            declared_class("kg-332", "kg-330"),
+        ],
+        **fields,
+    )
+
+
+def derived_class(class_name: str, classification_id: str = "cost-group", **fields) -> dict:
+    return {
+        "kind": "derivedClass",
+        "classification": classification_id,
+        "class": class_name,
+        **fields,
+    }
+
+
+class HierarchicalClassificationTests(unittest.TestCase):
+    """Declared class trees: rows assign declared classes, levels read the
+    tree, and a derived-class selector takes a class with its descendants."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    bind = ClassificationTests.bind
+    assert_rejected = ClassificationTests.assert_rejected
+
+    def test_accepts_a_tree_its_levels_and_derived_class_selectors(self) -> None:
+        declared = {"cost-group": cost_groups(), "use": classification("use")}
+        self.bind(declared)
+        for applicability in (
+            derived_class("kg-330", includeDescendants=True),
+            derived_class("kg-332"),
+            derived_class("wall", "use"),
+            reads_class("cost-group;level=1", "equals", text("kg-300")),
+            reads_class("cost-group;level=3"),
+            {"kind": "not", "operand": derived_class("kg-300", includeDescendants=True)},
+        ):
+            with self.subTest(applicability=applicability):
+                self.bind(declared, applicability=applicability)
+        self.bind(
+            declared,
+            parameters={
+                "property": {
+                    "type": "propertyReference",
+                    "propertySet": CLASSIFICATION_SET,
+                    "property": "cost-group;level=2",
+                }
+            },
+        )
+        # A row of another classification may read the tree.
+        self.bind(
+            {
+                **declared,
+                "zone": classification(
+                    "zone",
+                    classification_row("dry", derived_class("kg-330", includeDescendants=True)),
+                ),
+            }
+        )
+
+    def test_rejects_malformed_trees(self) -> None:
+        def with_classes(*classes: dict, rows=None) -> dict:
+            tree = cost_groups()
+            tree["classes"] = list(classes)
+            if rows is not None:
+                tree["rows"] = rows
+            return {"cost-group": tree}
+
+        root = declared_class("kg-300")
+        for classifications in (
+            {"cost-group": {**cost_groups(), "classes": []}},
+            with_classes(root, rows=[classification_row("kg-999")]),
+            with_classes(root, declared_class("kg-300"), rows=[classification_row("kg-300")]),
+            with_classes(
+                declared_class("a", code="1"),
+                declared_class("b", code="1"),
+                rows=[classification_row("a")],
+            ),
+            with_classes(declared_class("a", "b"), rows=[classification_row("a")]),
+            with_classes(
+                declared_class("a", "b"), declared_class("b", "a"),
+                rows=[classification_row("a")],
+            ),
+            with_classes(declared_class("a", "a"), rows=[classification_row("a")]),
+            with_classes(declared_class(" "), rows=[classification_row(" ")]),
+            with_classes(declared_class("a", code=" "), rows=[classification_row("a")]),
+            with_classes(declared_class("a", code=300), rows=[classification_row("a")]),
+            with_classes(declared_class("a", level=1), rows=[classification_row("a")]),
+            with_classes(
+                {"id": "a", "code": "1"}, rows=[classification_row("a")]
+            ),
+        ):
+            self.assert_rejected(classifications)
+
+    def test_rejects_levels_and_classes_outside_the_tree(self) -> None:
+        declared = {"cost-group": cost_groups(), "use": classification("use")}
+        for applicability in (
+            reads_class("cost-group;level=4"),
+            reads_class("cost-group;level=0"),
+            reads_class("cost-group;level=01"),
+            reads_class("cost-group;depth=1"),
+            reads_class("use;level=1"),
+            reads_class("undeclared;level=1"),
+            derived_class("kg-999"),
+            derived_class("kg-330", "undeclared"),
+            derived_class("office", "use"),
+            derived_class("kg-330", includeDescendants=False),
+            derived_class("kg-330", includeDescendants="yes"),
+            derived_class(" "),
+            {"kind": "derivedClass", "classification": "cost-group"},
+            derived_class("kg-330", code="330"),
+        ):
+            self.assert_rejected(declared, applicability=applicability)
+        # A classification's rows never select its own classes.
+        self.assert_rejected(
+            {"cost-group": cost_groups(classification_row("kg-331", derived_class("kg-330")))}
+        )
+
+    def test_pkl_renders_a_tree_and_keeps_flat_classifications_unchanged(self) -> None:
+        rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+
+        def module(body: str) -> str:
+            return (
+                f'amends "{rules}"\n\n'
+                f'import "{selectors}"\n\n'
+                'package { id = "axioval:example.classes"; version = "0.1.0"; '
+                'name { default = "Classes" } }\n'
+                'definitionPackages { "axioval:example.definitions" }\n'
+                'root { id = "root"; name { default = "Root" } }\n'
+                f"{body}\n"
+            )
+
+        body = """classifications {
+  ["cost-group"] {
+    id = "cost-group"
+    name { default = "cost-group" }
+    rows {
+      new {
+        selector = new Selectors.DerivedClassSelector {
+          classification = "use"
+          `class` = "wall"
+        }
+        `class` = "kg-331"
+      }
+      new {
+        selector = new Selectors.DerivedClassSelector {
+          classification = "use"
+          `class` = "wall"
+          includeDescendants = true
+        }
+        `class` = "kg-330"
+      }
+    }
+    classes {
+      new { id = "kg-300"; code = "300"; name { default = "kg-300" } }
+      new { id = "kg-330"; code = "330"; name { default = "kg-330" }; parent = "kg-300" }
+      new { id = "kg-331"; name { default = "kg-331" }; parent = "kg-330" }
+    }
+  }
+}"""
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "tree.pkl"
+            path.write_text(module(body), encoding="utf-8")
+            evaluated = validate.evaluate(path)
+            self.assertEqual(
+                evaluated["classifications"]["cost-group"],
+                classification(
+                    "cost-group",
+                    classification_row("kg-331", derived_class("wall", "use")),
+                    classification_row(
+                        "kg-330", derived_class("wall", "use", includeDescendants=True)
+                    ),
+                    classes=[
+                        declared_class("kg-300", code="300"),
+                        declared_class("kg-330", "kg-300", code="330"),
+                        declared_class("kg-331", "kg-330"),
+                    ],
+                ),
+            )
+            self.assertEqual(
+                list(evaluated["classifications"]["cost-group"]),
+                ["id", "name", "rows", "classes"],
+            )
+            self.assertEqual(
+                list(evaluated["classifications"]["cost-group"]["classes"][1]),
+                ["id", "code", "name", "parent"],
+            )
+            for broken in (
+                body.replace('new { id = "kg-331"', 'new { id = "kg-330"'),
+                body.replace('new { id = "kg-331";', 'new { id = "kg-331"; code = "330";'),
+                body.replace('`class` = "wall"\n          includeDescendants', '`class` = " "\n          includeDescendants'),
+                body.replace('code = "300";', 'code = " ";'),
+            ):
+                self.assertNotEqual(broken, body)
+                path.write_text(module(broken), encoding="utf-8")
+                with self.subTest(broken=broken), self.assertRaises(SystemExit):
+                    validate.evaluate(path)
+
 
 MEASURED_SET = "axioval:measured"
 

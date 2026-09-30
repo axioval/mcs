@@ -201,12 +201,38 @@ class ClassificationRow {
   `class`: String(!isBlank)
 }
 
+/// One declared class of a hierarchical classification.
+///
+/// A class without a `parent` is a root, at level 1; every other class is one
+/// level below its parent. The binder checks that every parent is declared
+/// and that parents form no cycle.
+class ClassDefinition {
+  id: String(!isBlank)
+  /// The class's code in its classification system, such as `331`.
+  /// Normalized JSON omits it when unset.
+  code: String(!isBlank)?
+  name: Types.LocalizedText
+  /// The ID of the class this one refines. Normalized JSON omits it for a
+  /// root.
+  parent: String(!isBlank)?
+}
+
+/// Render a class without an unset code or parent.
+const function normalizedClass(definition: ClassDefinition): Map<String, Any> =
+  definition.toMap().filter((_, value) -> value != null)
+
 /// A named classification of objects the ruleset derives from ordered rows.
 ///
 /// Every selector, property reference, and category level of the ruleset
 /// names it as the property `id` in the reserved set `axioval:classification`.
 /// An object no row matches has no value, an exact absence. Classifications
 /// may name one another, never in a cycle.
+///
+/// With `classes` declared the classification is hierarchical: every row
+/// assigns a declared class ID, a leaf or an inner class, and
+/// `<id>;level=<n>` reads the class at level `n` of the tree on the way from
+/// the assigned class to its root. Without `classes` it is flat, its classes
+/// the names its rows assign.
 class ClassificationDefinition {
   id: String(!isBlank)
   name: Types.LocalizedText
@@ -214,14 +240,24 @@ class ClassificationDefinition {
   /// Normalized JSON omits the default `firstMatch`.
   mode: ClassificationMode = "firstMatch"
   rows: Listing<ClassificationRow>(!isEmpty)
+  /// The classes of a hierarchical classification, their IDs and codes
+  /// distinct. Normalized JSON omits it when empty.
+  classes: Listing<ClassDefinition>(
+    isDistinctBy((it) -> it.id),
+    toList().map((it) -> it.code).filterNonNull().isDistinct
+  ) = new {}
 }
 
-/// Render a classification without an unset description or the default mode.
+/// Render a classification without an unset description, the default mode,
+/// or empty classes, so flat classifications keep byte-identical normalized
+/// JSON.
 const function normalizedClassification(
   classification: ClassificationDefinition
 ): Map<String, Any> =
   classification.toMap().filter((key, value) ->
-    value != null && !(key == "mode" && value == "firstMatch")
+    value != null
+    && !(key == "mode" && value == "firstMatch")
+    && !(key == "classes" && value.isEmpty)
   )
 
 /// Concrete ruleset package (ABox-like): instances reference definitions by
@@ -256,6 +292,8 @@ output {
       [RuleFolder] = (it) -> normalizedRuleFolder(it)
       [CategoryLevel] = (it) -> normalizedCategoryLevel(it)
       [ClassificationDefinition] = (it) -> normalizedClassification(it)
+      [ClassDefinition] = (it) -> normalizedClass(it)
+      [Selectors.DerivedClassSelector] = (it) -> Selectors.normalizedDerivedClassSelector(it)
       [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
       [Selectors.PropertyPatternSelector] = (it) ->
         Selectors.normalizedPropertyPatternSelector(it)

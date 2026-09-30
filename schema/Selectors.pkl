@@ -183,6 +183,29 @@ const function normalizedClassificationSelector(
 ): Map<String, Any> =
   selector.toMap().filter((_, value) -> value != null)
 
+/// Select the objects a classification of the same ruleset assigns `class`,
+/// or, with `includeDescendants`, `class` or any class below it in the
+/// classification's tree.
+///
+/// An all-match classification selects an object when any class it assigns
+/// does. An unclassified object is not selected; one whose class cannot be
+/// derived is not evaluated. The binder checks that `classification` is
+/// declared and `class` is one of its declared classes, or for a flat
+/// classification a class its rows assign, which has no descendants.
+class DerivedClassSelector extends Selector {
+  kind: "derivedClass" = "derivedClass"
+  classification: String(!isBlank)
+  `class`: String(!isBlank)
+  /// Normalized JSON omits the default `false`.
+  includeDescendants: Boolean = false
+}
+
+/// Render a derived-class selector without the default `includeDescendants`.
+const function normalizedDerivedClassSelector(
+  selector: DerivedClassSelector
+): Map<String, Any> =
+  selector.toMap().filter((key, value) -> !(key == "includeDescendants" && value == false))
+
 /// A fact about a whole source that a source selector compares.
 ///
 /// - `fileName` is the file name the checking application loaded the source

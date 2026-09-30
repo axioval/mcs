@@ -13,7 +13,7 @@ Die Quelltextbeispiele bleiben eingeklappt, bis Sie sie bewusst öffnen.
 | `Types.pkl` | Bezeichner, semantische Versionen, lokalisierter Text, Paketmetadaten |
 | `Citations.pkl` | bibliografische Quellen, Fundstellen, Zitate und Parameterziele |
 | `Values.pkl` | Markierte Skalar- und Listenwerte sowie Objekt- und Eigenschaftsreferenzen |
-| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Eigenschaftsmuster, Klassifikation, verbundene Objekte, Disziplin, Quelle und boolesche Zusammensetzung |
+| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Eigenschaftsmuster, Klassifikation, abgeleitete Klasse, verbundene Objekte, Disziplin, Quelle und boolesche Zusammensetzung |
 | `Definitions.pkl` | Vokabulare und wiederverwendbare Fähigkeitsvorlagen |
 | `RuleSets.pkl` | Konkrete Regelinstanzen und rein kosmetische Ordner |
 
@@ -261,6 +261,8 @@ Selektoren sind deklarativ und werden rekursiv validiert:
   über Muster nach XML Schema abgleicht
 - `classification` nach einem Code, einem Codemuster oder einem ganzen
   Klassifikationssystem
+- `derivedClass` nach einer Klasse, die eine Klassifikation des Regelsatzes
+  ableitet, wahlweise mit ihren Nachfahren
 - `related`, der die über einen Beziehungspfad erreichten Objekte prüft
 - `discipline`, der die Objekte von Quellen mit einer deklarierten Disziplin auswählt
 - `source`, der vergleicht, was eine Quelle über sich selbst angibt, etwa die
@@ -484,6 +486,34 @@ sowie ein leeres oder nicht unterstütztes Muster ab.
     new Selectors.ClassificationSelector {
       system = "uniclass"
       codePattern = "Ss_25_.*"
+      includeDescendants = true
+    }
+    ```
+
+### Selektoren für abgeleitete Klassen
+
+Ein `derivedClass`-Selektor wählt die Objekte aus, denen eine Klassifikation
+desselben Regelsatzes die Klasse `class` zuweist; mit `includeDescendants`
+auch jene mit einer Klasse unterhalb davon im Klassenbaum der Klassifikation
+(siehe Abschnitt Klassenbäume), so wie `includeDescendants` eines
+`classification`-Selektors es für die Codes einer Quelle tut. Ein Objekt einer
+`allMatch`-Klassifikation wird ausgewählt, wenn irgendeine seiner Klassen
+passt. Ein nicht klassifiziertes Objekt wird nicht ausgewählt, und eines,
+dessen Klasse sich nicht ableiten lässt, wird nicht bewertet.
+
+Normalisiertes JSON lässt die Voreinstellung `includeDescendants: false` weg.
+Der Binder lehnt ein ausdrückliches `false`, eine leere `classification` oder
+`class`, eine nicht deklarierte Klassifikation und eine Klasse ab, die die
+Klassifikation nicht deklariert (bei einer flachen Klassifikation eine, die
+keine Zeile vergibt; sie hat keine Nachfahren). Der Selektor liest seine
+Klassifikation, sodass die Zeilen einer Klassifikation ihn für eine andere
+Klassifikation verwenden dürfen, aber nie in einem Zyklus.
+
+??? example "Selektor für eine abgeleitete Klasse mit Nachfahren anzeigen"
+    ```pkl
+    new Selectors.DerivedClassSelector {
+      classification = "cost-group"
+      `class` = "kg-330"
       includeDescendants = true
     }
     ```
@@ -797,6 +827,64 @@ deklariert.
       property = "space-use"
       operator = "equals"
       value = new Values.StringValue { value = "office" }
+    }
+    ```
+
+### Klassenbäume
+
+Eine Klassifikation kann `classes` deklarieren und wird damit hierarchisch:
+Jede Klasse hat eine `id`, einen optionalen `code`, einen lokalisierten `name`
+und einen optionalen `parent`. Eine Klasse ohne Elternklasse ist eine Wurzel
+auf Ebene 1; jede andere Klasse liegt eine Ebene unter ihrer Elternklasse.
+Jede Zeile vergibt dann eine deklarierte Klassen-ID, ein Blatt oder eine
+innere Klasse. Ohne `classes` ist eine Klassifikation flach und wird
+unverändert gerendert: Normalisiertes JSON lässt leere `classes` sowie einen
+nicht gesetzten `code` oder `parent` weg.
+
+Eine hierarchische Klassifikation liest sich als Eigenschaft `id`, die
+vergebene Klasse, oder als `<id>;level=<n>`, die Klasse auf Ebene `n` auf dem
+Weg von der vergebenen Klasse zu ihrer Wurzel: die Klasse selbst auf ihrer
+eigenen Ebene, ein Vorfahre darüber. Ein Objekt, dessen Klasse oberhalb der
+Ebene liegt, hat dort keine Klasse, ein exaktes Fehlen. `n` ist eine positive
+ganze Zahl ohne führende Nullen. Eine Mengenermittlung, gruppiert nach
+`cost-group;level=1`, gruppiert nach den Wurzeln.
+
+Pkl lehnt wiederholte Klassen-IDs oder Codes sowie eine leere ID, einen leeren
+Code oder eine leere Elternklasse ab. Der Binder lehnt außerdem leere
+`classes`, eine nicht deklarierte Elternklasse, Elternklassen in einem Zyklus,
+eine Zeile mit einer nicht deklarierten Klasse, eine Ebene jenseits der Tiefe
+des Baums und eine Ebene einer flachen Klassifikation ab.
+
+??? example "Dreistufigen Kostengruppenbaum anzeigen"
+    ```pkl
+    classifications {
+      ["cost-group"] {
+        id = "cost-group"
+        name { default = "Cost group" }
+        rows {
+          new {
+            selector = new Selectors.PropertySelector {
+              property = "axioval:example.load-bearing"
+              operator = "equals"
+              value = new Values.BooleanValue { value = true }
+            }
+            `class` = "kg-331"
+          }
+        }
+        classes {
+          new { id = "kg-300"; code = "300"; name { default = "Building construction" } }
+          new { id = "kg-330"; code = "330"; name { default = "External walls" }; parent = "kg-300" }
+          new { id = "kg-331"; code = "331"; name { default = "Load-bearing external walls" }; parent = "kg-330" }
+        }
+      }
+    }
+
+    // Die Klasse auf Ebene 1:
+    new Selectors.PropertySelector {
+      propertySet = "axioval:classification"
+      property = "cost-group;level=1"
+      operator = "equals"
+      value = new Values.StringValue { value = "kg-300" }
     }
     ```
 

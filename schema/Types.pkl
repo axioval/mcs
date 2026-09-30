@@ -15,7 +15,9 @@ typealias SemanticVersion = String(matches(Regex(#"^(0|[1-9][0-9]*)\.(0|[1-9][0-
 typealias Severity = "info" | "warning" | "error"
 
 /// The reserved property set naming the classes a ruleset's classifications
-/// derive: its property names are classification IDs of the same ruleset.
+/// derive: its property names are classification IDs of the same ruleset,
+/// and for a hierarchical classification `<id>;level=<n>`, the class at level
+/// `n` of its tree.
 const classificationSet = "axioval:classification"
 
 /// The reserved property set naming values the checking application measures
@@ -40,9 +42,12 @@ const measuredNames: Set<String> = Set(
 
 /// Whether `name` can name a property in `propertySet`: a property in a
 /// derived set is engine or ruleset vocabulary, any other a qualified concept
-/// ID. The binder checks that a classification ID is declared.
+/// ID. A classification is named by its ID, or a level of its tree by
+/// `<id>;level=<n>`. The binder checks that a classification ID is declared
+/// and a level lies within its tree.
 const function isPropertyName(propertySet: String?, name: String): Boolean =
-  if (propertySet == classificationSet) !name.isBlank
+  if (propertySet == classificationSet)
+    !name.isBlank && (!name.contains(";") || name.matches(Regex(#"[^;]+;level=[1-9][0-9]*"#)))
   else if (propertySet == measuredSet)
     let (base = name.split(";").first.trim())
       base.matches(Regex("[A-Za-z_]+")) && measuredNames.contains(base.toLowerCase())

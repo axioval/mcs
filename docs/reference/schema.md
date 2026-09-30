@@ -15,7 +15,7 @@ folded by default so you can scan the concepts first.
 | `Types.pkl` | identifiers, semantic versions, localized text, package metadata |
 | `Citations.pkl` | bibliographic sources, locators, citations, parameter targets |
 | `Values.pkl` | tagged scalar/list values plus object/property references |
-| `Selectors.pkl` | object type, property, property-pattern, classification, related-object, discipline, source, boolean-composition selectors |
+| `Selectors.pkl` | object type, property, property-pattern, classification, derived-class, related-object, discipline, source, boolean-composition selectors |
 | `Definitions.pkl` | vocabularies and reusable capability templates |
 | `RuleSets.pkl` | concrete rule instances and cosmetic folders |
 
@@ -260,6 +260,8 @@ Selectors are declarative and recursively validated:
   names by XML Schema patterns
 - `classification`, by a code, a code pattern, or a whole classification
   system
+- `derivedClass`, by a class a classification of the ruleset derives,
+  optionally with its descendants
 - `related`, testing the objects a relationship path reaches
 - `discipline`, selecting the objects of sources that declare a discipline
 - `source`, comparing what a source states about itself, such as the
@@ -471,6 +473,32 @@ unsupported pattern.
     new Selectors.ClassificationSelector {
       system = "uniclass"
       codePattern = "Ss_25_.*"
+      includeDescendants = true
+    }
+    ```
+
+### Derived-class selectors
+
+A `derivedClass` selector selects the objects a classification of the same
+ruleset assigns `class`; with `includeDescendants` also those assigned any
+class below it in the classification's [class tree](#class-trees), as a
+`classification` selector's `includeDescendants` does for a source's codes. An
+object of an `allMatch` classification is selected when any class it is
+assigned is. An unclassified object is not selected, and one whose class
+cannot be derived is not evaluated.
+
+Normalized JSON omits the default `includeDescendants: false`. The binder
+rejects an explicit `false`, a blank `classification` or `class`, an
+undeclared classification, and a class the classification does not declare
+(for a flat classification, one no row assigns; it has no descendants). The
+selector reads its classification, so a classification's rows may use it on
+another classification, never in a cycle.
+
+??? example "Show a derived-class selector with descendants"
+    ```pkl
+    new Selectors.DerivedClassSelector {
+      classification = "cost-group"
+      `class` = "kg-330"
       includeDescendants = true
     }
     ```
@@ -760,6 +788,61 @@ classifications may name one another, but never in a cycle. A property in
       property = "space-use"
       operator = "equals"
       value = new Values.StringValue { value = "office" }
+    }
+    ```
+
+### Class trees
+
+A classification may declare `classes`, making it hierarchical: each class has
+an `id`, an optional `code`, a localized `name`, and an optional `parent`. A
+class without a parent is a root, at level 1; every other class is one level
+below its parent. Every row then assigns a declared class ID, a leaf or an
+inner class. Without `classes` a classification is flat and renders
+unchanged: normalized JSON omits empty `classes`, and an unset `code` or
+`parent`.
+
+A hierarchical classification reads as the property `id`, the assigned class,
+or as `<id>;level=<n>`, the class at level `n` on the way from the assigned
+class to its root: the class itself at its own level, an ancestor above it.
+An object whose class lies above the level has no class there, an exact
+absence. `n` is a positive integer without leading zeros. Grouping a takeoff
+by `cost-group;level=1` groups by the roots.
+
+Pkl rejects repeated class IDs or codes and a blank ID, code, or parent. The
+binder also rejects an empty `classes`, a parent that is not declared,
+parents forming a cycle, a row assigning an undeclared class, a level beyond
+the tree's depth, and a level on a flat classification.
+
+??? example "Show a three-level cost-group tree"
+    ```pkl
+    classifications {
+      ["cost-group"] {
+        id = "cost-group"
+        name { default = "Cost group" }
+        rows {
+          new {
+            selector = new Selectors.PropertySelector {
+              property = "axioval:example.load-bearing"
+              operator = "equals"
+              value = new Values.BooleanValue { value = true }
+            }
+            `class` = "kg-331"
+          }
+        }
+        classes {
+          new { id = "kg-300"; code = "300"; name { default = "Building construction" } }
+          new { id = "kg-330"; code = "330"; name { default = "External walls" }; parent = "kg-300" }
+          new { id = "kg-331"; code = "331"; name { default = "Load-bearing external walls" }; parent = "kg-330" }
+        }
+      }
+    }
+
+    // The class at level 1:
+    new Selectors.PropertySelector {
+      propertySet = "axioval:classification"
+      property = "cost-group;level=1"
+      operator = "equals"
+      value = new Values.StringValue { value = "kg-300" }
     }
     ```
 

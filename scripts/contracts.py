@@ -1160,7 +1160,15 @@ def property_name_error(property_set: Any, name: Any) -> str | None:
     if type(name) is not str:
         return "property must be a string"
     if property_set == CLASSIFICATION_SET:
-        return None if name.strip() else "a classification id must not be blank"
+        if not name.strip():
+            return "a classification id must not be blank"
+        _, separator, parameter = name.partition(";")
+        if separator and not (
+            parameter.startswith("level=")
+            and CLASSIFICATION_LEVEL.fullmatch(parameter.removeprefix("level="))
+        ):
+            return "a classification is read as '<id>' or '<id>;level=<n>'"
+        return None
     if property_set == MEASURED_SET:
         return measured_name_error(name)
     if not QUALIFIED_ID.fullmatch(name):
@@ -1268,6 +1276,92 @@ def measured_name_error(name: str) -> str | None:
     return None
 
 
+CLASSIFICATION_LEVEL = re.compile(r"[1-9][0-9]*")
+
+
+def classification_property(name: str, context: str) -> tuple[str, int | None]:
+    """Split a name in `axioval:classification` into its ID and tree level.
+
+    `<id>` reads the class a classification assigns; `<id>;level=<n>` the
+    class at level `n` of a hierarchical classification's tree, `n` a
+    positive integer without leading zeros. No other parameter exists.
+    """
+    classification_id, separator, parameter = name.partition(";")
+    if not separator:
+        return name, None
+    level = parameter.removeprefix("level=")
+    if level == parameter:
+        fail(context, f"{parameter!r} is not a classification parameter; only 'level=<n>' is")
+    if not CLASSIFICATION_LEVEL.fullmatch(level):
+        fail(context, f"the level {level!r} is not a positive integer")
+    return classification_id, int(level)
+
+
+def class_levels(classification: dict[str, Any]) -> dict[str, int]:
+    """The level of every declared class of a checked hierarchical classification."""
+    parents = {
+        declared["id"]: declared.get("parent") for declared in classification["classes"]
+    }
+    levels = {}
+    for class_id in parents:
+        level, parent = 1, parents[class_id]
+        while parent is not None:
+            level, parent = level + 1, parents[parent]
+        levels[class_id] = level
+    return levels
+
+
+def classification_classes(classification: dict[str, Any]) -> set[str]:
+    """The classes of a checked classification: its declared classes, or the
+    classes a flat one's rows assign."""
+    if "classes" in classification:
+        return {declared["id"] for declared in classification["classes"]}
+    return {row.get("class") for row in classification["rows"] if type(row) is dict}
+
+
+def validate_classes(classification: dict[str, Any], context: str) -> None:
+    """Check a classification's declared classes as a tree.
+
+    Class IDs and codes are non-blank and distinct, every parent is a declared
+    class, parents form no cycle, and every row assigns a declared class.
+    """
+    classes = list_value(classification["classes"], f"{context}.classes")
+    if not classes:
+        fail(context, "classes is omitted when empty")
+    parents: dict[str, str | None] = {}
+    codes: set[str] = set()
+    for index, declared in enumerate(classes):
+        class_context = f"{context}.classes[{index}]"
+        declared = object_value(declared, class_context)
+        exact_keys(declared, {"id", "name"}, {"code", "parent"}, class_context)
+        for key in ("id", "code", "parent"):
+            if key in declared and (
+                type(declared[key]) is not str or not declared[key].strip()
+            ):
+                fail(class_context, f"{key} must be a non-blank string")
+        localized_text(declared["name"], f"{class_context}.name")
+        if declared["id"] in parents:
+            fail(class_context, f"the class {declared['id']!r} is declared twice")
+        parents[declared["id"]] = declared.get("parent")
+        if "code" in declared:
+            if declared["code"] in codes:
+                fail(class_context, f"two classes have the code {declared['code']!r}")
+            codes.add(declared["code"])
+    for index, declared in enumerate(classes):
+        class_context = f"{context}.classes[{index}]"
+        parent = declared.get("parent")
+        if parent is not None and parent not in parents:
+            fail(class_context, f"the parent {parent!r} is not a declared class")
+        # Walking up reaches a root within as many steps as there are classes,
+        # or the parents form a cycle.
+        steps = 0
+        while parent is not None:
+            steps += 1
+            if steps > len(parents):
+                fail(class_context, f"the parents of {declared['id']!r} form a cycle")
+            parent = parents[parent]
+
+
 def derived_property_kind(
     property_set: str,
     name: str,
@@ -1286,9 +1380,20 @@ def derived_property_kind(
             fail(context, reason)
         return "quantity"
     if property_set == CLASSIFICATION_SET:
-        classification = classifications.get(name)
+        classification_id, level = classification_property(name, context)
+        classification = classifications.get(classification_id)
         if classification is None:
-            fail(context, f"unknown classification {name!r}")
+            fail(context, f"unknown classification {classification_id!r}")
+        if level is not None:
+            if "classes" not in classification:
+                fail(context, f"the flat classification {classification_id!r} has no levels")
+            depth = max(class_levels(classification).values())
+            if level > depth:
+                fail(
+                    context,
+                    f"the classification {classification_id!r} has no level {level}; "
+                    f"its tree is {depth} deep",
+                )
         return (
             "stringList"
             if classification.get("mode", "firstMatch") == "allMatch"
@@ -1502,6 +1607,29 @@ def validate_selector(
             property_sets,
             classifications=classifications,
         )
+    elif kind == "derivedClass":
+        exact_keys(
+            value, {"kind", "classification", "class"}, {"includeDescendants"}, context
+        )
+        if any(
+            type(value[key]) is not str or not value[key].strip()
+            for key in ("classification", "class")
+        ):
+            fail(context, "classification and class must be non-blank strings")
+        if "includeDescendants" in value and value["includeDescendants"] is not True:
+            fail(context, "includeDescendants is omitted unless true")
+        # With the catalogs given the selector binds against the ruleset's
+        # classifications, as a property in `axioval:classification` does.
+        if properties is not None:
+            classification = (classifications or {}).get(value["classification"])
+            if classification is None:
+                fail(context, f"unknown classification {value['classification']!r}")
+            if value["class"] not in classification_classes(classification):
+                fail(
+                    context,
+                    f"the classification {value['classification']!r} has no class "
+                    f"{value['class']!r}",
+                )
     elif kind == "ruleOutcome":
         exact_keys(value, {"kind", "rule", "outcome"}, set(), context)
         # Whether `rule` names a rule of the same ruleset is checked once the
@@ -1752,7 +1880,9 @@ def selector_classification_reads(value: dict[str, Any], out: set[str]) -> None:
     """Collect the classifications the property selectors in a checked selector read."""
     kind = value["kind"]
     if kind == "property" and value.get("propertySet") == CLASSIFICATION_SET:
-        out.add(value["property"])
+        out.add(value["property"].partition(";")[0])
+    elif kind == "derivedClass":
+        out.add(value["classification"])
     elif kind in {"allOf", "anyOf"}:
         for operand in value["operands"]:
             selector_classification_reads(operand, out)
@@ -1774,7 +1904,9 @@ def validate_classifications(
     Each is keyed by its non-blank ID and has rows of a selector bound
     against the concept catalogs and a non-blank class. Rows never read a
     rule's outcome, since classes are derived before any rule runs, and
-    classifications never read one another in a cycle.
+    classifications never read one another in a cycle. A hierarchical
+    classification's declared `classes` form a tree (`validate_classes`) and
+    its rows assign declared classes.
     """
     classifications = object_value(value, context)
     if not classifications:
@@ -1785,7 +1917,7 @@ def validate_classifications(
         exact_keys(
             classification,
             {"id", "name", "rows"},
-            {"description", "mode"},
+            {"description", "mode", "classes"},
             entry_context,
         )
         if type(classification["id"]) is not str or key != classification["id"]:
@@ -1804,6 +1936,8 @@ def validate_classifications(
             fail(entry_context, "mode must be 'firstMatch' or 'allMatch'")
         if not list_value(classification["rows"], f"{entry_context}.rows"):
             fail(entry_context, "a classification has at least one row")
+        if "classes" in classification:
+            validate_classes(classification, entry_context)
     reads: dict[str, set[str]] = {}
     for key, classification in classifications.items():
         read: set[str] = set()
@@ -1813,6 +1947,10 @@ def validate_classifications(
             exact_keys(row, {"selector", "class"}, set(), row_context)
             if type(row["class"]) is not str or not row["class"].strip():
                 fail(row_context, "class must be a non-blank string")
+            if "classes" in classification and row["class"] not in {
+                declared["id"] for declared in classification["classes"]
+            }:
+                fail(row_context, f"the class {row['class']!r} is not declared")
             validate_selector(
                 row["selector"],
                 f"{row_context}.selector",
