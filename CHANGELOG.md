@@ -10,6 +10,11 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- A relationship path step may name a relationship kind,
+  `axioval:relationship.<kind>` (`containment`, `aggregation`, `voids`,
+  `fills`, `space-boundary`, `type`, `group`, `connection`), which every source
+  answers under its own relationship types, mirroring the engine. Kinds join
+  alternatives like any other relationship name; an unknown kind is rejected.
 - Hierarchical classifications, mirroring the engine: a ruleset
   classification may declare `classes`, a tree of classes with an `id`, an
   optional `code`, a localized `name`, and an optional `parent`, whose rows

@@ -415,7 +415,12 @@ Konzepte wie jeder andere Selektor und wird gegen dieselben Kataloge gebunden.
 Ein Schritt darf auch eine Beziehung nennen, die die prüfende Anwendung aus der
 Geometrie ableitet, `axioval:derived.<name>` mit optionalen
 `;key=value`-Toleranzen, etwa `axioval:derived.adjacent-space;reach=1`, gefolgt
-von einer Richtung und `+`, wie ein Kategoriepfad es erlaubt.
+von einer Richtung und `+`, wie ein Kategoriepfad es erlaubt. Ein Schritt darf
+außerdem eine Beziehungsart nennen, `axioval:relationship.<art>`, die jede Quelle
+mit ihren eigenen Beziehungstypen beantwortet: `containment`, `aggregation`,
+`voids`, `fills`, `space-boundary`, `type`, `group` oder `connection`, etwa
+`axioval:relationship.containment:backward` von einem Geschoss zu dem, was es
+enthält.
 
 Ein Schritt darf mehrere Beziehungen nennen, getrennt durch `|`, und jede von
 ihnen gehen. Eine Richtung, nach der letzten geschrieben, gilt für alle, und mit

@@ -1397,6 +1397,14 @@ class RelatedSelectorTests(unittest.TestCase):
             ),
             related_selector(
                 [
+                    "axioval:relationship.containment:backward",
+                    "axioval:relationship.fills|axioval:relationship.voids:backward+",
+                    "axioval:relationship.space-boundary|IfcRelSpaceBoundary",
+                    "axioval:relationship.type",
+                ]
+            ),
+            related_selector(
+                [
                     "axioval:derived.adjacent-space",
                     "axioval:derived.contained-in-space;horizontal=0.25;vertical=0.5",
                     "axioval:derived.overlapping-group-space;ratio=0.9:backward",
@@ -1438,6 +1446,10 @@ class RelatedSelectorTests(unittest.TestCase):
             {**valid, "operand": {"kind": "all"}},
             {**valid, "direction": "forward"},
             related_selector([]),
+            related_selector(["axioval:relationship.walls"]),
+            related_selector(["axioval:relationship."]),
+            related_selector(["axioval:relationship.Fills"]),
+            related_selector(["axioval:relationship.fills|axioval:relationship.fills"]),
             related_selector("IfcRelAggregates"),
             related_selector([""]),
             related_selector([None]),

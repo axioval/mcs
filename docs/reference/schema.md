@@ -405,7 +405,11 @@ the nested `selector` names concepts like any other selector and binds against
 the same catalogs. A step may also name a relationship the checking application
 derives from geometry, `axioval:derived.<name>` with optional `;key=value`
 tolerances, such as `axioval:derived.adjacent-space;reach=1`, followed by a
-direction and `+` as a category path allows.
+direction and `+` as a category path allows. A step may also name a
+relationship kind, `axioval:relationship.<kind>`, which every source answers
+under its own relationship types: `containment`, `aggregation`, `voids`,
+`fills`, `space-boundary`, `type`, `group`, or `connection`, such as
+`axioval:relationship.containment:backward` from a storey to what it contains.
 
 A step may name several relationships separated by `|` and takes any of them.
 One direction, written after the last, applies to all of them, and with `+` the

@@ -106,10 +106,17 @@ MEASURED_PATH_RELATIONSHIP = re.compile(r"[^:\s|,;]+")
 DERIVED_RELATIONSHIP = re.compile(
     r"axioval:derived\.[a-z][a-z0-9-]*(;[a-z]+=[0-9]+(\.[0-9]+)?)*"
 )
+# A relationship kind every source answers under its own relationship types,
+# as the engine names them (`axioval:relationship.<kind>`).
+RELATIONSHIP_KIND = re.compile(
+    r"axioval:relationship\.(containment|aggregation|voids|fills|space-boundary"
+    r"|type|group|connection)"
+)
 PATH_STEP_GRAMMAR = (
     "'Relationship[|Relationship...][:forward|backward|either][+]', each "
-    "relationship a source relationship name or a derived relationship "
-    "'axioval:derived.<name>'"
+    "relationship a source relationship name, a derived relationship "
+    "'axioval:derived.<name>' or a relationship kind "
+    "'axioval:relationship.<kind>'"
 )
 # Reserved property sets: engine vocabulary that binds to itself, never a
 # package concept.
@@ -1220,6 +1227,7 @@ def path_step_error(
         if not (
             relationship_name.fullmatch(alternative)
             or DERIVED_RELATIONSHIP.fullmatch(alternative)
+            or RELATIONSHIP_KIND.fullmatch(alternative)
         ):
             return f"path step {step!r} must be {PATH_STEP_GRAMMAR}"
         if alternative in seen:
