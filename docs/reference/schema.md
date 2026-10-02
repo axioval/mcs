@@ -1042,12 +1042,25 @@ localized `name`, an optional `description`, the objects it runs `from` and
 | `by.kind` | Fields | Pairs |
 | --- | --- | --- |
 | `pairs` | `pairs`, optional `scheme` | the listed pairs: a `table` or [`tableFile`](#tables-from-data-files) value with the required text columns `from` and `to`, one pair per row |
+| `supplied` | optional `columns`, optional `scheme` | the pairs the host supplies at check time, beside the model, as a CSV file or one sheet of an `.xlsx` workbook |
 | `property` | `from`, `to`, each a `property` with an optional `propertySet` | a from-object with every to-object whose `to` property states the value of its `from` property, compared as a grouping key is |
 
 Without `scheme`, a listed cell names an object by its identity as reports
 write it (`<system>:<document>/<local id>`); with `scheme`, by the external ID
 the object carries in that scheme, such as `ifc-globalid`. An object without a
 value of a `property` key relates to none.
+
+A `supplied` relation keeps the rule package the same for every project: the
+package states no pairs and no digest, and the checking application takes the
+pairs from a file given beside the model, by the table file rules (header row,
+blank rows skipped, every header declared). Its rows name objects as listed
+pairs do, `scheme` alike, and every pair's evidence cites the SHA-256 of the
+file it came from. The optional `columns` declare the text columns `from` and
+`to` and their file headers as a [`tableFile`](#tables-from-data-files)'s do:
+exactly two, the ids `from` and `to` each once, kind `string`, and distinct
+headers. Omitted, the headers are `from` and `to`. A supplied relation given no
+pairs is never an empty relation: every walk is undecided, so each rule walking
+it is not evaluated. The packer stores no file for it.
 
 The relationship `axioval:derived.relation;id=<relation>` runs from each object
 `from` selects to the objects `to` selects that `by` pairs it with, and
@@ -1061,13 +1074,14 @@ runs, so their selectors may select classes and groups.
 
 A relation ID is part of every pair's identity: it must not be blank or hold
 `:`, `;`, `|`, `/`, or whitespace. Normalized JSON omits empty `relations` and
-an unset `description`, `propertySet`, or `scheme`, so packages without
+an unset `description`, `propertySet`, `columns`, or `scheme`, so packages without
 relations render byte-identically. The binder rejects a map key other than the
 ID, `from` or `to` selectors that name an unknown concept, consult a rule's
 outcome, or walk a declared relation, a key `property` that is unknown, a blank
 `scheme`, pairs that are neither a table nor a table file, rows other than the
-text cells `from` and `to` or naming a blank object, and a path step naming a
-relation the same ruleset does not declare.
+text cells `from` and `to` or naming a blank object, a `supplied` key stating
+`pairs` or columns other than exactly `from` and `to` as distinctly headed text
+columns, and a path step naming a relation the same ruleset does not declare.
 
 ??? example "Show pumps serving rooms, listed in a CSV file"
     ```pkl
@@ -1086,6 +1100,25 @@ relation the same ruleset does not declare.
               new { id = "from"; header = "pump"; kind = "string" }
               new { id = "to"; header = "room"; kind = "string" }
             }
+          }
+        }
+      }
+    }
+    ```
+
+??? example "Show pumps serving rooms, supplied beside the model"
+    ```pkl
+    relations {
+      ["serves"] {
+        id = "serves"
+        name { default = "Serves" }
+        from = new Selectors.EntityTypeSelector { objectType = "axioval:example.pump" }
+        to = new Selectors.EntityTypeSelector { objectType = "axioval:example.space" }
+        by = new SuppliedRelationKey {
+          scheme = "ifc-globalid"
+          columns {
+            new { id = "from"; header = "pump"; kind = "string" }
+            new { id = "to"; header = "room"; kind = "string" }
           }
         }
       }

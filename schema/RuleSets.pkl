@@ -379,6 +379,28 @@ class PairsRelationKey extends RelationKey {
   scheme: String(!isBlank)?
 }
 
+/// Supplied pairs: the host supplies them at check time, beside the model,
+/// as a CSV file or one sheet of an `.xlsx` workbook whose rows name objects
+/// as listed pairs do (`scheme` alike), so one rule package serves every
+/// project. The package states no pairs and no digest. `columns` declares
+/// the text columns `from` and `to` and their headers as a table file does;
+/// when unset the headers are `from` and `to`. A relation whose pairs were
+/// not supplied relates nothing surely: every rule walking it is not
+/// evaluated.
+class SuppliedRelationKey extends RelationKey {
+  kind: "supplied" = "supplied"
+  /// Exactly the text columns `from` and `to`, each once, with distinct
+  /// headers. Normalized JSON omits it when unset.
+  columns: Listing<Values.TableFileColumn>(
+    length == 2,
+    isDistinctBy((it) -> it.id),
+    isDistinctBy((it) -> it.header ?? it.id),
+    every((it) -> (it.id == "from" || it.id == "to") && it.kind == "string")
+  )?
+  /// Normalized JSON omits it when unset.
+  scheme: String(!isBlank)?
+}
+
 /// A relation the ruleset declares between objects the model does not
 /// relate, such as the pumps serving each room.
 ///

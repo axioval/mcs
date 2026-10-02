@@ -4702,6 +4702,18 @@ class RelationTests(unittest.TestCase):
                 to=derived_group("flats"),
             ),
             "empty": relation("empty", {"kind": "pairs", "pairs": pair_rows()}),
+            "supplied": relation("supplied", {"kind": "supplied"}),
+            "supplied-by-scheme": relation(
+                "supplied-by-scheme",
+                {
+                    "kind": "supplied",
+                    "columns": [
+                        {"id": "to", "header": "room", "kind": "string"},
+                        {"id": "from", "kind": "string"},
+                    ],
+                    "scheme": "ifc-globalid",
+                },
+            ),
             "by-class": relation(
                 "by-class",
                 {
@@ -4721,6 +4733,7 @@ class RelationTests(unittest.TestCase):
             related_selector(
                 ["axioval:derived.relation;id=listed|axioval:derived.relation;id=filed:either"]
             ),
+            related_selector(["axioval:derived.relation;id=supplied-by-scheme:backward"]),
             related_selector(["axioval:derived.relation;id=by-class"], selector=walls()),
         ):
             with self.subTest(applicability=applicability):
@@ -4778,6 +4791,27 @@ class RelationTests(unittest.TestCase):
             {"serves": relation(by={"kind": "pairs", "pairs": self.pairs_file(columns=[{"id": "from", "header": "pump", "kind": "string"}])})},
             {"serves": relation(by={"kind": "pairs", "pairs": self.pairs_file(columns=[{"id": "from", "header": "pump", "kind": "string"}, {"id": "to", "header": "room", "kind": "textPattern"}])})},
             {"serves": relation(by={"kind": "pairs", "pairs": self.pairs_file(columns=[{"id": "from", "header": "pump", "kind": "string"}, {"id": "into", "header": "room", "kind": "string"}])})},
+            # Supplied pairs: never listed, at most a `from` and `to` column each.
+            {"serves": relation(by={"kind": "supplied", "pairs": pair_rows()})},
+            {"serves": relation(by={"kind": "supplied", "pairs": self.pairs_file()})},
+            {"serves": relation(by={"kind": "supplied", "from": {"property": REFERENCE}})},
+            {"serves": relation(by={"kind": "supplied", "scheme": " "})},
+            {"serves": relation(by={"kind": "supplied", "scheme": 1})},
+            {"serves": relation(by={"kind": "supplied", "columns": None})},
+            {"serves": relation(by={"kind": "supplied", "columns": {"from": "pump"}})},
+            {"serves": relation(by={"kind": "supplied", "columns": []})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, {"id": "to", "kind": "string"}, {"id": "via", "kind": "string"}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, {"id": "from", "header": "pump", "kind": "string"}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, {"id": "into", "kind": "string"}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, {"id": "to", "kind": "reference"}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, {"id": "to", "kind": "quantity", "unit": "m"}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, {"id": "to", "kind": "string", "unit": "m"}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, {"id": "to", "header": "from", "kind": "string"}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, {"id": "to", "header": "", "kind": "string"}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, {"id": "to", "header": 1, "kind": "string"}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, {"id": "to", "kind": "string", "required": True}]})},
+            {"serves": relation(by={"kind": "supplied", "columns": [{"id": "from", "kind": "string"}, "to"]})},
         ):
             self.assert_rejected(relations)
         blank = b"pump,room\na, \n"
@@ -4942,6 +4976,81 @@ class RelationTests(unittest.TestCase):
                 body.replace('scheme = "ifc-globalid"', 'scheme = " "'),
                 body.replace("new Values.TableValue", "new Values.StringValue"),
                 body.replace('to { property = "axioval:example.ifc.reference" }', "to {}"),
+            ):
+                with self.subTest(broken=broken), self.assertRaises(SystemExit):
+                    path.write_text(module(broken), encoding="utf-8")
+                    validate.evaluate(path)
+
+    def test_pkl_renders_supplied_relations(self) -> None:
+        rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+
+        def module(by: str) -> str:
+            return (
+                f'amends "{rules}"\n\n'
+                f'import "{selectors}"\n\n'
+                'package { id = "axioval:example.relations"; version = "0.1.0"; '
+                'name { default = "Relations" } }\n'
+                'definitionPackages { "axioval:example.definitions" }\n'
+                'root { id = "root"; name { default = "Root" } }\n'
+                "relations {\n"
+                '  ["serves"] {\n'
+                '    id = "serves"\n'
+                '    name { default = "serves" }\n'
+                "    from = new Selectors.AllSelector {}\n"
+                "    to = new Selectors.AllSelector {}\n"
+                f"    by = new SuppliedRelationKey {{{by}}}\n"
+                "  }\n"
+                "}\n"
+            )
+
+        full = (
+            '\n      scheme = "ifc-globalid"\n'
+            "      columns {\n"
+            '        new { id = "from"; header = "pump"; kind = "string" }\n'
+            '        new { id = "to"; kind = "string" }\n'
+            "      }\n    "
+        )
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "supplied.pkl"
+            for by, expected in (
+                ("", {"kind": "supplied"}),
+                (
+                    full,
+                    {
+                        "kind": "supplied",
+                        "columns": [
+                            {"id": "from", "header": "pump", "kind": "string"},
+                            {"id": "to", "kind": "string"},
+                        ],
+                        "scheme": "ifc-globalid",
+                    },
+                ),
+            ):
+                with self.subTest(by=by):
+                    path.write_text(module(by), encoding="utf-8")
+                    evaluated = validate.evaluate(path)
+                    rendered = evaluated["relations"]["serves"]["by"]
+                    self.assertEqual(rendered, expected)
+                    self.assertEqual(list(rendered), list(expected))
+                    validate.bind_ruleset(
+                        evaluated, [copy.deepcopy(self.definitions)], "test"
+                    )
+            for broken in (
+                full.replace('scheme = "ifc-globalid"', 'scheme = " "'),
+                full.replace('new { id = "to"; kind = "string" }\n', ""),
+                full.replace(
+                    'new { id = "to"; kind = "string" }',
+                    'new { id = "to"; kind = "string" }\n'
+                    '        new { id = "via"; kind = "string" }',
+                ),
+                full.replace('id = "to"', 'id = "into"'),
+                full.replace('id = "to"', 'id = "from"'),
+                full.replace('id = "to"; kind = "string"', 'id = "to"; kind = "reference"'),
+                full.replace('id = "to"; kind = "string"', 'id = "to"; header = "pump"; kind = "string"'),
+                full.replace('id = "to"; kind = "string"', 'id = "to"; header = ""; kind = "string"'),
+                full.replace('id = "to"; kind = "string"', 'id = "to"; kind = "quantity"; unit = "m"'),
+                "\n      pairs = 1\n    ",
             ):
                 with self.subTest(broken=broken), self.assertRaises(SystemExit):
                     path.write_text(module(broken), encoding="utf-8")

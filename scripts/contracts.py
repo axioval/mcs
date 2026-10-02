@@ -73,7 +73,7 @@ RELATION_PAIR_COLUMNS = [
     {"id": "to", "kind": "string", "required": True},
 ]
 # How a relation pairs its objects.
-RELATION_KINDS = {"property", "pairs"}
+RELATION_KINDS = {"property", "pairs", "supplied"}
 SELECTOR_OPERATORS = {
     "equals",
     "notEquals",
@@ -665,6 +665,14 @@ def table_file_reference(value: dict[str, Any], context: str) -> dict[str, Any]:
     columns = list_value(value["columns"], f"{context}.columns")
     if not columns:
         fail(context, "no columns are declared")
+    table_file_columns(columns, context)
+    return value
+
+
+def table_file_columns(columns: list[Any], context: str) -> None:
+    """Check a table file's declared `columns`: each with a distinct id and a
+    distinct non-empty header (its id when omitted), a kind other than
+    `selector`, and a non-blank `unit` exactly when it is a quantity."""
     ids: set[str] = set()
     headers: set[str] = set()
     for index, column in enumerate(columns):
@@ -706,7 +714,6 @@ def table_file_reference(value: dict[str, Any], context: str) -> dict[str, Any]:
                 column_context,
                 f"column {column_id!r} declares a unit but is not a quantity column",
             )
-    return value
 
 
 def bind_table_file(
@@ -2931,6 +2938,30 @@ def relation_pairs(
             fail(context, f"pairs row {index + 1} names a blank object")
 
 
+def supplied_columns(value: Any, context: str) -> None:
+    """Check the `columns` a supplied relation's pairs are taken by, as the
+    engine checks them: exactly the text columns `from` and `to`, each once,
+    with distinct non-empty headers. Omitted, the headers are `from` and
+    `to`."""
+    columns = list_value(value, f"{context}.columns")
+    table_file_columns(columns, context)
+    for index, column in enumerate(columns):
+        if column["id"] not in {"from", "to"}:
+            fail(
+                f"{context}.columns[{index}]",
+                f"supplied column {column['id']!r} is neither 'from' nor 'to'",
+            )
+        if column["kind"] != "string":
+            fail(
+                f"{context}.columns[{index}]",
+                f"supplied column {column['id']!r} is declared {column['kind']}, "
+                "not string",
+            )
+    for missing in ("from", "to"):
+        if not any(column["id"] == missing for column in columns):
+            fail(context, f"the supplied columns declare no {missing!r}")
+
+
 def validate_relations(
     value: Any,
     context: str,
@@ -2950,7 +2981,9 @@ def validate_relations(
     declared relation, since relations are derived before any rule runs. It
     relates `by` equal values of two bound properties, or by listed `pairs`
     of objects named by their identity or, with a non-blank `scheme`, by
-    their external ID in that scheme.
+    their external ID in that scheme, or by pairs the host supplies at check
+    time (`supplied`, with optional `from` and `to` `columns`), which the
+    package never states.
     """
     relations = object_value(value, context)
     if not relations:
@@ -2997,7 +3030,7 @@ def validate_relations(
         by = object_value(relation["by"], by_context)
         kind = by.get("kind")
         if type(kind) is not str or kind not in RELATION_KINDS:
-            fail(by_context, "kind must be 'property' or 'pairs'")
+            fail(by_context, "kind must be 'property', 'pairs' or 'supplied'")
         if kind == "property":
             exact_keys(by, {"kind", "from", "to"}, set(), by_context)
             for end in ("from", "to"):
@@ -3008,12 +3041,18 @@ def validate_relations(
                     key_property, end_context, properties, property_sets, classifications
                 )
         else:
-            exact_keys(by, {"kind", "pairs"}, {"scheme"}, by_context)
+            if kind == "pairs":
+                exact_keys(by, {"kind", "pairs"}, {"scheme"}, by_context)
+            else:
+                exact_keys(by, {"kind"}, {"columns", "scheme"}, by_context)
             if "scheme" in by and (
                 type(by["scheme"]) is not str or not by["scheme"].strip(TRIMMED)
             ):
                 fail(by_context, "the external id scheme must be a non-blank string")
-            relation_pairs(by["pairs"], f"{by_context}.pairs", asset_root)
+            if kind == "pairs":
+                relation_pairs(by["pairs"], f"{by_context}.pairs", asset_root)
+            elif "columns" in by:
+                supplied_columns(by["columns"], by_context)
     return declared
 
 

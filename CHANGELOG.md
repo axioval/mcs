@@ -33,6 +33,16 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   relation, pairs other than non-blank text `from` and `to` cells, and path
   steps naming an undeclared relation. Normalized JSON omits empty
   `relations`, so existing packages render byte-identically.
+- Supplied relation pairs, mirroring the engine: a relation may pair its
+  objects `by` `kind: supplied`, taking its pairs from a CSV file or `.xlsx`
+  sheet the host supplies at check time beside the model, so one rule
+  package serves every project. It never states `pairs`; its optional
+  `columns` declare the text columns `from` and `to` and their headers as a
+  `tableFile`'s do (exactly two, each once, kind `string`, distinct headers;
+  the headers `from` and `to` when omitted), and its optional `scheme` names
+  objects by external ID. Pkl and the binder reject a blank `scheme`, `pairs`
+  and any other columns. Normalized JSON orders `kind`, `columns`, `scheme`
+  and omits unset fields; the packer stores no file for it.
 - Derived groups and compartments, mirroring the engine: a ruleset may
   declare `groupings`, by ID, each grouping selected `members` `by` equal
   values of a property (`kind: property`, a derived class included), equal

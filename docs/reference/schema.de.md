@@ -1103,12 +1103,27 @@ zwei Selektoren, und die Art, wie sie sie paart, `by`, markiert durch `kind`:
 | `by.kind` | Felder | Paart |
 | --- | --- | --- |
 | `pairs` | `pairs`, optional `scheme` | die aufgezählten Paare: ein `table`- oder `tableFile`-Wert (siehe Abschnitt Tabellen aus Datendateien) mit den Pflicht-Textspalten `from` und `to`, ein Paar je Zeile |
+| `supplied` | optional `columns`, optional `scheme` | die Paare, die der Host zur Prüfzeit neben dem Modell bereitstellt, als CSV-Datei oder ein Blatt einer `.xlsx`-Arbeitsmappe |
 | `property` | `from`, `to`, jeweils eine `property` mit optionalem `propertySet` | ein Ausgangsobjekt mit jedem Zielobjekt, dessen `to`-Eigenschaft den Wert seiner `from`-Eigenschaft angibt, verglichen wie ein Gruppierungsschlüssel |
 
 Ohne `scheme` nennt eine aufgezählte Zelle ein Objekt über seine Identität, wie
 Berichte sie schreiben (`<system>:<dokument>/<lokale id>`); mit `scheme` über
 die externe ID, die das Objekt in diesem Schema trägt, etwa `ifc-globalid`. Ein
 Objekt ohne Wert eines `property`-Schlüssels ist mit keinem verbunden.
+
+Eine `supplied`-Relation hält das Regelpaket für jedes Projekt gleich: Das
+Paket nennt weder Paare noch Prüfsumme, und die prüfende Anwendung entnimmt die
+Paare einer neben dem Modell übergebenen Datei nach den Regeln für
+Tabellendateien (Kopfzeile, leere Zeilen übersprungen, jede Überschrift
+deklariert). Ihre Zeilen nennen Objekte wie aufgezählte Paare, `scheme`
+ebenso, und der Nachweis jedes Paars zitiert den SHA-256 der Datei, aus der es
+stammt. Die optionalen `columns` deklarieren die Textspalten `from` und `to`
+und ihre Dateiüberschriften wie die eines `tableFile`-Werts: genau zwei, die
+IDs `from` und `to` je einmal, Art `string` und verschiedene Überschriften.
+Fehlen sie, lauten die Überschriften `from` und `to`. Eine `supplied`-Relation
+ohne bereitgestellte Paare ist nie eine leere Relation: Jeder Schritt entlang
+ihr ist unentschieden, daher wird jede Regel, die ihr folgt, nicht bewertet.
+Der Packer speichert für sie keine Datei.
 
 Die Beziehung `axioval:derived.relation;id=<relation>` führt von jedem Objekt,
 das `from` auswählt, zu den Objekten, die `to` auswählt und mit denen `by` es
@@ -1123,15 +1138,17 @@ abgeleitet, daher dürfen ihre Selektoren Klassen und Gruppen auswählen.
 
 Eine Relations-ID ist Teil der Identität jedes Paars: Sie darf nicht leer sein
 und weder `:`, `;`, `|`, `/` noch Leerraum enthalten. Normalisiertes JSON lässt
-leere `relations` sowie nicht gesetzte `description`, `propertySet` oder
-`scheme` weg, sodass Pakete ohne Relationen bytegleich gerendert werden. Der
+leere `relations` sowie nicht gesetzte `description`, `propertySet`,
+`columns` oder `scheme` weg, sodass Pakete ohne Relationen bytegleich gerendert werden. Der
 Binder lehnt einen Zuordnungsschlüssel ungleich der ID ab, `from`- oder
 `to`-Selektoren, die ein unbekanntes Konzept nennen, das Ergebnis einer Regel
 abfragen oder einer deklarierten Relation folgen, eine unbekannte
 Schlüssel-`property`, ein leeres `scheme`, Paare, die weder Tabelle noch
 Tabellendatei sind, Zeilen mit anderen als den Textzellen `from` und `to` oder
-mit einem leeren Objektnamen, und einen Pfadschritt, der eine Relation nennt,
-die derselbe Regelsatz nicht deklariert.
+mit einem leeren Objektnamen, einen `supplied`-Schlüssel, der `pairs` angibt
+oder andere Spalten als genau `from` und `to` als verschieden überschriebene
+Textspalten, und einen Pfadschritt, der eine Relation nennt, die derselbe
+Regelsatz nicht deklariert.
 
 ??? example "In einer CSV-Datei aufgezählte Pumpen, die Räume versorgen, anzeigen"
     ```pkl
@@ -1150,6 +1167,25 @@ die derselbe Regelsatz nicht deklariert.
               new { id = "from"; header = "pump"; kind = "string" }
               new { id = "to"; header = "room"; kind = "string" }
             }
+          }
+        }
+      }
+    }
+    ```
+
+??? example "Neben dem Modell bereitgestellte Pumpen, die Räume versorgen, anzeigen"
+    ```pkl
+    relations {
+      ["serves"] {
+        id = "serves"
+        name { default = "Serves" }
+        from = new Selectors.EntityTypeSelector { objectType = "axioval:example.pump" }
+        to = new Selectors.EntityTypeSelector { objectType = "axioval:example.space" }
+        by = new SuppliedRelationKey {
+          scheme = "ifc-globalid"
+          columns {
+            new { id = "from"; header = "pump"; kind = "string" }
+            new { id = "to"; header = "room"; kind = "string" }
           }
         }
       }

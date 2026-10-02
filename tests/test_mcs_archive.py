@@ -505,6 +505,44 @@ class MCSArchiveTests(unittest.TestCase):
         with self.assertRaises(mcs_archive.MCSError):
             mcs_archive.pack(package, directory / "stale.mcs", ROOT)
 
+    def test_supplied_relations_pack_no_data_file(self) -> None:
+        """A relation whose pairs the host supplies names no file to pack."""
+        holder = tempfile.TemporaryDirectory(dir=ROOT / "tests")
+        self.addCleanup(holder.cleanup)
+        package = Path(holder.name)
+        source = ROOT / "examples/minimal"
+        for name in ("axioval.json", "ruleset.pkl", "definitions.pkl", "README.md"):
+            shutil.copy(source / name, package / name)
+        shutil.copytree(source / "assets", package / "assets")
+        with (package / "ruleset.pkl").open("a") as ruleset:
+            ruleset.write(
+                "\nrelations {\n"
+                '  ["serves"] {\n'
+                '    id = "serves"\n'
+                '    name { default = "Serves" }\n'
+                "    from = new Selectors.AllSelector {}\n"
+                "    to = new Selectors.AllSelector {}\n"
+                "    by = new SuppliedRelationKey {\n"
+                '      scheme = "ifc-globalid"\n'
+                '      columns { new { id = "from"; header = "pump"; kind = "string" }; '
+                'new { id = "to"; header = "room"; kind = "string" } }\n'
+                "    }\n"
+                "  }\n"
+                "}\n"
+            )
+        archive = Path(tempfile.mkdtemp()) / "supplied.mcs"
+        metadata = mcs_archive.pack(package, archive, ROOT)
+        root = f"source/tests/{package.name}"
+        sources = {
+            entry["path"].removeprefix(f"{root}/")
+            for entry in metadata["inventory"]
+            if entry["path"].startswith(f"{root}/")
+        }
+        self.assertFalse(
+            {name for name in sources if name.endswith((".csv", ".xlsx"))}
+        )
+        mcs_archive.verify(archive)
+
     def test_wrong_extension_and_overwrite_are_refused(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "wrong.zip"
