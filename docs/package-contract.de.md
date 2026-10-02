@@ -128,6 +128,16 @@ Stilinhalte und fremde SVG-Inhalte werden geschlossen abgelehnt. Verbraucher
 sollen dennoch eine eigene Sandbox für Bilddekodierung und Darstellung
 verwenden.
 
+## Tabellendateien im Paket
+
+Ein `tableFile`-Wert nennt eine CSV-Datei oder eine `.xlsx`-Arbeitsmappe im
+Paket, deren Zeilen eine Tabelle füllen, und legt ihre Bytes mit einem SHA-256
+fest. Tabellendateien sind Daten und keine ausführbaren Erweiterungen: Der
+Binder benötigt wie bei Bildern die Paketwurzel, hält jeden Pfad im Paket, lehnt
+Dateien über 10.000.000 Bytes oder mit anderem Hashwert ab und übernimmt jede
+Zelle so, wie sie geschrieben ist. Formeln und Fehlerzellen in Arbeitsmappen,
+Dokumenttypen und Verarbeitungsanweisungen werden geschlossen abgelehnt.
+
 ## Quell- und kompilierte Formen
 
 Pkl-Quelltext ist für die Bearbeitung maßgeblich. Eine Registry kann validiertes normalisiertes JSON zwischenspeichern, aber generierte Ausgabe allein beweist nicht, dass die Quelle sicher oder gültig ist. Cache-Schlüssel sollen die unveränderliche Quellrevision, Schemaversion, Pkl-Version und Validator-Version enthalten.

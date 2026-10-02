@@ -371,7 +371,10 @@ def _support_files(root: Path, package: Path, require_lock: bool = False) -> set
 def _asset_paths(value: Any, package_root: Path, root: Path) -> set[Path]:
     found: set[Path] = set()
     if isinstance(value, dict):
-        if set(value) >= {"path", "mediaType"} and isinstance(value.get("path"), str):
+        # Explanatory images and the data files table values name.
+        if (
+            set(value) >= {"path", "mediaType"} or value.get("type") == "tableFile"
+        ) and isinstance(value.get("path"), str):
             candidate = package_root / value["path"]
             found.add(_inside(package_root, candidate, "asset"))
         for item in value.values():
@@ -463,7 +466,9 @@ def pack(
         for module, value in zip(definition_modules, definitions, strict=True):
             if value.get("schemaVersion") != manifest["schemaVersion"]:
                 _fail(f"definition schema version disagrees: {module}")
-            validate_definition_document(value, str(module.relative_to(root)))
+            validate_definition_document(
+                value, str(module.relative_to(root)), asset_root=package
+            )
         bind_ruleset(
             ruleset,
             definitions,
@@ -472,7 +477,7 @@ def pack(
         )
     except SystemExit as exc:
         _fail(str(exc))
-    assets = _asset_paths(ruleset, package, root)
+    assets = _asset_paths([ruleset, *definitions], package, root)
     source_files = (
         closure
         | {manifest_file, schema_file}
@@ -979,7 +984,9 @@ def verify(path: Path) -> dict[str, Any]:
                         "normalized definition does not exactly match evaluated source"
                     )
                 validate_definition_document(
-                    value, str(module.relative_to(source_root))
+                    value,
+                    str(module.relative_to(source_root)),
+                    asset_root=package_root,
                 )
             bind_ruleset(
                 ruleset,
@@ -990,7 +997,9 @@ def verify(path: Path) -> dict[str, Any]:
             expected_source_files = (
                 _pkl_closure(source_root, [ruleset_module, *defs], declared_aliases)
                 | {manifest_path, schema_file}
-                | _asset_paths(ruleset, package_root, source_root)
+                | _asset_paths(
+                    [ruleset, *definition_values], package_root, source_root
+                )
                 | _support_files(
                     source_root, package_root, require_lock=bool(dependencies)
                 )

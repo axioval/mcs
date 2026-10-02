@@ -100,3 +100,55 @@ class TableValue extends ParameterValue {
   type: "table" = "table"
   value: Listing<Mapping<Types.Identifier, ParameterValue>>
 }
+
+/// The kinds a column of a table file may have: every table column kind but
+/// `selector`, which a data file cannot hold.
+typealias TableFileColumnKind = "string" | "textPattern" | "number" | "quantity" | "integer" | "boolean" | "reference" | "date" | "dateTime"
+
+/// One column of a `TableFileValue`: the table column `id` it fills, its
+/// `kind`, which must be that column's, the file's `header` naming it, and
+/// for a `quantity` column the `unit` every cell is stated in.
+class TableFileColumn {
+  id: Types.Identifier
+  /// The header naming the column in the file; its `id` when unset.
+  /// Normalized JSON omits it when unset.
+  header: String(!isEmpty)?
+  /// A `quantity` column states its `unit`, and no other column does.
+  kind: TableFileColumnKind((this == "quantity") == (unit != null))
+  /// Normalized JSON omits it when unset.
+  unit: String(!isBlank)?
+}
+
+/// Rows of a `table` parameter taken from a data file shipped in the package
+/// instead of listed: a UTF-8 CSV file, or one named `sheet` of an `.xlsx`
+/// workbook. Allowed wherever a `TableValue` is.
+///
+/// `path` is relative to the package root, `/`-separated, without empty, `.`
+/// or `..` segments. `sha256` is the lowercase hex SHA-256 of the file's
+/// bytes, which pins the exact data the package was reviewed with; Pkl cannot
+/// open the file, so the author states it and the binder and packer verify
+/// it. `columns` declares every column of the file. The first row that is
+/// not blank is the header; every later one is a row bound exactly as the
+/// same row written inline. The file is data and is never executed.
+class TableFileValue extends ParameterValue {
+  type: "tableFile" = "tableFile"
+  path: String(isTableFilePath(this))
+  /// The sheet of an `.xlsx` workbook; a CSV file has none. Normalized JSON
+  /// omits it when unset.
+  sheet: String(!isEmpty)?(path.endsWith(".xlsx") == (this != null))
+  sha256: String(matches(Regex(#"[0-9a-f]{64}"#)))
+  columns: Listing<TableFileColumn>(
+    !isEmpty,
+    isDistinctBy((it) -> it.id),
+    isDistinctBy((it) -> it.header ?? it.id)
+  )
+}
+
+/// Whether `path` names a `.csv` or `.xlsx` file inside the package: relative,
+/// `/`-separated, without empty, `.` or `..` segments, backslashes or `:`.
+const function isTableFilePath(path: String): Boolean =
+  (path.endsWith(".csv") || path.endsWith(".xlsx"))
+    && !path.contains("\\")
+    && !path.contains(":")
+    && !path.contains("\u{0}")
+    && path.split("/").every((segment) -> segment != "" && segment != "." && segment != "..")

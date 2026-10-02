@@ -331,7 +331,10 @@ typealias RelatedQuantifier = "any" | "all" | "none"
 /// tolerances (`axioval:derived.adjacent-space;reach=1`), a direction, and `+`,
 /// or the relationship from each member of a grouping of the same ruleset to
 /// its group, `axioval:derived.group;by=<grouping>`, whose `backward` direction
-/// reaches a group's members.
+/// reaches a group's members, or a relation of the same ruleset,
+/// `axioval:derived.relation;id=<relation>`, from each from-object to the
+/// to-objects it is paired with, whose `backward` direction runs from a
+/// to-object to its from-objects.
 class RelatedSelector extends Selector {
   kind: "related" = "related"
   /// Relationship steps walked in order from the selected object.

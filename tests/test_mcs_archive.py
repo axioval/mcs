@@ -407,6 +407,104 @@ class MCSArchiveTests(unittest.TestCase):
             with self.assertRaises(mcs_archive.MCSError):
                 mcs_archive.inspect(archive)
 
+    def table_file_package(self) -> tuple[Path, bytes]:
+        """The minimal package with a table parameter whose default and a
+        relation's pairs come from data files in the package."""
+        holder = tempfile.TemporaryDirectory(dir=ROOT / "tests")
+        self.addCleanup(holder.cleanup)
+        package = Path(holder.name)
+        source = ROOT / "examples/minimal"
+        for name in ("axioval.json", "ruleset.pkl", "definitions.pkl", "README.md"):
+            shutil.copy(source / name, package / name)
+        shutil.copytree(source / "assets", package / "assets")
+        limits = b"type,min_area\nOffice*,10\n"
+        pairs = b"from,to\nifc-step:a.ifc/#1,ifc-step:a.ifc/#2\n"
+        (package / "tables").mkdir()
+        (package / "tables/limits.csv").write_bytes(limits)
+        (package / "pairs.csv").write_bytes(pairs)
+        definitions = (package / "definitions.pkl").read_text()
+        definitions = definitions.replace(
+            'import "../../schema/Types.pkl"\n',
+            'import "../../schema/Types.pkl"\nimport "../../schema/Values.pkl"\n',
+        ).replace(
+            "    parameters {\n",
+            "    parameters {\n"
+            '      ["limits"] = new Definitions.ParameterDefinition {\n'
+            '        id = "limits"\n'
+            '        name = new Types.LocalizedText { default = "Limits" }\n'
+            '        kind = "table"\n'
+            "        required = false\n"
+            "        columns {\n"
+            '          new { id = "space_type"; name { default = "Type" }; kind = "textPattern" }\n'
+            '          new { id = "minimum_area"; name { default = "Area" }; kind = "quantity"; '
+            'unitDimension = "area" }\n'
+            "        }\n"
+            "        defaultValue = new Values.TableFileValue {\n"
+            '          path = "tables/limits.csv"\n'
+            f'          sha256 = "{hashlib.sha256(limits).hexdigest()}"\n'
+            "          columns {\n"
+            '            new { id = "space_type"; header = "type"; kind = "textPattern" }\n'
+            '            new { id = "minimum_area"; header = "min_area"; kind = "quantity"; '
+            'unit = "m2" }\n'
+            "          }\n"
+            "        }\n"
+            "      }\n",
+            1,
+        )
+        (package / "definitions.pkl").write_text(definitions)
+        with (package / "ruleset.pkl").open("a") as ruleset:
+            ruleset.write(
+                "\nrelations {\n"
+                '  ["serves"] {\n'
+                '    id = "serves"\n'
+                '    name { default = "Serves" }\n'
+                "    from = new Selectors.AllSelector {}\n"
+                "    to = new Selectors.AllSelector {}\n"
+                "    by = new PairsRelationKey {\n"
+                "      pairs = new Values.TableFileValue {\n"
+                '        path = "pairs.csv"\n'
+                f'        sha256 = "{hashlib.sha256(pairs).hexdigest()}"\n'
+                "        columns {\n"
+                '          new { id = "from"; kind = "string" }\n'
+                '          new { id = "to"; kind = "string" }\n'
+                "        }\n"
+                "      }\n"
+                "    }\n"
+                "  }\n"
+                "}\n"
+            )
+        return package, limits
+
+    def test_table_files_are_declared_assets_and_verified(self) -> None:
+        package, _ = self.table_file_package()
+        directory = Path(tempfile.mkdtemp())
+        archive = directory / "tables.mcs"
+        metadata = mcs_archive.pack(package, archive, ROOT)
+        root = f"source/tests/{package.name}"
+        inventory = {entry["path"]: entry for entry in metadata["inventory"]}
+        for name in ("tables/limits.csv", "pairs.csv"):
+            entry = inventory[f"{root}/{name}"]
+            self.assertEqual(entry["role"], "source")
+            self.assertEqual(
+                entry["sha256"], hashlib.sha256((package / name).read_bytes()).hexdigest()
+            )
+        mcs_archive.verify(archive)
+
+        def changed(items):
+            return [
+                (name, data + b"Lab,4\n" if name.endswith("limits.csv") else data)
+                for name, data in items
+            ]
+
+        self.rewrite(archive, changed)
+        with self.assertRaises(mcs_archive.MCSError):
+            mcs_archive.verify(archive)
+        # A file whose bytes no longer match the declared SHA-256 is not packed.
+        with (package / "pairs.csv").open("ab") as pairs:
+            pairs.write(b"ifc-step:a.ifc/#3,ifc-step:a.ifc/#4\n")
+        with self.assertRaises(mcs_archive.MCSError):
+            mcs_archive.pack(package, directory / "stale.mcs", ROOT)
+
     def test_wrong_extension_and_overwrite_are_refused(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "wrong.zip"

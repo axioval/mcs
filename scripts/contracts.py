@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import math
 import re
+import zipfile
 from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -54,6 +57,23 @@ COLUMN_VALUE_KINDS = {
     "date": "date",
     "dateTime": "dateTime",
 }
+# The value variant naming a data file in the package whose rows fill a
+# `table` parameter, and its keys.
+TABLE_FILE = "tableFile"
+TABLE_FILE_KEYS = {"type", "path", "sha256", "columns"}
+# A table file's lowercase hex SHA-256.
+SHA256_HEX = re.compile(r"[0-9a-f]{64}")
+# The largest table file, and the largest workbook member, the engine reads.
+TABLE_FILE_LIMIT_BYTES = 10_000_000
+# A whole number as the engine parses a 64-bit integer cell.
+INTEGER_LITERAL = re.compile(r"[+-]?[0-9]+")
+# The columns of a relation's listed pairs: the text naming each end.
+RELATION_PAIR_COLUMNS = [
+    {"id": "from", "kind": "string", "required": True},
+    {"id": "to", "kind": "string", "required": True},
+]
+# How a relation pairs its objects.
+RELATION_KINDS = {"property", "pairs"}
 SELECTOR_OPERATORS = {
     "equals",
     "notEquals",
@@ -104,7 +124,8 @@ MEASURED_PATH_RELATIONSHIP = re.compile(r"[^:\s|,;]+")
 # A derived relationship the checking engine computes, with its optional
 # tolerances, as a path step may name it.
 DERIVED_RELATIONSHIP = re.compile(
-    r"axioval:derived\.(?!group(?![a-z0-9-]))[a-z][a-z0-9-]*(;[a-z]+=[0-9]+(\.[0-9]+)?)*"
+    r"axioval:derived\.(?!(?:group|relation)(?![a-z0-9-]))[a-z][a-z0-9-]*"
+    r"(;[a-z]+=[0-9]+(\.[0-9]+)?)*"
 )
 # A ruleset grouping's ID: not blank, and free of `:`, `;`, `|`, `/` and
 # whitespace, since it is part of the identity of every group it derives.
@@ -112,6 +133,17 @@ GROUPING_ID = re.compile(r"[^:;|/\s]+")
 # The derived relationship from each member of a grouping to its group,
 # `axioval:derived.group;by=<grouping>`; `backward` reaches the members.
 DERIVED_GROUP_RELATIONSHIP = re.compile(r"axioval:derived\.group;by=([^:;|/\s]+)")
+# A ruleset relation's ID, free of the same characters as a grouping's, since
+# it is part of the identity of every pair it relates.
+RELATION_ID = GROUPING_ID
+# The relationship a relation the same ruleset declares runs along,
+# `axioval:derived.relation;id=<relation>`; `backward` runs from a to-object
+# to its from-objects.
+DERIVED_RELATION_RELATIONSHIP = re.compile(
+    r"axioval:derived\.relation;id=([^:;|/\s]+)"
+)
+# Every path step alternative naming a declared relation contains this.
+RELATION_RELATIONSHIP_PREFIX = "axioval:derived.relation;id="
 # A relationship kind every source answers under its own relationship types,
 # as the engine names them (`axioval:relationship.<kind>`).
 RELATIONSHIP_KIND = re.compile(
@@ -122,7 +154,8 @@ PATH_STEP_GRAMMAR = (
     "'Relationship[|Relationship...][:forward|backward|either][+]', each "
     "relationship a source relationship name, a derived relationship "
     "'axioval:derived.<name>', a grouping's "
-    "'axioval:derived.group;by=<grouping>' or a relationship kind "
+    "'axioval:derived.group;by=<grouping>', a relation's "
+    "'axioval:derived.relation;id=<relation>' or a relationship kind "
     "'axioval:relationship.<kind>'"
 )
 # Reserved property sets: engine vocabulary that binds to itself, never a
@@ -578,6 +611,537 @@ def table_rows(
             fail(row_context, f"missing required columns {missing}")
 
 
+class TableFileRefused(ValueError):
+    """Why a table file's bytes were refused."""
+
+
+def table_file_path_error(path: str) -> str | None:
+    """Why `path` is no package-relative table file path, if it is none.
+
+    Mirrors the engine: relative to the package root, `/`-separated,
+    without empty, `.` or `..` segments, and free of backslashes, `:` and NUL.
+    """
+    if (
+        not path
+        or path.startswith("/")
+        or any(character in path for character in "\\:\0")
+        or any(segment in {"", ".", ".."} for segment in path.split("/"))
+    ):
+        return (
+            "the path must be relative to the package root, `/`-separated, "
+            "without empty, `.` or `..` segments"
+        )
+    return None
+
+
+def table_file_reference(value: dict[str, Any], context: str) -> dict[str, Any]:
+    """Check a `tableFile` value's own shape, as the engine loads it.
+
+    The path is package-relative and names a `.csv` file, or an `.xlsx`
+    workbook with the `sheet` to take; `sha256` is 64 lowercase hex digits;
+    `columns` declares at least one column, each with a distinct id and a
+    distinct non-empty header (its id when omitted), a kind other than
+    `selector`, and a non-blank `unit` exactly when it is a quantity.
+    """
+    exact_keys(value, TABLE_FILE_KEYS, {"sheet"}, context)
+    path = value["path"]
+    if type(path) is not str:
+        fail(context, "path must be a string")
+    reason = table_file_path_error(path)
+    if reason is not None:
+        fail(context, reason)
+    extension = path.rpartition(".")[2] if "." in path else None
+    sheet = value.get("sheet")
+    if "sheet" in value and (type(sheet) is not str or not sheet):
+        fail(context, "sheet must be a non-empty string")
+    if extension == "csv" and sheet is not None:
+        fail(context, "a CSV file has no sheets; omit `sheet`")
+    if extension == "xlsx" and sheet is None:
+        fail(context, "name the workbook's `sheet` to take")
+    if extension not in {"csv", "xlsx"}:
+        fail(context, "the file is neither a `.csv` file nor an `.xlsx` workbook")
+    if type(value["sha256"]) is not str or not SHA256_HEX.fullmatch(value["sha256"]):
+        fail(context, "sha256 must be 64 lowercase hexadecimal digits")
+    columns = list_value(value["columns"], f"{context}.columns")
+    if not columns:
+        fail(context, "no columns are declared")
+    ids: set[str] = set()
+    headers: set[str] = set()
+    for index, column in enumerate(columns):
+        column_context = f"{context}.columns[{index}]"
+        column = object_value(column, column_context)
+        exact_keys(column, {"id", "kind"}, {"header", "unit"}, column_context)
+        column_id = column["id"]
+        if type(column_id) is not str:
+            fail(column_context, "id must be a string")
+        if "header" in column and type(column["header"]) is not str:
+            fail(column_context, "header must be a string")
+        header = column.get("header", column_id)
+        if column_id in ids:
+            fail(column_context, f"column {column_id!r} is declared twice")
+        ids.add(column_id)
+        if header in headers:
+            fail(column_context, f"two columns are headed {header!r}")
+        headers.add(header)
+        if not header:
+            fail(column_context, f"column {column_id!r} has an empty header")
+        kind = column["kind"]
+        if type(kind) is not str or kind not in COLUMN_VALUE_KINDS:
+            fail(column_context, "invalid column kind")
+        if kind == "selector":
+            fail(
+                column_context,
+                f"column {column_id!r} is a selector column, which a file cannot hold",
+            )
+        unit = column.get("unit")
+        if "unit" in column and type(unit) is not str:
+            fail(column_context, "unit must be a string")
+        if kind == "quantity":
+            if unit is None:
+                fail(column_context, f"quantity column {column_id!r} declares no unit")
+            if not unit.strip(TRIMMED):
+                fail(column_context, f"quantity column {column_id!r} has a blank unit")
+        elif unit is not None:
+            fail(
+                column_context,
+                f"column {column_id!r} declares a unit but is not a quantity column",
+            )
+    return value
+
+
+def bind_table_file(
+    value: dict[str, Any],
+    columns: list[dict[str, Any]] | None,
+    context: str,
+    asset_root: Path | None,
+) -> list[dict[str, Any]]:
+    """Bind a checked `tableFile` value to the table it fills and return its
+    rows, as the engine binds a loaded one.
+
+    Every declared column is one of the table's, of the same kind, and every
+    required column of the table is declared. The file must lie inside the
+    package (`asset_root`), be at most 10 MB, and have the declared SHA-256;
+    its rows are then taken as the engine takes them and bound exactly as the
+    same rows written inline.
+    """
+    if columns is None:
+        fail(context, "a table value requires declared columns")
+    table = {column["id"]: column for column in columns}
+    for column in value["columns"]:
+        trusted = table.get(column["id"])
+        if trusted is None:
+            fail(context, f"{column['id']!r} is not a column of the table")
+        if trusted["kind"] != column["kind"]:
+            fail(
+                context,
+                f"column {column['id']!r} is declared {column['kind']} but the "
+                f"table's is {trusted['kind']}",
+            )
+    declared = {column["id"] for column in value["columns"]}
+    for column in columns:
+        if column["required"] and column["id"] not in declared:
+            fail(context, f"the table's required column {column['id']!r} is not declared")
+    if asset_root is None:
+        fail(context, "package asset root is required for table files")
+    path = value["path"]
+    root = asset_root.resolve()
+    candidate = (root / path).resolve()
+    if not candidate.is_relative_to(root) or not candidate.is_file():
+        fail(context, f"table file {path!r} is missing or escapes the package")
+    if candidate.stat().st_size > TABLE_FILE_LIMIT_BYTES:
+        fail(context, f"table file {path!r} is larger than {TABLE_FILE_LIMIT_BYTES} bytes")
+    data = candidate.read_bytes()
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != value["sha256"]:
+        fail(
+            context,
+            f"table file {path!r}: the file's SHA-256 is {digest}, not the "
+            f"declared {value['sha256']}",
+        )
+    try:
+        rows = table_file_rows(data, path, value.get("sheet"), value["columns"])
+    except TableFileRefused as error:
+        fail(context, f"table file {path!r}: {error}")
+    table_rows({"value": rows}, columns, f"{context}.rows")
+    return rows
+
+
+def table_file_rows(
+    data: bytes, path: str, sheet: str | None, columns: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """The rows of a checked table file, each cell as the value it fills.
+
+    Mirrors the engine: the first row that is not blank is the header, and
+    every header names a declared column (by its `header`, its id when
+    omitted) once, and every declared column is named. Every later row that
+    is not blank is a table row: an empty cell leaves its column out, any
+    other cell is taken as its column's kind.
+    """
+    grid = csv_grid(data) if sheet is None else xlsx_grid(data, sheet)
+    rows = [(number, cells) for number, cells in grid if any(cells)]
+    if not rows:
+        raise TableFileRefused("the file has no header row")
+    (_, header), body = rows[0], rows[1:]
+    by_header = {column.get("header", column["id"]): column for column in columns}
+    order = []
+    for name in header:
+        if any(column is by_header.get(name) for column in order):
+            raise TableFileRefused(f"the header names column {name!r} twice")
+        if name not in by_header:
+            raise TableFileRefused(
+                f"the header names column {name!r}, which is not declared"
+            )
+        order.append(by_header[name])
+    for name in by_header:
+        if name not in header:
+            raise TableFileRefused(
+                f"the declared column {name!r} is missing from the header"
+            )
+    table: list[dict[str, Any]] = []
+    for number, cells in body:
+        if len(cells) > len(order):
+            raise TableFileRefused(
+                f"row {number} has {len(cells)} cells; the header has {len(order)}"
+            )
+        row: dict[str, Any] = {}
+        for cell, column in zip(cells, order):
+            if not cell:
+                continue
+            try:
+                row[column["id"]] = table_file_cell(cell, column)
+            except TableFileRefused as error:
+                header_name = column.get("header", column["id"])
+                raise TableFileRefused(
+                    f"row {number} column {header_name!r}: {error}"
+                ) from None
+        table.append(row)
+    return table
+
+
+def table_file_cell(cell: str, column: dict[str, Any]) -> dict[str, Any]:
+    """One cell as the value of its column's kind: a `number` or `quantity`
+    a finite decimal number (a quantity in the declared unit), an `integer` a
+    whole 64-bit number, a `boolean` `true` or `false`, any other kind its
+    text, which binding then checks as any inline cell of that kind."""
+    kind = column["kind"]
+
+    def number() -> float:
+        if DECIMAL.fullmatch(cell) is None or not math.isfinite(float(cell)):
+            raise TableFileRefused(f"{cell!r} is not a number")
+        return float(cell)
+
+    if kind == "number":
+        return {"type": "number", "value": number()}
+    if kind == "quantity":
+        return {"type": "quantity", "value": number(), "unit": column["unit"]}
+    if kind == "integer":
+        if INTEGER_LITERAL.fullmatch(cell) is None or not (
+            -(2**63) <= int(cell) < 2**63
+        ):
+            raise TableFileRefused(f"{cell!r} is not a whole number")
+        return {"type": "integer", "value": int(cell)}
+    if kind == "boolean":
+        if cell not in {"true", "false"}:
+            raise TableFileRefused(f"{cell!r} is neither 'true' nor 'false'")
+        return {"type": "boolean", "value": cell == "true"}
+    return {"type": COLUMN_VALUE_KINDS[kind], "value": cell}
+
+
+def csv_grid(data: bytes) -> list[tuple[int, list[str]]]:
+    """The records of an RFC 4180 CSV file with their one-based numbers.
+
+    Mirrors the engine: UTF-8, a leading byte order mark dropped, fields
+    separated by commas and optionally double-quoted with `""` for a quote,
+    records ended by CRLF, LF or CR. Every record that is not blank has as
+    many fields as the first such record.
+    """
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise TableFileRefused("the file is not UTF-8 text") from None
+    text = text.removeprefix("\ufeff")
+    records: list[tuple[int, list[str]]] = []
+    record: list[str] = []
+    field: list[str] = []
+    quoted = closed = started = False
+    index = 0
+
+    def end() -> None:
+        record.append("".join(field))
+        field.clear()
+        records.append((len(records) + 1, record.copy()))
+        record.clear()
+
+    while index < len(text):
+        character = text[index]
+        index += 1
+        number = len(records) + 1
+        if quoted:
+            if character == '"':
+                if text[index : index + 1] == '"':
+                    index += 1
+                    field.append('"')
+                else:
+                    quoted, closed = False, True
+            else:
+                field.append(character)
+            continue
+        if character == '"' and not started:
+            quoted = started = True
+        elif character == ",":
+            record.append("".join(field))
+            field.clear()
+            closed = started = False
+        elif character in "\r\n":
+            if character == "\r" and text[index : index + 1] == "\n":
+                index += 1
+            end()
+            closed = started = False
+        elif character == '"':
+            raise TableFileRefused(f"row {number}: a quote inside an unquoted field")
+        elif closed:
+            raise TableFileRefused(f"row {number}: text after a closing quote")
+        else:
+            field.append(character)
+            started = True
+    if quoted:
+        raise TableFileRefused(f"row {len(records) + 1}: a quoted field is not closed")
+    if started or record:
+        end()
+    width = next((len(cells) for _, cells in records if any(cells)), 0)
+    for number, cells in records:
+        if len(cells) != width and any(cells):
+            raise TableFileRefused(
+                f"row {number} has {len(cells)} fields; the header has {width}"
+            )
+    return records
+
+
+def walk_xml(text: str, on: Any) -> None:
+    """Walk workbook XML, calling `on` with `("open", name, attributes)`,
+    `("close", name)` and `("text", text)` by local name. A document type or
+    a processing instruction is refused, as the engine refuses them."""
+
+    def local(name: str) -> str:
+        return name.rpartition(":")[2]
+
+    def refuse(*_: Any) -> None:
+        raise TableFileRefused(
+            "workbook XML declares a document type or processing instruction"
+        )
+
+    parser = expat.ParserCreate()
+    parser.StartElementHandler = lambda name, attributes: on(
+        ("open", local(name), {local(key): item for key, item in attributes.items()})
+    )
+    parser.EndElementHandler = lambda name: on(("close", local(name)))
+    parser.CharacterDataHandler = lambda content: on(("text", content))
+    parser.StartDoctypeDeclHandler = refuse
+    parser.ProcessingInstructionHandler = refuse
+    try:
+        parser.Parse(text, True)
+    except expat.ExpatError as error:
+        raise TableFileRefused(f"malformed workbook XML: {error}") from None
+
+
+def xlsx_grid(data: bytes, sheet: str) -> list[tuple[int, list[str]]]:
+    """The rows of the sheet `sheet` of an xlsx workbook, each cell as text.
+
+    Mirrors the engine: a shared or inline string as written, a number as
+    its literal, a boolean as `true` or `false`; a formula or an error cell
+    is refused rather than taken from its cached result.
+    """
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+    except (zipfile.BadZipFile, ValueError) as error:
+        raise TableFileRefused(f"the workbook cannot be opened: {error}") from None
+
+    def member(name: str) -> str | None:
+        try:
+            with archive.open(name) as handle:
+                content = handle.read(TABLE_FILE_LIMIT_BYTES + 1)
+        except KeyError:
+            return None
+        except (zipfile.BadZipFile, ValueError, NotImplementedError) as error:
+            raise TableFileRefused(f"workbook member {name!r}: {error}") from None
+        if len(content) > TABLE_FILE_LIMIT_BYTES:
+            raise TableFileRefused(
+                f"workbook member {name!r} unpacks to more than "
+                f"{TABLE_FILE_LIMIT_BYTES} bytes"
+            )
+        try:
+            return content.decode("utf-8")
+        except UnicodeDecodeError:
+            raise TableFileRefused(f"workbook member {name!r} is not UTF-8") from None
+
+    def required(name: str) -> str:
+        content = member(name)
+        if content is None:
+            raise TableFileRefused(f"the workbook has no {name!r}")
+        return content
+
+    names: list[str] = []
+    found: list[str | None] = [None]
+
+    def on_sheet(event: tuple) -> None:
+        if event[0] == "open" and event[1] == "sheet":
+            label = event[2].get("name", "")
+            if label == sheet:
+                found[0] = event[2].get("id")
+            names.append(label)
+
+    walk_xml(required("xl/workbook.xml"), on_sheet)
+    relationship = found[0]
+    if relationship is None:
+        raise TableFileRefused(
+            f"the workbook has no sheet {sheet!r} (its sheets: {', '.join(names)})"
+        )
+    target: list[str | None] = [None]
+
+    def on_relationship(event: tuple) -> None:
+        if (
+            event[0] == "open"
+            and event[1] == "Relationship"
+            and event[2].get("Id") == relationship
+        ):
+            target[0] = event[2].get("Target")
+
+    walk_xml(required("xl/_rels/workbook.xml.rels"), on_relationship)
+    if target[0] is None:
+        raise TableFileRefused(f"the workbook has no relationship {relationship!r}")
+    sheet_path = target[0]
+    if table_file_path_error(sheet_path.lstrip("/")) is not None:
+        raise TableFileRefused(f"the workbook's sheet lies at {sheet_path!r}, outside it")
+    sheet_path = sheet_path[1:] if sheet_path.startswith("/") else f"xl/{sheet_path}"
+    shared_xml = member("xl/sharedStrings.xml")
+    shared = [] if shared_xml is None else shared_strings(shared_xml)
+    return sheet_cells(required(sheet_path), shared)
+
+
+def shared_strings(text: str) -> list[str]:
+    """The shared strings, each the text of its runs, phonetic runs left out."""
+    strings: list[str] = []
+    state: dict[str, Any] = {"item": None, "phonetic": 0, "text": False}
+
+    def on(event: tuple) -> None:
+        if event[0] == "open":
+            if event[1] == "si":
+                state["item"] = []
+            elif event[1] == "rPh":
+                state["phonetic"] += 1
+            elif event[1] == "t":
+                state["text"] = True
+        elif event[0] == "close":
+            if event[1] == "si":
+                strings.append("".join(state["item"] or []))
+                state["item"] = None
+            elif event[1] == "rPh":
+                state["phonetic"] = max(0, state["phonetic"] - 1)
+            elif event[1] == "t":
+                state["text"] = False
+        elif state["item"] is not None and state["text"] and not state["phonetic"]:
+            state["item"].append(event[1])
+
+    walk_xml(text, on)
+    return strings
+
+
+def column_index(reference: str) -> int:
+    """The zero-based column of a cell reference such as `B3`."""
+    letters = re.match(r"[A-Z]*", reference).group(0)
+    if not letters or len(letters) > 3:
+        raise TableFileRefused(f"cell reference {reference!r} names no column")
+    index = 0
+    for letter in letters:
+        index = index * 26 + ord(letter) - ord("A") + 1
+    return index - 1
+
+
+def cell_text(cell: dict[str, Any], shared: list[str]) -> str:
+    """One worksheet cell as text, by its type `t`."""
+    if cell["formula"]:
+        raise TableFileRefused("a formula; store its value instead")
+    value = "".join(cell["value"] or [])
+    kind = cell["kind"]
+    if kind == "s":
+        if not value:
+            return ""
+        stripped = value.strip()
+        if stripped.isdigit() and stripped.isascii() and int(stripped) < len(shared):
+            return shared[int(stripped)]
+        raise TableFileRefused(f"shared string {value!r} does not exist")
+    if kind == "inlineStr":
+        return "".join(cell["inline"] or [])
+    if kind in {"str", "d", "n"}:
+        return value
+    if kind == "b":
+        if value in {"1", "0", ""}:
+            return {"1": "true", "0": "false", "": ""}[value]
+        raise TableFileRefused(f"{value!r} is not a boolean")
+    if kind == "e":
+        raise TableFileRefused(f"an error value {value!r}")
+    raise TableFileRefused(f"an unknown cell type {kind!r}")
+
+
+def sheet_cells(text: str, shared: list[str]) -> list[tuple[int, list[str]]]:
+    """The rows of a worksheet by row number, each cell as text."""
+    rows: dict[int, list[str]] = {}
+    state: dict[str, Any] = {"row": 0, "cell": None, "slot": None, "next": 0}
+
+    def on(event: tuple) -> None:
+        cell = state["cell"]
+        if event[0] == "open":
+            name, attributes = event[1], event[2]
+            if name == "row":
+                number = attributes.get("r")
+                if number is None:
+                    state["row"] += 1
+                elif number.isdigit() and number.isascii() and int(number) > 0:
+                    state["row"] = int(number)
+                else:
+                    raise TableFileRefused(f"row number {number!r} is not a row")
+                state["next"] = 0
+            elif name == "c":
+                reference = attributes.get("r")
+                column = state["next"] if reference is None else column_index(reference)
+                state["next"] = column + 1
+                state["cell"] = {
+                    "kind": attributes.get("t", "n"),
+                    "column": column,
+                    "value": None,
+                    "inline": None,
+                    "formula": False,
+                }
+            elif name == "v":
+                state["slot"] = "value"
+            elif name == "t" and cell is not None:
+                state["slot"] = "inline"
+            elif name == "f" and cell is not None:
+                cell["formula"] = True
+        elif event[0] == "text":
+            if cell is not None and state["slot"] is not None:
+                if cell[state["slot"]] is None:
+                    cell[state["slot"]] = []
+                cell[state["slot"]].append(event[1])
+        elif event[1] in {"v", "t"}:
+            state["slot"] = None
+        elif event[1] == "c" and cell is not None:
+            state["cell"] = None
+            try:
+                content = cell_text(cell, shared)
+            except TableFileRefused as error:
+                raise TableFileRefused(
+                    f"row {state['row']} column {cell['column'] + 1}: {error}"
+                ) from None
+            row = rows.setdefault(max(state["row"], 1), [])
+            if len(row) <= cell["column"]:
+                row.extend([""] * (cell["column"] + 1 - len(row)))
+            row[cell["column"]] = content
+
+    walk_xml(text, on)
+    return sorted(rows.items())
+
+
 def offset_error(offset: str) -> str | None:
     """Why `offset` (`Z` or `±hh:mm`) is not a UTC offset, if it is not."""
     if offset != "Z":
@@ -649,9 +1213,15 @@ def parameter_value(
     expected_kind: str | None,
     context: str,
     columns: list[dict[str, Any]] | None = None,
+    asset_root: Path | None = None,
 ) -> dict[str, Any]:
     value = object_value(value, context)
     kind = value.get("type")
+    if kind == TABLE_FILE and expected_kind == "table":
+        # A table's rows may instead come from a data file in the package.
+        table_file_reference(value, context)
+        bind_table_file(value, columns, context, asset_root)
+        return value
     if (
         type(kind) is not str
         or kind not in VALUE_KINDS
@@ -787,6 +1357,7 @@ def resolve_selector_value(
     context: str,
     classifications: dict[str, dict[str, Any]] | None = None,
     groupings: set[str] | None = None,
+    relations: set[str] | None = None,
 ) -> None:
     if value["type"] == "selector":
         validate_selector(
@@ -797,6 +1368,7 @@ def resolve_selector_value(
             property_sets,
             classifications=classifications,
             groupings=groupings,
+            relations=relations,
         )
     elif value["type"] == "table":
         # Selector cells name concepts like any selector parameter.
@@ -810,6 +1382,7 @@ def resolve_selector_value(
                     f"{context}.value[{index}][{column_id!r}]",
                     classifications,
                     groupings,
+                    relations,
                 )
 
 
@@ -851,7 +1424,9 @@ def table_columns(value: Any, context: str) -> list[dict[str, Any]]:
     return columns
 
 
-def validate_parameter_definition(value: Any, context: str) -> dict[str, Any]:
+def validate_parameter_definition(
+    value: Any, context: str, asset_root: Path | None = None
+) -> dict[str, Any]:
     value = object_value(value, context)
     exact_keys(
         value,
@@ -903,7 +1478,7 @@ def validate_parameter_definition(value: Any, context: str) -> dict[str, Any]:
         fail(context, "columns are only valid for table parameters")
     if "defaultValue" in value:
         parameter_value(
-            value["defaultValue"], kind, f"{context}.defaultValue", columns
+            value["defaultValue"], kind, f"{context}.defaultValue", columns, asset_root
         )
     allowed = list_value(value["allowedValues"], f"{context}.allowedValues")
     seen: set[str] = set()
@@ -974,7 +1549,7 @@ def validate_concept(
 
 
 def validate_definition_document(
-    value: Any, context: str
+    value: Any, context: str, *, asset_root: Path | None = None
 ) -> tuple[
     str,
     dict[str, dict[str, Any]],
@@ -1068,7 +1643,9 @@ def validate_definition_document(
         )
         for parameter_id, parameter in parameters.items():
             validated = validate_parameter_definition(
-                parameter, f"{definition_context}.parameters[{parameter_id!r}]"
+                parameter,
+                f"{definition_context}.parameters[{parameter_id!r}]",
+                asset_root,
             )
             if parameter_id != validated["id"]:
                 fail(definition_context, "parameter map key and id must match")
@@ -1252,6 +1829,7 @@ def path_step_error(
             relationship_name.fullmatch(alternative)
             or DERIVED_RELATIONSHIP.fullmatch(alternative)
             or DERIVED_GROUP_RELATIONSHIP.fullmatch(alternative)
+            or DERIVED_RELATION_RELATIONSHIP.fullmatch(alternative)
             or RELATIONSHIP_KIND.fullmatch(alternative)
         ):
             return f"path step {step!r} must be {PATH_STEP_GRAMMAR}"
@@ -1261,27 +1839,33 @@ def path_step_error(
     return None
 
 
-def path_step_groupings(step: str) -> set[str]:
-    """The groupings a checked path step's `axioval:derived.group;by=<id>`
-    alternatives name."""
+def path_step_names(step: str, relationship: re.Pattern[str]) -> set[str]:
+    """The groupings or relations a checked path step's
+    `axioval:derived.group;by=<id>` or `axioval:derived.relation;id=<id>`
+    alternatives name, as `relationship` captures them."""
     body = step[:-1] if step.endswith("+") else step
     return {
         match.group(1)
         for alternative in body.split("|")
-        if (match := DERIVED_GROUP_RELATIONSHIP.match(alternative)) is not None
+        if (match := relationship.match(alternative)) is not None
     }
 
 
-def check_path_groupings(
-    path: list[str], groupings: set[str] | None, context: str
+def check_path_derived(
+    path: list[str], groupings: set[str], relations: set[str], context: str
 ) -> None:
-    """Bind the groupings a checked path names against the ruleset's, when
-    known: a group relationship names a grouping the same ruleset declares."""
-    if groupings is None:
-        return
+    """Bind the groupings and relations a checked path names against the
+    ruleset's: a group relationship names a grouping, a relation relationship
+    a relation the same ruleset declares."""
     for index, step in enumerate(path):
-        for grouping in sorted(path_step_groupings(step) - groupings):
+        for grouping in sorted(
+            path_step_names(step, DERIVED_GROUP_RELATIONSHIP) - groupings
+        ):
             fail(f"{context}[{index}]", f"unknown grouping {grouping!r}")
+        for relation in sorted(
+            path_step_names(step, DERIVED_RELATION_RELATIONSHIP) - relations
+        ):
+            fail(f"{context}[{index}]", f"unknown relation {relation!r}")
 
 
 def measured_name_error(name: str) -> str | None:
@@ -1473,13 +2057,15 @@ def validate_selector(
     *,
     classifications: dict[str, dict[str, Any]] | None = None,
     groupings: set[str] | None = None,
+    relations: set[str] | None = None,
 ) -> None:
     """Check a selector, and bind its concepts when the catalogs are given.
 
     `classifications` are the ruleset's classifications by ID, which the
-    reserved set `axioval:classification` names, and `groupings` the IDs of
-    its groupings, which `derivedGroup` selectors and group relationships
-    name; with the catalogs given and neither, none is declared.
+    reserved set `axioval:classification` names, `groupings` the IDs of its
+    groupings, which `derivedGroup` selectors and group relationships name,
+    and `relations` the IDs of its relations, which relation relationships
+    name; with the catalogs given and none of them, none is declared.
     """
     value = object_value(value, context)
     kind = value.get("kind")
@@ -1639,6 +2225,7 @@ def validate_selector(
                 property_sets,
                 classifications=classifications,
                 groupings=groupings,
+                relations=relations,
             )
     elif kind == "not":
         exact_keys(value, {"kind", "operand"}, set(), context)
@@ -1650,6 +2237,7 @@ def validate_selector(
             property_sets,
             classifications=classifications,
             groupings=groupings,
+            relations=relations,
         )
     elif kind == "related":
         exact_keys(value, {"kind", "path", "selector"}, {"quantifier"}, context)
@@ -1666,7 +2254,9 @@ def validate_selector(
         ):
             fail(context, "quantifier must be 'any', 'all', or 'none'")
         if properties is not None:
-            check_path_groupings(path, groupings or set(), f"{context}.path")
+            check_path_derived(
+                path, groupings or set(), relations or set(), f"{context}.path"
+            )
         validate_selector(
             value["selector"],
             f"{context}.selector",
@@ -1675,6 +2265,7 @@ def validate_selector(
             property_sets,
             classifications=classifications,
             groupings=groupings,
+            relations=relations,
         )
     elif kind == "derivedClass":
         exact_keys(
@@ -1833,6 +2424,7 @@ def validate_severity_overrides(
     property_sets: dict[str, dict[str, Any]],
     classifications: dict[str, dict[str, Any]],
     groupings: set[str],
+    relations: set[str],
 ) -> None:
     """Check a rule's `severityOverrides`, binding each selector's concepts."""
     overrides = list_value(value, context)
@@ -1850,6 +2442,7 @@ def validate_severity_overrides(
             property_sets,
             classifications=classifications,
             groupings=groupings,
+            relations=relations,
         )
         if type(entry["severity"]) is not str or entry["severity"] not in SEVERITIES:
             fail(entry_context, "severity must be 'info', 'warning', or 'error'")
@@ -1862,6 +2455,7 @@ def validate_categories(
     property_sets: dict[str, dict[str, Any]],
     classifications: dict[str, dict[str, Any]],
     groupings: set[str],
+    relations: set[str],
 ) -> None:
     """Check a rule's `categories`: bound properties, sets, and paths."""
     levels = list_value(value, context)
@@ -1902,7 +2496,7 @@ def validate_categories(
                 error = path_step_error(step)
                 if error is not None:
                     fail(f"{level_context}.path[{step_index}]", error)
-            check_path_groupings(path, groupings, f"{level_context}.path")
+            check_path_derived(path, groupings, relations, f"{level_context}.path")
 
 
 def validate_applicability(
@@ -1913,6 +2507,7 @@ def validate_applicability(
     property_sets: dict[str, dict[str, Any]],
     classifications: dict[str, dict[str, Any]],
     groupings: set[str],
+    relations: set[str],
 ) -> set[str]:
     value = object_value(value, context)
     if "kind" in value:
@@ -1924,6 +2519,7 @@ def validate_applicability(
             property_sets,
             classifications=classifications,
             groupings=groupings,
+            relations=relations,
         )
         return set()
     exact_keys(value, {"groups"}, set(), context)
@@ -1956,6 +2552,7 @@ def validate_applicability(
             property_sets,
             classifications=classifications,
             groupings=groupings,
+            relations=relations,
         )
         group_ids.add(group_id)
     return group_ids
@@ -1984,6 +2581,7 @@ def validate_classifications(
     properties: dict[str, dict[str, Any]],
     property_sets: dict[str, dict[str, Any]],
     groupings: set[str],
+    relations: set[str],
 ) -> dict[str, dict[str, Any]]:
     """Check a ruleset's `classifications` and return them by ID.
 
@@ -2046,6 +2644,7 @@ def validate_classifications(
                 property_sets,
                 classifications=classifications,
                 groupings=groupings,
+                relations=relations,
             )
             rules: set[str] = set()
             selector_rule_references(row["selector"], rules)
@@ -2104,6 +2703,7 @@ def validate_grouping_selector(
     property_sets: dict[str, dict[str, Any]],
     classifications: dict[str, dict[str, Any]],
     groupings: set[str],
+    relations: set[str],
 ) -> None:
     """Check a selector of a grouping, bound against the concept catalogs.
 
@@ -2118,6 +2718,7 @@ def validate_grouping_selector(
         property_sets,
         classifications=classifications,
         groupings=groupings,
+        relations=relations,
     )
     rules: set[str] = set()
     selector_rule_references(value, rules)
@@ -2135,6 +2736,38 @@ def validate_grouping_selector(
         )
 
 
+def bind_key_property(
+    value: dict[str, Any],
+    context: str,
+    properties: dict[str, dict[str, Any]],
+    property_sets: dict[str, dict[str, Any]],
+    classifications: dict[str, dict[str, Any]],
+) -> None:
+    """Bind the property a grouping or relation key reads: a property concept,
+    in an optional declared or reserved set, or a name in a derived set."""
+    property_set = value.get("propertySet")
+    if "propertySet" in value and (
+        type(property_set) is not str or not QUALIFIED_ID.fullmatch(property_set)
+    ):
+        fail(context, "propertySet must be a qualified identifier")
+    reason = property_name_error(property_set, value["property"])
+    if reason is not None:
+        fail(context, reason)
+    if property_set in DERIVED_PROPERTY_SETS:
+        # Derived sets name engine or ruleset vocabulary, never a concept.
+        derived_property_kind(property_set, value["property"], classifications, context)
+    else:
+        if value["property"] not in properties:
+            fail(context, f"unknown property concept {value['property']!r}")
+        # Reserved sets are engine vocabulary and bind to themselves.
+        if (
+            property_set is not None
+            and property_set not in RESERVED_PROPERTY_SETS
+            and property_set not in property_sets
+        ):
+            fail(context, f"unknown property-set concept {property_set!r}")
+
+
 def validate_grouping_key(
     value: Any,
     context: str,
@@ -2143,6 +2776,7 @@ def validate_grouping_key(
     property_sets: dict[str, dict[str, Any]],
     classifications: dict[str, dict[str, Any]],
     groupings: set[str],
+    relations: set[str],
 ) -> None:
     """Check what a grouping groups its members `by`, tagged by `kind`.
 
@@ -2161,31 +2795,9 @@ def validate_grouping_key(
         fail(context, "kind must be 'property', 'classification', or 'compartment'")
     if kind == "property":
         exact_keys(value, {"kind", "property"}, {"propertySet"}, context)
-        property_set = value.get("propertySet")
-        if "propertySet" in value and (
-            type(property_set) is not str or not QUALIFIED_ID.fullmatch(property_set)
-        ):
-            fail(context, "propertySet must be a qualified identifier")
-        if property_set == GROUP_SET:
+        if value.get("propertySet") == GROUP_SET:
             fail(context, "a grouping must not group by a derived group's own facts")
-        reason = property_name_error(property_set, value["property"])
-        if reason is not None:
-            fail(context, reason)
-        if property_set in DERIVED_PROPERTY_SETS:
-            # Derived sets name engine or ruleset vocabulary, never a concept.
-            derived_property_kind(
-                property_set, value["property"], classifications, context
-            )
-        else:
-            if value["property"] not in properties:
-                fail(context, f"unknown property concept {value['property']!r}")
-            # Reserved sets are engine vocabulary and bind to themselves.
-            if (
-                property_set is not None
-                and property_set not in RESERVED_PROPERTY_SETS
-                and property_set not in property_sets
-            ):
-                fail(context, f"unknown property-set concept {property_set!r}")
+        bind_key_property(value, context, properties, property_sets, classifications)
     elif kind == "classification":
         exact_keys(value, {"kind", "system"}, set(), context)
         if type(value["system"]) is not str or not value["system"].strip():
@@ -2218,6 +2830,7 @@ def validate_grouping_key(
                 property_sets,
                 classifications,
                 groupings,
+                relations,
             )
 
 
@@ -2228,6 +2841,7 @@ def validate_groupings(
     properties: dict[str, dict[str, Any]],
     property_sets: dict[str, dict[str, Any]],
     classifications: dict[str, dict[str, Any]],
+    relations: set[str],
 ) -> set[str]:
     """Check a ruleset's `groupings` and return their IDs.
 
@@ -2266,6 +2880,7 @@ def validate_groupings(
             property_sets,
             classifications,
             declared,
+            relations,
         )
         validate_grouping_key(
             grouping["by"],
@@ -2275,7 +2890,130 @@ def validate_groupings(
             property_sets,
             classifications,
             declared,
+            relations,
         )
+    return declared
+
+
+def selector_reads_relations(value: dict[str, Any]) -> bool:
+    """Whether a checked selector walks a declared relation: a related
+    selector with a path step naming `axioval:derived.relation;id=`."""
+    kind = value["kind"]
+    if kind == "related":
+        return any(
+            RELATION_RELATIONSHIP_PREFIX in step for step in value["path"]
+        ) or selector_reads_relations(value["selector"])
+    if kind in {"allOf", "anyOf"}:
+        return any(selector_reads_relations(operand) for operand in value["operands"])
+    if kind == "not":
+        return selector_reads_relations(value["operand"])
+    return False
+
+
+def relation_pairs(
+    value: Any, context: str, asset_root: Path | None
+) -> None:
+    """Check a relation's listed `pairs`: a `table` or `tableFile` value
+    whose rows hold the required text cells `from` and `to`, neither blank."""
+    value = object_value(value, context)
+    kind = value.get("type")
+    if kind == "table":
+        exact_keys(value, {"type", "value"}, set(), context)
+        table_rows(value, RELATION_PAIR_COLUMNS, context)
+        rows = value["value"]
+    elif kind == TABLE_FILE:
+        table_file_reference(value, context)
+        rows = bind_table_file(value, RELATION_PAIR_COLUMNS, context, asset_root)
+    else:
+        fail(context, "pairs must be a table or a table file")
+    for index, row in enumerate(rows):
+        if any(not cell["value"].strip(TRIMMED) for cell in row.values()):
+            fail(context, f"pairs row {index + 1} names a blank object")
+
+
+def validate_relations(
+    value: Any,
+    context: str,
+    object_types: dict[str, dict[str, Any]],
+    properties: dict[str, dict[str, Any]],
+    property_sets: dict[str, dict[str, Any]],
+    classifications: dict[str, dict[str, Any]],
+    groupings: set[str],
+    asset_root: Path | None,
+) -> set[str]:
+    """Check a ruleset's `relations` and return their IDs.
+
+    Each is keyed by its ID, which is not blank and holds no `:`, `;`, `|`,
+    `/` or whitespace, since it is part of every pair's identity. Its `from`
+    and `to` selectors bind against the concept catalogs, the ruleset's
+    classifications and groupings, and read neither a rule's outcome nor a
+    declared relation, since relations are derived before any rule runs. It
+    relates `by` equal values of two bound properties, or by listed `pairs`
+    of objects named by their identity or, with a non-blank `scheme`, by
+    their external ID in that scheme.
+    """
+    relations = object_value(value, context)
+    if not relations:
+        fail(context, "relations is omitted when empty")
+    declared = set(relations)
+    for key, relation in relations.items():
+        entry_context = f"{context}[{key!r}]"
+        relation = object_value(relation, entry_context)
+        exact_keys(
+            relation, {"id", "name", "from", "to", "by"}, {"description"}, entry_context
+        )
+        if type(relation["id"]) is not str or key != relation["id"]:
+            fail(entry_context, "relation map key and id must match")
+        if not RELATION_ID.fullmatch(key):
+            fail(
+                entry_context,
+                "a relation id must not be blank or hold ':', ';', '|', '/' or "
+                "whitespace",
+            )
+        localized_text(relation["name"], f"{entry_context}.name")
+        if "description" in relation:
+            localized_text(relation["description"], f"{entry_context}.description")
+        for end in ("from", "to"):
+            end_context = f"{entry_context}.{end}"
+            validate_selector(
+                relation[end],
+                end_context,
+                object_types,
+                properties,
+                property_sets,
+                classifications=classifications,
+                groupings=groupings,
+                relations=declared,
+            )
+            rules: set[str] = set()
+            selector_rule_references(relation[end], rules)
+            if rules or selector_reads_relations(relation[end]):
+                fail(
+                    end_context,
+                    "a relation must not read a rule's outcome or a declared "
+                    "relation; relations are derived before any rule runs",
+                )
+        by_context = f"{entry_context}.by"
+        by = object_value(relation["by"], by_context)
+        kind = by.get("kind")
+        if type(kind) is not str or kind not in RELATION_KINDS:
+            fail(by_context, "kind must be 'property' or 'pairs'")
+        if kind == "property":
+            exact_keys(by, {"kind", "from", "to"}, set(), by_context)
+            for end in ("from", "to"):
+                end_context = f"{by_context}.{end}"
+                key_property = object_value(by[end], end_context)
+                exact_keys(key_property, {"property"}, {"propertySet"}, end_context)
+                bind_key_property(
+                    key_property, end_context, properties, property_sets, classifications
+                )
+        else:
+            exact_keys(by, {"kind", "pairs"}, {"scheme"}, by_context)
+            if "scheme" in by and (
+                type(by["scheme"]) is not str or not by["scheme"].strip(TRIMMED)
+            ):
+                fail(by_context, "the external id scheme must be a non-blank string")
+            relation_pairs(by["pairs"], f"{by_context}.pairs", asset_root)
     return declared
 
 
@@ -2510,7 +3248,7 @@ def bind_ruleset(
     exact_keys(
         value,
         {"schemaVersion", "package", "sources", "definitionPackages", "root"},
-        {"classifications", "groupings"},
+        {"classifications", "groupings", "relations"},
         context,
     )
     package_metadata(value["package"], f"{context}.package")
@@ -2537,7 +3275,7 @@ def bind_ruleset(
             package_properties,
             package_property_sets,
         ) = validate_definition_document(
-            document, f"{context}.definitionDocuments[{index}]"
+            document, f"{context}.definitionDocuments[{index}]", asset_root=asset_root
         )
         if package_id in loaded_packages:
             fail(context, f"duplicate definition package {package_id!r}")
@@ -2582,6 +3320,12 @@ def bind_ruleset(
     groupings: set[str] = set()
     if "groupings" in value:
         groupings = set(object_value(value["groupings"], f"{context}.groupings"))
+    # The relations' IDs, which every selector's path binds against; the
+    # relations themselves are checked once the classifications and groupings
+    # their selectors may read are.
+    relations: set[str] = set()
+    if "relations" in value:
+        relations = set(object_value(value["relations"], f"{context}.relations"))
     classifications: dict[str, dict[str, Any]] = {}
     if "classifications" in value:
         classifications = validate_classifications(
@@ -2591,6 +3335,7 @@ def bind_ruleset(
             properties,
             property_sets,
             groupings,
+            relations,
         )
     if "groupings" in value:
         validate_groupings(
@@ -2600,6 +3345,18 @@ def bind_ruleset(
             properties,
             property_sets,
             classifications,
+            relations,
+        )
+    if "relations" in value:
+        validate_relations(
+            value["relations"],
+            f"{context}.relations",
+            object_types,
+            properties,
+            property_sets,
+            classifications,
+            groupings,
+            asset_root,
         )
     for definition_id, definition in definitions.items():
         for parameter_id, parameter in definition["parameters"].items():
@@ -2615,6 +3372,7 @@ def bind_ruleset(
                         value_context,
                         classifications,
                         groupings,
+                        relations,
                     )
                     resolve_object_type_reference(
                         candidate, object_types, value_context
@@ -2637,6 +3395,7 @@ def bind_ruleset(
                     allowed_context,
                     classifications,
                     groupings,
+                    relations,
                 )
                 resolve_object_type_reference(allowed, object_types, allowed_context)
                 resolve_property_reference(
@@ -2777,6 +3536,7 @@ def bind_ruleset(
                     parameter["kind"],
                     f"{rule_context}.parameters[{parameter_id!r}]",
                     parameter.get("columns"),
+                    asset_root,
                 )
                 resolve_selector_value(
                     checked,
@@ -2786,6 +3546,7 @@ def bind_ruleset(
                     f"{rule_context}.parameters[{parameter_id!r}].value",
                     classifications,
                     groupings,
+                    relations,
                 )
                 resolve_object_type_reference(
                     checked,
@@ -2830,6 +3591,7 @@ def bind_ruleset(
                 property_sets,
                 classifications,
                 groupings,
+                relations,
             )
             validate_requirements(
                 rule.get("requirements", []),
@@ -2856,6 +3618,7 @@ def bind_ruleset(
                     property_sets,
                     classifications,
                     groupings,
+                    relations,
                 )
             if "categories" in rule:
                 validate_categories(
@@ -2865,6 +3628,7 @@ def bind_ruleset(
                     property_sets,
                     classifications,
                     groupings,
+                    relations,
                 )
             # Every rule this one reads: its folders' gates and its own, and
             # the rule-outcome selectors of its applicability, parameters

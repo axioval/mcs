@@ -54,7 +54,8 @@ Beim Packen werden Manifest, Root-`PklProject`, `.pkl-version` und bei
 Paketabhängigkeiten die verpflichtende `PklProject.deps.json`, mindestens eine
 direkte Root-`LICENSE*`-Datei und die genaue
 lokale Pkl-Abhängigkeit über `import`/`amends`/`extends`, relatives Manifestschema,
-deklarierte Assets und direkte `README*`/`LICENSE*`/`NOTICE*`-Dateien des Pakets
+deklarierte Assets (erklärende Bilder und die Tabellendateien von Regelsatz und
+Definitionen) und direkte `README*`/`LICENSE*`/`NOTICE*`-Dateien des Pakets
 aufgenommen. Abhängigkeitsdirektiven müssen genau ein gewöhnliches Zeichenketten-
 Literal in einer Zeile verwenden. Dynamische, globbasierte, benutzerdefinierte,
 externe, entweichende oder verlinkte Abhängigkeiten sowie alle Pkl-Ressourcen-

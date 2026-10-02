@@ -12,10 +12,10 @@ Die Quelltextbeispiele bleiben eingeklappt, bis Sie sie bewusst öffnen.
 | --- | --- |
 | `Types.pkl` | Bezeichner, semantische Versionen, lokalisierter Text, Paketmetadaten |
 | `Citations.pkl` | bibliografische Quellen, Fundstellen, Zitate und Parameterziele |
-| `Values.pkl` | Markierte Skalar- und Listenwerte sowie Objekt- und Eigenschaftsreferenzen |
+| `Values.pkl` | Markierte Skalar- und Listenwerte, Tabellen und Tabellendateien sowie Objekt- und Eigenschaftsreferenzen |
 | `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Eigenschaftsmuster, Klassifikation, abgeleitete Klasse, abgeleitete Gruppe, verbundene Objekte, Disziplin, Quelle und boolesche Zusammensetzung |
 | `Definitions.pkl` | Vokabulare und wiederverwendbare Fähigkeitsvorlagen |
-| `RuleSets.pkl` | Konkrete Regelinstanzen und rein kosmetische Ordner |
+| `RuleSets.pkl` | Konkrete Regelinstanzen, rein kosmetische Ordner sowie abgeleitete Klassifikationen, Gruppen und Relationen |
 
 ## Paketmetadaten und Zitate
 
@@ -127,6 +127,61 @@ Fähigkeit fest, nicht das Paket.
             ["minimum_area"] = new Values.QuantityValue { value = 10; unit = "m2" }
           }
         }
+      }
+    }
+    ```
+
+### Tabellen aus Datendateien
+
+Anforderungstabellen wie Raumprogramme und Türlisten werden oft in
+Tabellenkalkulationen geführt. Überall, wo ein `table`-Wert erlaubt ist, in
+einer Regelbindung oder im `defaultValue` einer Definition, darf ein
+`tableFile`-Wert eine solche Datei im Paket nennen, statt ihre Zeilen
+aufzuzählen:
+
+| Feld | Wert |
+| --- | --- |
+| `path` | die Datei, relativ zur Paketwurzel, mit `/` getrennt, ohne leere, `.`- oder `..`-Segmente: eine UTF-8-Datei `.csv` oder eine Arbeitsmappe `.xlsx` |
+| `sheet` | das zu übernehmende Blatt einer `.xlsx`-Arbeitsmappe; für eine Arbeitsmappe Pflicht, für eine CSV-Datei ungültig |
+| `sha256` | der SHA-256 der Dateibytes in kleingeschriebenem Hex |
+| `columns` | jede Spalte der Datei: die Tabellenspalte `id`, die sie füllt, ihre `kind` (jede Spaltenart außer `selector`, und die der Tabellenspalte), die Kopfzeile `header`, die sie in der Datei benennt (ohne Angabe die `id`), und für eine `quantity`-Spalte, und nur für sie, die Einheit `unit`, in der jede Zelle angegeben ist |
+
+Die CSV-Datei folgt RFC 4180: Kommas, optionale doppelte Anführungszeichen mit
+`""` für ein Anführungszeichen, CRLF oder LF; eine führende Bytereihenfolgemarke
+entfällt. Eine Zelle einer Arbeitsmappe wird so übernommen, wie sie geschrieben
+ist: eine Zeichenkette als ihr Text, eine Zahl als ihr Literal, ein
+Wahrheitswert als `true` oder `false`; eine Formel- oder Fehlerzelle wird
+abgelehnt, statt ihr zwischengespeichertes Ergebnis zu übernehmen, und nichts in
+der Datei wird je ausgeführt. Die erste nicht leere Zeile ist die Kopfzeile;
+jede Überschrift nennt eine deklarierte Spalte genau einmal, und jede deklarierte
+Spalte wird genannt. Leere Zeilen werden übersprungen, und eine leere Zelle lässt
+ihre Spalte in der Zeile weg. Eine `number`- oder `quantity`-Zelle muss eine
+endliche Dezimalzahl sein, eine `integer`-Zelle eine ganze Zahl, eine
+`boolean`-Zelle `true` oder `false` und eine `date`- oder `dateTime`-Zelle ein
+Literal wie oben.
+
+Pkl kann die Datei nicht öffnen, daher gibt die Autorin oder der Autor `sha256`
+an, und Pkl prüft die Form der Referenz: Pfad, Blatt, Form des Hashwerts,
+eindeutige Spalten-IDs und Überschriften sowie eine Einheit genau bei
+Mengenspalten. Der Binder benötigt die Paketwurzel, wie bei erklärenden Bildern,
+und lehnt eine Tabellendatei ab, wenn sie fehlt. Er lehnt eine deklarierte
+Spalte ab, die keine Spalte der Tabelle ist oder eine andere Art hat, ebenso
+eine nicht deklarierte Pflichtspalte der Tabelle. Dann öffnet er die Datei,
+lehnt eine ab, die das Paket verlässt, größer als 10.000.000 Bytes ist oder
+einen anderen SHA-256 hat, und bindet ihre Zeilen genau wie dieselben Zeilen,
+wenn sie direkt geschrieben wären, sodass jede Zeilenprüfung oben gilt. Der
+Packer legt jede referenzierte Datei als deklarierte Quelldatei im Inventar der
+`.mcs`-Datei ab, und `verify` bindet das entpackte Paket erneut, sodass eine
+veränderte Datei scheitert.
+
+??? example "Aus einer CSV-Datei gebundene Tabelle anzeigen"
+    ```pkl
+    ["limits"] = new Values.TableFileValue {
+      path = "tables/rooms.csv"
+      sha256 = "<SHA-256 der Datei in kleingeschriebenem Hex>"
+      columns {
+        new { id = "space_type"; header = "type"; kind = "textPattern" }
+        new { id = "minimum_area"; header = "min_area"; kind = "quantity"; unit = "m2" }
       }
     }
     ```
@@ -427,6 +482,11 @@ eine Wand oder Decke mit den Räumen an ihren beiden Seitenflächen, und
 `axioval:derived.group;by=<gruppierung>` ein Mitglied einer Gruppierung
 desselben Regelsatzes mit seiner abgeleiteten Gruppe (siehe Abschnitt
 Abgeleitete Gruppen), `backward` von einer Gruppe zu ihren Mitgliedern.
+`axioval:derived.relation;id=<relation>` folgt einer Relation, die derselbe
+Regelsatz deklariert (siehe Abschnitt Deklarierte Relationen), von jedem
+Ausgangsobjekt zu den Zielobjekten, mit denen es gepaart ist, `backward` von
+einem Zielobjekt zu seinen Ausgangsobjekten; der Binder lehnt eine Relation ab,
+die der Regelsatz nicht deklariert.
 
 Ein Schritt darf mehrere Beziehungen nennen, getrennt durch `|`, und jede von
 ihnen gehen. Eine Richtung, nach der letzten geschrieben, gilt für alle, und mit
@@ -1026,6 +1086,71 @@ anderen Wert ab.
           }
           tolerance = 0.05
           overlap = 0.3
+        }
+      }
+    }
+    ```
+
+## Deklarierte Relationen
+
+Oft verbinden Nutzende Objekte, die das Modell nicht verbindet: diese Pumpe
+versorgt jenen Raum, dieses Detail gehört zu jener Wand. Ein Regelsatz deklariert
+solche `relations` nach ID, sodass Regeln ihnen wie jeder Beziehung folgen, die
+das Modell angibt. Jede hat einen lokalisierten `name`, eine optionale
+`description`, die Objekte, von denen (`from`) und zu denen (`to`) sie führt,
+zwei Selektoren, und die Art, wie sie sie paart, `by`, markiert durch `kind`:
+
+| `by.kind` | Felder | Paart |
+| --- | --- | --- |
+| `pairs` | `pairs`, optional `scheme` | die aufgezählten Paare: ein `table`- oder `tableFile`-Wert (siehe Abschnitt Tabellen aus Datendateien) mit den Pflicht-Textspalten `from` und `to`, ein Paar je Zeile |
+| `property` | `from`, `to`, jeweils eine `property` mit optionalem `propertySet` | ein Ausgangsobjekt mit jedem Zielobjekt, dessen `to`-Eigenschaft den Wert seiner `from`-Eigenschaft angibt, verglichen wie ein Gruppierungsschlüssel |
+
+Ohne `scheme` nennt eine aufgezählte Zelle ein Objekt über seine Identität, wie
+Berichte sie schreiben (`<system>:<dokument>/<lokale id>`); mit `scheme` über
+die externe ID, die das Objekt in diesem Schema trägt, etwa `ifc-globalid`. Ein
+Objekt ohne Wert eines `property`-Schlüssels ist mit keinem verbunden.
+
+Die Beziehung `axioval:derived.relation;id=<relation>` führt von jedem Objekt,
+das `from` auswählt, zu den Objekten, die `to` auswählt und mit denen `by` es
+paart, und `backward` von einem Zielobjekt zu seinen Ausgangsobjekten, sodass
+jeder Beziehungspfad, in Selektoren für verbundene Objekte und Kategorieebenen,
+ihr folgt und `+` ihr transitiv folgt. Ein Objekt ist nie mit sich selbst
+verbunden. Nichts Unentschiedenes wird geraten: Ein Objekt, dessen Auswahl oder
+Schlüssel sich nicht bestimmen lässt, und ein aufgezähltes Paar, das ein Objekt
+nennt, welches das Modell nicht enthält, lassen die Paare unentschieden, die sie
+ändern könnten. Relationen werden nach den Gruppierungen und vor jeder Regel
+abgeleitet, daher dürfen ihre Selektoren Klassen und Gruppen auswählen.
+
+Eine Relations-ID ist Teil der Identität jedes Paars: Sie darf nicht leer sein
+und weder `:`, `;`, `|`, `/` noch Leerraum enthalten. Normalisiertes JSON lässt
+leere `relations` sowie nicht gesetzte `description`, `propertySet` oder
+`scheme` weg, sodass Pakete ohne Relationen bytegleich gerendert werden. Der
+Binder lehnt einen Zuordnungsschlüssel ungleich der ID ab, `from`- oder
+`to`-Selektoren, die ein unbekanntes Konzept nennen, das Ergebnis einer Regel
+abfragen oder einer deklarierten Relation folgen, eine unbekannte
+Schlüssel-`property`, ein leeres `scheme`, Paare, die weder Tabelle noch
+Tabellendatei sind, Zeilen mit anderen als den Textzellen `from` und `to` oder
+mit einem leeren Objektnamen, und einen Pfadschritt, der eine Relation nennt,
+die derselbe Regelsatz nicht deklariert.
+
+??? example "In einer CSV-Datei aufgezählte Pumpen, die Räume versorgen, anzeigen"
+    ```pkl
+    relations {
+      ["serves"] {
+        id = "serves"
+        name { default = "Serves" }
+        from = new Selectors.EntityTypeSelector { objectType = "axioval:example.pump" }
+        to = new Selectors.EntityTypeSelector { objectType = "axioval:example.space" }
+        by = new PairsRelationKey {
+          scheme = "ifc-globalid"
+          pairs = new Values.TableFileValue {
+            path = "serves.csv"
+            sha256 = "<SHA-256 der Datei in kleingeschriebenem Hex>"
+            columns {
+              new { id = "from"; header = "pump"; kind = "string" }
+              new { id = "to"; header = "room"; kind = "string" }
+            }
+          }
         }
       }
     }

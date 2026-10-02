@@ -50,7 +50,8 @@ member uses raw DEFLATE at level 9.
 Packing includes the manifest, root `PklProject`, `.pkl-version`, and the
 required `PklProject.deps.json` when the project declares package dependencies,
 at least one direct root `LICENSE*` file, and the exact local
-Pkl import/`amends`/`extends` closure, relative manifest schema, declared assets,
+Pkl import/`amends`/`extends` closure, relative manifest schema, declared assets
+(explanatory images and the table files of ruleset and definitions),
 and direct package `README*`/`LICENSE*`/`NOTICE*` files. Dependency directives
 must use one ordinary quoted literal on one line. Dynamic, globbed, custom-string,
 external, escaping, or symlinked dependencies and all Pkl resource-read calls

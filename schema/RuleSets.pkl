@@ -343,6 +343,66 @@ class GroupingDefinition {
 const function normalizedGrouping(grouping: GroupingDefinition): Map<String, Any> =
   grouping.toMap().filter((_, value) -> value != null)
 
+/// One end of a `PropertyRelationKey`: a property concept in an optional
+/// property set, or a name in a derived set such as `axioval:classification`.
+class RelationProperty {
+  /// Normalized JSON omits it when unset.
+  propertySet: Types.QualifiedIdentifier?
+  property: String(Types.isPropertyName(propertySet, this))
+}
+
+/// Which pairs a relation relates, tagged by `kind`.
+abstract class RelationKey {
+  kind: String
+}
+
+/// Equal values: a from-object relates to every to-object whose `to`
+/// property states the value of its `from` property, compared as a grouping
+/// key is (text as stated, an integer, a boolean or a number). An object
+/// without a value relates to none.
+class PropertyRelationKey extends RelationKey {
+  kind: "property" = "property"
+  from: RelationProperty
+  to: RelationProperty
+}
+
+/// Listed pairs: each row of `pairs`, a table or a table file with the
+/// required text columns `from` and `to`, names one from-object and one
+/// to-object. Without `scheme` an object is named by its identity as reports
+/// write it (`<system>:<document>/<local id>`); with `scheme` by the external
+/// ID it carries in that scheme, such as `ifc-globalid`. A blank cell is
+/// refused when the package is bound.
+class PairsRelationKey extends RelationKey {
+  kind: "pairs" = "pairs"
+  pairs: Values.TableValue | Values.TableFileValue
+  /// Normalized JSON omits it when unset.
+  scheme: String(!isBlank)?
+}
+
+/// A relation the ruleset declares between objects the model does not
+/// relate, such as the pumps serving each room.
+///
+/// The relationship `axioval:derived.relation;id=<id>` runs from each object
+/// `from` selects to the objects `to` selects that `by` pairs it with, and
+/// `backward` from a to-object to its from-objects; every relationship path
+/// may walk it. The selectors may consult classifications and groups, but
+/// neither a rule's outcome nor a declared relation, since relations are
+/// derived before any rule runs; the binder checks them. Nothing undecided
+/// is guessed: a pair naming an object the model does not hold leaves the
+/// pairs it could change undecided.
+class RelationDefinition {
+  id: Types.RelationId
+  name: Types.LocalizedText
+  /// Normalized JSON omits it when unset.
+  description: Types.LocalizedText?
+  /// The objects the relation runs from, such as the pumps.
+  from: Selectors.Selector
+  /// The objects the relation runs to, such as the rooms.
+  to: Selectors.Selector
+  /// Which pairs are related.
+  by: RelationKey
+}
+
 /// Concrete ruleset package (ABox-like): instances reference definitions by
 /// stable ID. Definition and capability resolution happens in the consuming
 /// application and must fail closed when unavailable.
@@ -362,13 +422,18 @@ classifications: Mapping<String, ClassificationDefinition>(
 groupings: Mapping<String, GroupingDefinition>(
   toMap().every((key, value) -> key == value.id)
 ) = new {}
+/// Relations the ruleset declares between objects, by ID. Normalized JSON
+/// omits it when empty.
+relations: Mapping<String, RelationDefinition>(
+  toMap().every((key, value) -> key == value.id)
+) = new {}
 
 output {
-  // Omit an empty `classifications` or `groupings`, so packages that declare
-  // none keep byte-identical normalized JSON.
+  // Omit an empty `classifications`, `groupings` or `relations`, so packages
+  // that declare none keep byte-identical normalized JSON.
   value =
     module.toMap().filter((key, value) ->
-      !((key == "classifications" || key == "groupings") && value.isEmpty)
+      !(Set("classifications", "groupings", "relations").contains(key) && value.isEmpty)
     )
   renderer {
     // Omit defaulted property-, property-pattern-, and source-selector flags,

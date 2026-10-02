@@ -14,10 +14,10 @@ folded by default so you can scan the concepts first.
 | --- | --- |
 | `Types.pkl` | identifiers, semantic versions, localized text, package metadata |
 | `Citations.pkl` | bibliographic sources, locators, citations, parameter targets |
-| `Values.pkl` | tagged scalar/list values plus object/property references |
+| `Values.pkl` | tagged scalar/list values, tables and table files, plus object/property references |
 | `Selectors.pkl` | object type, property, property-pattern, classification, derived-class, derived-group, related-object, discipline, source, boolean-composition selectors |
 | `Definitions.pkl` | vocabularies and reusable capability templates |
-| `RuleSets.pkl` | concrete rule instances and cosmetic folders |
+| `RuleSets.pkl` | concrete rule instances, cosmetic folders, and derived classifications, groups, and relations |
 
 ## Package metadata and citations
 
@@ -132,6 +132,55 @@ or every match) is the capability's contract, not the package's.
             ["minimum_area"] = new Values.QuantityValue { value = 10; unit = "m2" }
           }
         }
+      }
+    }
+    ```
+
+### Tables from data files
+
+Requirement tables such as room programmes and door schedules are often kept in
+spreadsheets. Wherever a `table` value is allowed, a rule binding or a
+definition's `defaultValue`, a `tableFile` value may name such a file in the
+package instead of listing its rows:
+
+| Field | Value |
+| --- | --- |
+| `path` | the file, relative to the package root, `/`-separated, without empty, `.` or `..` segments: a UTF-8 `.csv` file or an `.xlsx` workbook |
+| `sheet` | the sheet of an `.xlsx` workbook to take; required for a workbook, invalid for a CSV file |
+| `sha256` | the lowercase hex SHA-256 of the file's bytes |
+| `columns` | every column of the file: the table column `id` it fills, its `kind` (any column kind but `selector`, and the table column's), the file's `header` naming it (the `id` when unset), and for a `quantity` column, and only for one, the `unit` every cell is stated in |
+
+The CSV file follows RFC 4180: commas, optional double quotes with `""` for a
+quote, CRLF or LF; a leading byte order mark is dropped. A workbook cell is
+taken as written: a string as its text, a number as its literal, a boolean as
+`true` or `false`; a formula or an error cell is rejected rather than taken
+from its cached result, and nothing in the file is ever executed. The first row
+that is not blank is the header; every header names a declared column once, and
+every declared column is named. Blank rows are skipped and an empty cell leaves
+its column out of the row. A `number` or `quantity` cell must be a finite
+decimal number, an `integer` a whole number, a `boolean` `true` or `false`, and
+a `date` or `dateTime` a literal as above.
+
+Pkl cannot open the file, so the author states `sha256`, and Pkl checks the
+reference's shape: the path, the sheet, the digest's form, distinct column IDs
+and headers, and a unit exactly on quantity columns. The binder needs the
+package root, as for [explanatory images](#explanatory-images), and rejects a
+table file when it is missing. It rejects a declared column that is not one of
+the table's or has another kind and a required table column left undeclared.
+It then opens the file, rejects one that escapes the package, exceeds
+10,000,000 bytes, or has another SHA-256, and binds its rows exactly as the
+same rows written inline, so every row check above applies. The packer stores
+every referenced file as a declared source asset in the `.mcs` inventory, and
+`verify` binds the extracted package again, so a changed file fails.
+
+??? example "Show a table bound from a CSV file"
+    ```pkl
+    ["limits"] = new Values.TableFileValue {
+      path = "tables/rooms.csv"
+      sha256 = "<lowercase hex SHA-256 of the file>"
+      columns {
+        new { id = "space_type"; header = "type"; kind = "textPattern" }
+        new { id = "minimum_area"; header = "min_area"; kind = "quantity"; unit = "m2" }
       }
     }
     ```
@@ -415,7 +464,10 @@ under its own relationship types: `containment`, `aggregation`, `voids`,
 slab to the spaces on either of its faces, and
 `axioval:derived.group;by=<grouping>` a member of a grouping of the same
 ruleset to its [derived group](#derived-groups), `backward` from a group to its
-members.
+members. `axioval:derived.relation;id=<relation>` runs along a
+[relation](#declared-relations) the same ruleset declares, from each
+from-object to the to-objects it is paired with, `backward` from a to-object to
+its from-objects; the binder rejects a relation the ruleset does not declare.
 
 A step may name several relationships separated by `|` and takes any of them.
 One direction, written after the last, applies to all of them, and with `+` the
@@ -974,6 +1026,67 @@ any other value.
           }
           tolerance = 0.05
           overlap = 0.3
+        }
+      }
+    }
+    ```
+
+## Declared relations
+
+Users often relate objects the model does not relate: this pump serves that
+room, this detail belongs to that wall. A ruleset declares such `relations`, by
+ID, so rules follow them like any relationship the model states. Each has a
+localized `name`, an optional `description`, the objects it runs `from` and
+`to`, two selectors, and how it pairs them, `by`, tagged by `kind`:
+
+| `by.kind` | Fields | Pairs |
+| --- | --- | --- |
+| `pairs` | `pairs`, optional `scheme` | the listed pairs: a `table` or [`tableFile`](#tables-from-data-files) value with the required text columns `from` and `to`, one pair per row |
+| `property` | `from`, `to`, each a `property` with an optional `propertySet` | a from-object with every to-object whose `to` property states the value of its `from` property, compared as a grouping key is |
+
+Without `scheme`, a listed cell names an object by its identity as reports
+write it (`<system>:<document>/<local id>`); with `scheme`, by the external ID
+the object carries in that scheme, such as `ifc-globalid`. An object without a
+value of a `property` key relates to none.
+
+The relationship `axioval:derived.relation;id=<relation>` runs from each object
+`from` selects to the objects `to` selects that `by` pairs it with, and
+`backward` from a to-object to its from-objects, so every relationship path, in
+related selectors and category levels, walks it, and `+` follows it
+transitively. An object is never related to itself. Nothing undecided is
+guessed: an object whose selection or key cannot be determined, and a listed
+pair naming an object the model does not hold, leave the pairs they could
+change undecided. Relations are derived after the groupings and before any rule
+runs, so their selectors may select classes and groups.
+
+A relation ID is part of every pair's identity: it must not be blank or hold
+`:`, `;`, `|`, `/`, or whitespace. Normalized JSON omits empty `relations` and
+an unset `description`, `propertySet`, or `scheme`, so packages without
+relations render byte-identically. The binder rejects a map key other than the
+ID, `from` or `to` selectors that name an unknown concept, consult a rule's
+outcome, or walk a declared relation, a key `property` that is unknown, a blank
+`scheme`, pairs that are neither a table nor a table file, rows other than the
+text cells `from` and `to` or naming a blank object, and a path step naming a
+relation the same ruleset does not declare.
+
+??? example "Show pumps serving rooms, listed in a CSV file"
+    ```pkl
+    relations {
+      ["serves"] {
+        id = "serves"
+        name { default = "Serves" }
+        from = new Selectors.EntityTypeSelector { objectType = "axioval:example.pump" }
+        to = new Selectors.EntityTypeSelector { objectType = "axioval:example.space" }
+        by = new PairsRelationKey {
+          scheme = "ifc-globalid"
+          pairs = new Values.TableFileValue {
+            path = "serves.csv"
+            sha256 = "<lowercase hex SHA-256 of the file>"
+            columns {
+              new { id = "from"; header = "pump"; kind = "string" }
+              new { id = "to"; header = "room"; kind = "string" }
+            }
+          }
         }
       }
     }

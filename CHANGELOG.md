@@ -10,6 +10,29 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Tables from data files, mirroring the engine: wherever a `table` value is
+  allowed (a rule binding, a definition's `defaultValue`, a relation's
+  `pairs`), a `tableFile` value may name a UTF-8 CSV file or a named `sheet`
+  of an `.xlsx` workbook in the package, with its `sha256` and its `columns`
+  (the table column `id` each fills, its `kind`, the file's `header`, and a
+  quantity's `unit`). Pkl checks the reference's shape; the binder, given the
+  package root, rejects columns that are not the table's or have another kind,
+  undeclared required columns, a file outside the package, over 10,000,000
+  bytes or with another SHA-256, and any header or cell the engine rejects,
+  then binds the rows exactly as inline rows. The packer stores each table
+  file as a declared asset in the `.mcs` inventory.
+- Declared relations, mirroring the engine: a ruleset may declare
+  `relations`, by ID, each running `from` one selector `to` another, `by`
+  listed `pairs` (a table or table file of text `from` and `to` cells,
+  naming objects by identity or by an external ID `scheme`) or by equal
+  values of a `property` on both ends. The path step
+  `axioval:derived.relation;id=<relation>` walks a relation. Pkl and the
+  binder reject a relation ID that is blank or holds `:`, `;`, `|`, `/` or
+  whitespace and a blank `scheme`; the binder also rejects unknown concepts,
+  relation selectors that consult a rule's outcome or walk a declared
+  relation, pairs other than non-blank text `from` and `to` cells, and path
+  steps naming an undeclared relation. Normalized JSON omits empty
+  `relations`, so existing packages render byte-identically.
 - Derived groups and compartments, mirroring the engine: a ruleset may
   declare `groupings`, by ID, each grouping selected `members` `by` equal
   values of a property (`kind: property`, a derived class included), equal

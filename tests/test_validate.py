@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import io
 import json
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -4251,6 +4254,698 @@ class ReservedAttributeSetTests(unittest.TestCase):
                     self.assertEqual(evaluated["reference"]["property"], REFERENCE)
                     with self.assertRaises(SystemExit):
                         evaluate(property_set, "Name")
+
+
+def sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def workbook(cells: str, sheet: str = "Rooms", shared: list[str] | None = None) -> bytes:
+    """A minimal xlsx workbook whose sheet `sheet` holds the worksheet XML
+    `cells` and whose shared strings are `shared`."""
+    buffer = io.BytesIO()
+    strings = "".join(f"<si><t>{item}</t></si>" for item in shared or [])
+    members = {
+        "xl/workbook.xml": (
+            '<workbook xmlns:r="urn:r"><sheets>'
+            '<sheet name="Other" sheetId="1" r:id="rId1"/>'
+            f'<sheet name="{sheet}" sheetId="2" r:id="rId2"/>'
+            "</sheets></workbook>"
+        ),
+        "xl/_rels/workbook.xml.rels": (
+            "<Relationships>"
+            '<Relationship Id="rId1" Target="worksheets/sheet1.xml"/>'
+            '<Relationship Id="rId2" Target="/xl/worksheets/sheet2.xml"/>'
+            "</Relationships>"
+        ),
+        "xl/sharedStrings.xml": f"<sst>{strings}</sst>",
+        "xl/worksheets/sheet1.xml": "<worksheet><sheetData/></worksheet>",
+        "xl/worksheets/sheet2.xml": (
+            f"<worksheet><sheetData>{cells}</sheetData></worksheet>"
+        ),
+    }
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, content in members.items():
+            archive.writestr(name, content)
+    return buffer.getvalue()
+
+
+ROOMS_CSV = (
+    "﻿type,min_area,label,count,ratio,strict,reference,inspected,stamped\r\n"
+    'Office*,10,"single, office",2,0.5,true,axioval:example.office,2026-01-31,'
+    "2026-01-31T08:00:00Z\r\n"
+    "\r\n"
+    ",,,,,,,,\r\n"
+    '"Lab ""A""",12.5e0,,,,false,,,\n'
+    "*,6,,,,,,,"
+).encode()
+
+
+def file_columns(*extra: dict) -> list[dict]:
+    return [
+        {"id": "space_type", "header": "type", "kind": "textPattern"},
+        {"id": "minimum_area", "header": "min_area", "kind": "quantity", "unit": "m2"},
+        *extra,
+    ]
+
+
+ROOMS_COLUMNS = file_columns(
+    {"id": "label", "kind": "string"},
+    {"id": "count", "kind": "integer"},
+    {"id": "ratio", "kind": "number"},
+    {"id": "strict", "kind": "boolean"},
+    {"id": "reference", "kind": "reference"},
+    {"id": "inspected", "kind": "date"},
+    {"id": "stamped", "kind": "dateTime"},
+)
+
+
+def table_file(path: str, data: bytes, columns: list | None = None, **fields) -> dict:
+    value = {
+        "type": "tableFile",
+        "path": path,
+        "sha256": sha256(data),
+        "columns": copy.deepcopy(ROOMS_COLUMNS if columns is None else columns),
+    }
+    value.update(fields)
+    return value
+
+
+class TableFileTests(unittest.TestCase):
+    """A table's rows may come from a CSV file or a workbook sheet in the
+    package, pinned by its SHA-256 and bound exactly as inline rows."""
+
+    documents = TableParameterTests.documents
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+
+    def write(self, path: str, data: bytes) -> None:
+        target = self.root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+
+    def bind_file(self, value: dict, root: Path | None = None, **overrides) -> None:
+        ruleset, definitions = self.documents(**overrides)
+        ruleset["root"]["rules"][0]["parameters"]["limits"] = value
+        validate.bind_ruleset(
+            ruleset, [definitions], "test", asset_root=self.root if root is None else root
+        )
+
+    def assert_file_rejected(self, value: dict, data: bytes | None = None) -> None:
+        with self.subTest(value=value, data=data), self.assertRaises(SystemExit):
+            if data is not None:
+                self.write(value["path"], data)
+            self.bind_file(value)
+
+    def test_accepts_csv_rows_of_every_column_kind(self) -> None:
+        self.write("tables/rooms.csv", ROOMS_CSV)
+        self.bind_file(table_file("tables/rooms.csv", ROOMS_CSV))
+        from scripts.contracts import table_file_rows
+
+        rows = table_file_rows(ROOMS_CSV, "tables/rooms.csv", None, ROOMS_COLUMNS)
+        self.assertEqual(
+            rows[0],
+            {
+                "space_type": text("Office*"),
+                "minimum_area": {"type": "quantity", "value": 10.0, "unit": "m2"},
+                "label": text("single, office"),
+                "count": {"type": "integer", "value": 2},
+                "ratio": {"type": "number", "value": 0.5},
+                "strict": {"type": "boolean", "value": True},
+                "reference": {"type": "reference", "value": "axioval:example.office"},
+                "inspected": {"type": "date", "value": "2026-01-31"},
+                "stamped": {"type": "dateTime", "value": "2026-01-31T08:00:00Z"},
+            },
+        )
+        self.assertEqual(
+            rows[1],
+            {
+                "space_type": text('Lab "A"'),
+                "minimum_area": {"type": "quantity", "value": 12.5, "unit": "m2"},
+                "strict": {"type": "boolean", "value": False},
+            },
+        )
+        self.assertEqual(len(rows), 3)
+        # Only the declared columns are needed, in any order of the file.
+        data = b"min_area,type\n7,Kitchen\n"
+        self.write("kitchen.csv", data)
+        self.bind_file(table_file("kitchen.csv", data, file_columns()))
+
+    def test_accepts_a_workbook_sheet_by_value(self) -> None:
+        data = workbook(
+            '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="inlineStr">'
+            "<is><t>min_area</t></is></c><c r=\"C1\" t=\"s\"><v>1</v></c></row>"
+            '<row r="3"><c r="A3" t="str"><v>Office*</v></c><c r="B3"><v>10.5</v></c>'
+            '<c r="C3" t="b"><v>1</v></c></row>',
+            shared=["type", "strict"],
+        )
+        columns = file_columns({"id": "strict", "kind": "boolean"})
+        self.write("rooms.xlsx", data)
+        self.bind_file(table_file("rooms.xlsx", data, columns, sheet="Rooms"))
+        from scripts.contracts import table_file_rows
+
+        self.assertEqual(
+            table_file_rows(data, "rooms.xlsx", "Rooms", columns),
+            [
+                {
+                    "space_type": text("Office*"),
+                    "minimum_area": {"type": "quantity", "value": 10.5, "unit": "m2"},
+                    "strict": {"type": "boolean", "value": True},
+                }
+            ],
+        )
+        for broken in (
+            '<row r="1"><c r="A1"><f>1+1</f><v>2</v></c></row>',
+            '<row r="1"><c r="A1" t="e"><v>#DIV/0!</v></c></row>',
+            '<row r="1"><c r="A1" t="s"><v>9</v></c></row>',
+            '<row r="1"><c r="A1" t="b"><v>2</v></c></row>',
+            '<row r="x"><c r="A1"><v>1</v></c></row>',
+            '<row r="1"><c r="11"><v>1</v></c></row>',
+            '<row r="1"><c r="A1" t="z"><v>1</v></c></row>',
+        ):
+            data = workbook(broken)
+            self.assert_file_rejected(
+                table_file("broken.xlsx", data, columns, sheet="Rooms"), data
+            )
+        data = workbook('<row r="1"><c r="A1"><v>1</v></c></row>')
+        self.assert_file_rejected(
+            table_file("unnamed.xlsx", data, columns, sheet="Missing"), data
+        )
+        data = workbook('<?pi x?><row r="1"><c r="A1"><v>1</v></c></row>')
+        self.assert_file_rejected(table_file("pi.xlsx", data, columns, sheet="Rooms"), data)
+        data = b"not a workbook"
+        self.assert_file_rejected(table_file("zip.xlsx", data, columns, sheet="Rooms"), data)
+
+    def test_accepts_a_default_table_from_a_file(self) -> None:
+        data = b"type,min_area\n*,6\n"
+        self.write("defaults.csv", data)
+        ruleset, definitions = self.documents()
+        parameter = definitions["definitions"]["axioval:example.property-exists"][
+            "parameters"
+        ]["limits"]
+        parameter["required"] = False
+        parameter["defaultValue"] = table_file("defaults.csv", data, file_columns())
+        del ruleset["root"]["rules"][0]["parameters"]["limits"]
+        validate.bind_ruleset(ruleset, [definitions], "test", asset_root=self.root)
+        validate.validate_definition_document(definitions, "test", asset_root=self.root)
+        with self.assertRaises(SystemExit):
+            validate.validate_definition_document(definitions, "test")
+        parameter["defaultValue"]["sha256"] = "0" * 64
+        with self.assertRaises(SystemExit):
+            validate.validate_definition_document(
+                definitions, "test", asset_root=self.root
+            )
+
+    def test_rejects_malformed_references(self) -> None:
+        data = b"type,min_area\n*,6\n"
+        self.write("rooms.csv", data)
+        self.write("rooms.xlsx", data)
+        good = table_file("rooms.csv", data, file_columns())
+        self.bind_file(good)
+        # Without the package root a table file cannot be bound.
+        with self.assertRaises(SystemExit):
+            validate.bind_ruleset(*self.with_value(good), "test")
+        for changes in (
+            {"path": "../rooms.csv"},
+            {"path": "/rooms.csv"},
+            {"path": "./rooms.csv"},
+            {"path": "a//rooms.csv"},
+            {"path": "a\\rooms.csv"},
+            {"path": "c:rooms.csv"},
+            {"path": "rooms.txt"},
+            {"path": "missing.csv"},
+            {"path": 1},
+            {"sheet": "Rooms"},
+            {"path": "rooms.xlsx"},
+            {"sheet": ""},
+            {"sha256": "0" * 64},
+            {"sha256": sha256(data).upper()},
+            {"sha256": None},
+            {"rows": []},
+            {"columns": []},
+            {"columns": file_columns({"id": "label", "kind": "selector"})},
+            {"columns": file_columns({"id": "label", "kind": "string", "unit": "m"})},
+            {"columns": file_columns({"id": "label", "kind": "colour"})},
+            {"columns": file_columns({"id": "label", "kind": "string", "header": ""})},
+            {"columns": file_columns({"id": "label", "kind": "string", "header": "type"})},
+            {"columns": file_columns({"id": "space_type", "kind": "string"})},
+            {"columns": file_columns({"id": "label", "kind": "string", "width": 1})},
+            {"columns": [file_columns()[0], {**file_columns()[1], "unit": " "}]},
+            {"columns": [file_columns()[0], {k: v for k, v in file_columns()[1].items() if k != "unit"}]},
+            # Columns the table does not have, of another kind, or missing.
+            {"columns": file_columns({"id": "colour", "kind": "string"})},
+            {"columns": file_columns({"id": "count", "kind": "number"})},
+            {"columns": [file_columns()[0]]},
+        ):
+            value = {**good, **changes}
+            value = {k: v for k, v in value.items() if v is not None}
+            with self.subTest(changes=changes), self.assertRaises(SystemExit):
+                self.bind_file(value)
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        (Path(outside.name) / "escape.csv").write_bytes(data)
+        (self.root / "escape.csv").symlink_to(Path(outside.name) / "escape.csv")
+        self.assert_file_rejected({**good, "path": "escape.csv"})
+        with patch("scripts.contracts.TABLE_FILE_LIMIT_BYTES", 4):
+            self.assert_file_rejected(good)
+
+    def with_value(self, value: dict) -> tuple[dict, list]:
+        ruleset, definitions = self.documents()
+        ruleset["root"]["rules"][0]["parameters"]["limits"] = value
+        return ruleset, [definitions]
+
+    def test_rejects_headers_and_cells_the_engine_rejects(self) -> None:
+        columns = file_columns(
+            {"id": "count", "kind": "integer"},
+            {"id": "strict", "kind": "boolean"},
+            {"id": "inspected", "kind": "date"},
+        )
+        header = b"type,min_area,count,strict,inspected\n"
+        self.write("ok.csv", header + b"*,6,1,true,2026-01-31\n")
+        self.bind_file(table_file("ok.csv", header + b"*,6,1,true,2026-01-31\n", columns))
+        for data in (
+            b"",
+            b"\n\n",
+            b"type,min_area,count,strict\n*,6,1,true\n",
+            b"type,min_area,count,strict,inspected,extra\n*,6,1,true,2026-01-31,x\n",
+            b"type,type,count,strict,inspected\n*,6,1,true,2026-01-31\n",
+            header + b"*,6,1,true\n",
+            header + b"*,6,1,true,2026-01-31,x\n",
+            header + b"*,six,1,true,2026-01-31\n",
+            header + b"*,1_0,1,true,2026-01-31\n",
+            header + b"*, 6,1,true,2026-01-31\n",
+            header + b"*,inf,1,true,2026-01-31\n",
+            header + b"*,1e400,1,true,2026-01-31\n",
+            header + b"*,6,1.0,true,2026-01-31\n",
+            header + b"*,6,9223372036854775808,true,2026-01-31\n",
+            header + b"*,6,1,yes,2026-01-31\n",
+            header + b"*,6,1,True,2026-01-31\n",
+            header + b"*,6,1,true,2026-02-30\n",
+            header + b",6,1,true,2026-01-31\n",
+            header + b"Office\\,6,1,true,2026-01-31\n",
+            header + b'*,6,1,true,"2026-01-31\n',
+            header + b'*,6,1,true,2026"-01-31\n',
+            header + b'*,6,1,true,"2026-01-31"x\n',
+            header + b"*,6,1,true,\xff\n",
+        ):
+            self.assert_file_rejected(table_file("bad.csv", data, columns), data)
+
+    def test_pkl_renders_a_table_file_and_rejects_malformed_ones(self) -> None:
+        values = (validate.ROOT / "schema/Values.pkl").as_uri()
+        digest = "0" * 64
+
+        def module(body: str) -> str:
+            return f'import "{values}"\n\nvalue = new Values.TableFileValue {{\n{body}\n}}\n'
+
+        body = f"""  path = "tables/rooms.xlsx"
+  sheet = "Rooms"
+  sha256 = "{digest}"
+  columns {{
+    new {{ id = "space_type"; header = "type"; kind = "textPattern" }}
+    new {{ id = "minimum_area"; kind = "quantity"; unit = "m2" }}
+  }}"""
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "table-file.pkl"
+            path.write_text(module(body), encoding="utf-8")
+            self.assertEqual(
+                validate.evaluate(path)["value"],
+                {
+                    "type": "tableFile",
+                    "path": "tables/rooms.xlsx",
+                    "sheet": "Rooms",
+                    "sha256": digest,
+                    "columns": [
+                        {"id": "space_type", "header": "type", "kind": "textPattern"},
+                        {"id": "minimum_area", "kind": "quantity", "unit": "m2"},
+                    ],
+                },
+            )
+            for broken in (
+                body.replace('rooms.xlsx"', 'rooms.csv"'),
+                body.replace('  sheet = "Rooms"\n', ""),
+                body.replace('sheet = "Rooms"', 'sheet = ""'),
+                body.replace("tables/", "../"),
+                body.replace("tables/", "/"),
+                body.replace("tables/", "a\\\\"),
+                body.replace("rooms.xlsx", "rooms.txt"),
+                body.replace(digest, digest.replace("0", "A")),
+                body.replace('unit = "m2"', 'unit = " "'),
+                body.replace('; unit = "m2"', ""),
+                body.replace('kind = "textPattern"', 'kind = "selector"'),
+                body.replace('kind = "textPattern"', 'kind = "textPattern"; unit = "m"'),
+                body.replace('header = "type"', 'header = ""'),
+                body.replace('header = "type"', 'header = "minimum_area"'),
+                body.replace('id = "minimum_area"', 'id = "space_type"; header = "x"'),
+            ):
+                with self.subTest(broken=broken), self.assertRaises(SystemExit):
+                    path.write_text(module(broken), encoding="utf-8")
+                    validate.evaluate(path)
+
+
+def relation(relation_id: str = "serves", by: dict | None = None, **fields) -> dict:
+    definition = {
+        "id": relation_id,
+        "name": {"default": relation_id, "translations": {}},
+        "from": walls(),
+        "to": {"kind": "all"},
+        "by": by
+        or {
+            "kind": "property",
+            "from": {"propertySet": WALL_SET, "property": REFERENCE},
+            "to": {"property": REFERENCE},
+        },
+    }
+    definition.update(fields)
+    return definition
+
+
+def pair_rows(*pairs: tuple) -> dict:
+    return {
+        "type": "table",
+        "value": [{"from": text(left), "to": text(right)} for left, right in pairs],
+    }
+
+
+class RelationTests(unittest.TestCase):
+    """Relations a ruleset declares between objects, by listed pairs or equal
+    property values, which every relationship path may walk."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.pairs = b"pump,room\nifc-step:a.ifc/#1,ifc-step:a.ifc/#2\n"
+        (self.root / "serves.csv").write_bytes(self.pairs)
+
+    def pairs_file(self, **fields) -> dict:
+        value = {
+            "type": "tableFile",
+            "path": "serves.csv",
+            "sha256": sha256(self.pairs),
+            "columns": [
+                {"id": "from", "header": "pump", "kind": "string"},
+                {"id": "to", "header": "room", "kind": "string"},
+            ],
+        }
+        value.update(fields)
+        return value
+
+    def bind(self, relations=None, groupings=None, classifications=None, **rule_fields) -> None:
+        ruleset = copy.deepcopy(self.ruleset)
+        rule = ruleset["root"]["rules"][0]
+        rule.pop("explanatoryImages", None)
+        rule.pop("requirements", None)
+        rule.update(copy.deepcopy(rule_fields))
+        for key, declared in (
+            ("relations", relations),
+            ("groupings", groupings),
+            ("classifications", classifications),
+        ):
+            if declared is not None:
+                ruleset[key] = copy.deepcopy(declared)
+        validate.bind_ruleset(
+            ruleset, [copy.deepcopy(self.definitions)], "test", asset_root=self.root
+        )
+
+    def assert_rejected(self, relations=None, groupings=None, classifications=None, **rule_fields) -> None:
+        with (
+            self.subTest(relations=relations, rule=rule_fields),
+            self.assertRaises(SystemExit),
+        ):
+            self.bind(relations, groupings, classifications, **rule_fields)
+
+    def test_accepts_relations_by_property_and_by_listed_pairs(self) -> None:
+        declared = {
+            "serves": relation(description={"default": "Serves", "translations": {}}),
+            "listed": relation(
+                "listed",
+                {"kind": "pairs", "pairs": pair_rows(("a", "b"), ("a", "c"))},
+            ),
+            "filed": relation(
+                "filed",
+                {"kind": "pairs", "pairs": self.pairs_file(), "scheme": "ifc-globalid"},
+                to=derived_group("flats"),
+            ),
+            "empty": relation("empty", {"kind": "pairs", "pairs": pair_rows()}),
+            "by-class": relation(
+                "by-class",
+                {
+                    "kind": "property",
+                    "from": {"propertySet": CLASSIFICATION_SET, "property": "use"},
+                    "to": {"propertySet": GROUP_SET, "property": "key"},
+                },
+                **{"from": derived_class("wall", "use")},
+            ),
+        }
+        groupings = {"flats": grouping()}
+        classifications = {"use": classification("use")}
+        self.bind(declared, groupings, classifications)
+        for applicability in (
+            related_selector(["axioval:derived.relation;id=serves"]),
+            related_selector(["axioval:derived.relation;id=serves:backward+"]),
+            related_selector(
+                ["axioval:derived.relation;id=listed|axioval:derived.relation;id=filed:either"]
+            ),
+            related_selector(["axioval:derived.relation;id=by-class"], selector=walls()),
+        ):
+            with self.subTest(applicability=applicability):
+                self.bind(declared, groupings, classifications, applicability=applicability)
+        self.bind(
+            declared,
+            groupings,
+            classifications,
+            categories=[
+                {"property": REFERENCE, "path": ["axioval:derived.relation;id=serves"]}
+            ],
+        )
+        # A grouping's members may walk a declared relation.
+        self.bind(
+            declared,
+            {"flats": grouping(members=related_selector(["axioval:derived.relation;id=serves"]))},
+            classifications,
+        )
+
+    def test_rejects_malformed_relations(self) -> None:
+        for relations in (
+            {},
+            [relation()],
+            {"serves": relation("listed")},
+            {"": relation("")},
+            {"a b": relation("a b")},
+            *({f"a{c}b": relation(f"a{c}b")} for c in ":;|/"),
+            {"serves": {**relation(), "weight": 1}},
+            *(
+                {"serves": {k: v for k, v in relation().items() if k != key}}
+                for key in ("id", "name", "from", "to", "by")
+            ),
+            {"serves": relation(**{"from": {"kind": "entityType", "objectType": "axioval:example.ifc.door", "includeSubtypes": True}})},
+            {"serves": relation(to={"kind": "ruleOutcome", "rule": "wall-reference-required", "outcome": "passed"})},
+            {"serves": relation(to={"kind": "not", "operand": related_selector(["axioval:derived.relation;id=serves"])})},
+            {"serves": relation(**{"from": related_selector(["IfcRelAggregates|axioval:derived.relation;id=serves"])})},
+            {"serves": relation(by={"kind": "colour"})},
+            {"serves": relation(by={"kind": "property", "from": {"property": REFERENCE}})},
+            {"serves": relation(by={"kind": "property", "from": {"property": REFERENCE}, "to": {"property": "axioval:example.ifc.unknown"}})},
+            {"serves": relation(by={"kind": "property", "from": {"property": REFERENCE}, "to": {"propertySet": "axioval:example.unknown", "property": REFERENCE}})},
+            {"serves": relation(by={"kind": "property", "from": {"property": REFERENCE}, "to": {"propertySet": CLASSIFICATION_SET, "property": "use"}})},
+            {"serves": relation(by={"kind": "property", "from": {"property": REFERENCE, "scheme": "x"}, "to": {"property": REFERENCE}})},
+            {"serves": relation(by={"kind": "property", "from": {"property": REFERENCE}, "to": {"property": REFERENCE}, "pairs": pair_rows()})},
+            {"serves": relation(by={"kind": "pairs"})},
+            {"serves": relation(by={"kind": "pairs", "pairs": pair_rows(), "scheme": " "})},
+            {"serves": relation(by={"kind": "pairs", "pairs": pair_rows(), "scheme": 1})},
+            {"serves": relation(by={"kind": "pairs", "pairs": text("a")})},
+            {"serves": relation(by={"kind": "pairs", "pairs": {**pair_rows(), "extra": 1}})},
+            {"serves": relation(by={"kind": "pairs", "pairs": pair_rows(("a", " "))})},
+            {"serves": relation(by={"kind": "pairs", "pairs": pair_rows(("", "b"))})},
+            {"serves": relation(by={"kind": "pairs", "pairs": {"type": "table", "value": [{"from": text("a")}]}})},
+            {"serves": relation(by={"kind": "pairs", "pairs": {"type": "table", "value": [{"from": text("a"), "to": text("b"), "via": text("c")}]}})},
+            {"serves": relation(by={"kind": "pairs", "pairs": {"type": "table", "value": [{"from": text("a"), "to": {"type": "reference", "value": "axioval:x"}}]}})},
+            {"serves": relation(by={"kind": "pairs", "pairs": self.pairs_file(sha256="0" * 64)})},
+            {"serves": relation(by={"kind": "pairs", "pairs": self.pairs_file(columns=[{"id": "from", "header": "pump", "kind": "string"}])})},
+            {"serves": relation(by={"kind": "pairs", "pairs": self.pairs_file(columns=[{"id": "from", "header": "pump", "kind": "string"}, {"id": "to", "header": "room", "kind": "textPattern"}])})},
+            {"serves": relation(by={"kind": "pairs", "pairs": self.pairs_file(columns=[{"id": "from", "header": "pump", "kind": "string"}, {"id": "into", "header": "room", "kind": "string"}])})},
+        ):
+            self.assert_rejected(relations)
+        blank = b"pump,room\na, \n"
+        (self.root / "blank.csv").write_bytes(blank)
+        self.assert_rejected(
+            {"serves": relation(by={"kind": "pairs", "pairs": self.pairs_file(path="blank.csv", sha256=sha256(blank))})}
+        )
+        with self.assertRaises(SystemExit):
+            ruleset = copy.deepcopy(self.ruleset)
+            ruleset["root"]["rules"][0].pop("explanatoryImages", None)
+            ruleset["relations"] = {
+                "serves": relation(by={"kind": "pairs", "pairs": self.pairs_file()})
+            }
+            validate.bind_ruleset(ruleset, [copy.deepcopy(self.definitions)], "test")
+
+    def test_rejects_undeclared_relations_in_paths(self) -> None:
+        declared = {"serves": relation()}
+        for applicability in (
+            related_selector(["axioval:derived.relation;id=feeds"]),
+            related_selector(["axioval:derived.relation;id=1"]),
+            related_selector(["axioval:derived.relation"]),
+            related_selector(["axioval:derived.relation;id="]),
+            related_selector(["axioval:derived.relation;id=a/b"]),
+            related_selector(["axioval:derived.relation;id=serves;id=serves"]),
+            related_selector(
+                ["axioval:derived.relation;id=serves|axioval:derived.relation;id=serves"]
+            ),
+            related_selector(["IfcRelAggregates|axioval:derived.relation;id=feeds:backward+"]),
+        ):
+            self.assert_rejected(declared, applicability=applicability)
+        # Without relations none is declared.
+        self.assert_rejected(
+            applicability=related_selector(["axioval:derived.relation;id=serves"])
+        )
+        self.assert_rejected(
+            declared,
+            categories=[{"property": REFERENCE, "path": ["axioval:derived.relation;id=feeds"]}],
+        )
+        self.assert_rejected(
+            declared,
+            {"flats": grouping(members=related_selector(["axioval:derived.relation;id=feeds"]))},
+        )
+
+    def test_pkl_renders_relations_and_omits_them_when_empty(self) -> None:
+        rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+        values = (validate.ROOT / "schema/Values.pkl").as_uri()
+
+        def module(body: str) -> str:
+            return (
+                f'amends "{rules}"\n\n'
+                f'import "{selectors}"\n'
+                f'import "{values}"\n\n'
+                'package { id = "axioval:example.relations"; version = "0.1.0"; '
+                'name { default = "Relations" } }\n'
+                'definitionPackages { "axioval:example.definitions" }\n'
+                'root { id = "root"; name { default = "Root" } }\n'
+                f"{body}\n"
+            )
+
+        digest = sha256(self.pairs)
+        body = f"""relations {{
+  ["serves"] {{
+    id = "serves"
+    name {{ default = "serves" }}
+    from = new Selectors.EntityTypeSelector {{ objectType = "axioval:example.ifc.wall" }}
+    to = new Selectors.AllSelector {{}}
+    by = new PairsRelationKey {{
+      scheme = "ifc-globalid"
+      pairs = new Values.TableFileValue {{
+        path = "serves.csv"
+        sha256 = "{digest}"
+        columns {{
+          new {{ id = "from"; header = "pump"; kind = "string" }}
+          new {{ id = "to"; header = "room"; kind = "string" }}
+        }}
+      }}
+    }}
+  }}
+  ["zone"] {{
+    id = "zone"
+    name {{ default = "zone" }}
+    description {{ default = "Zone" }}
+    from = new Selectors.AllSelector {{}}
+    to = new Selectors.AllSelector {{}}
+    by = new PropertyRelationKey {{
+      from {{ propertySet = "axioval:example.ifc.pset-wall-common"; property = "axioval:example.ifc.reference" }}
+      to {{ property = "axioval:example.ifc.reference" }}
+    }}
+  }}
+  ["listed"] {{
+    id = "listed"
+    name {{ default = "listed" }}
+    from = new Selectors.AllSelector {{}}
+    to = new Selectors.AllSelector {{}}
+    by = new PairsRelationKey {{
+      pairs = new Values.TableValue {{
+        value {{
+          new {{
+            ["from"] = new Values.StringValue {{ value = "a" }}
+            ["to"] = new Values.StringValue {{ value = "b" }}
+          }}
+        }}
+      }}
+    }}
+  }}
+}}"""
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "relations.pkl"
+            path.write_text(module(body), encoding="utf-8")
+            evaluated = validate.evaluate(path)
+            name = lambda text_: {"default": text_, "translations": {}}  # noqa: E731
+            self.assertEqual(
+                evaluated["relations"],
+                {
+                    "serves": {
+                        "id": "serves",
+                        "name": name("serves"),
+                        "from": walls(),
+                        "to": {"kind": "all"},
+                        "by": {
+                            "kind": "pairs",
+                            "pairs": self.pairs_file(),
+                            "scheme": "ifc-globalid",
+                        },
+                    },
+                    "zone": {
+                        "id": "zone",
+                        "name": name("zone"),
+                        "description": name("Zone"),
+                        "from": {"kind": "all"},
+                        "to": {"kind": "all"},
+                        "by": {
+                            "kind": "property",
+                            "from": {"propertySet": WALL_SET, "property": REFERENCE},
+                            "to": {"property": REFERENCE},
+                        },
+                    },
+                    "listed": {
+                        "id": "listed",
+                        "name": name("listed"),
+                        "from": {"kind": "all"},
+                        "to": {"kind": "all"},
+                        "by": {"kind": "pairs", "pairs": pair_rows(("a", "b"))},
+                    },
+                },
+            )
+            self.assertEqual(
+                list(evaluated["relations"]["serves"]),
+                ["id", "name", "from", "to", "by"],
+            )
+            (Path(tmp) / "serves.csv").write_bytes(self.pairs)
+            validate.bind_ruleset(
+                evaluated, [copy.deepcopy(self.definitions)], "test", asset_root=Path(tmp)
+            )
+            path.write_text(module(""), encoding="utf-8")
+            self.assertNotIn("relations", validate.evaluate(path))
+            for broken in (
+                body.replace('["zone"] {\n    id = "zone"', '["zone"] {\n    id = "zone2"'),
+                body.replace('id = "zone"', 'id = "zo ne"').replace('["zone"]', '["zo ne"]'),
+                body.replace('id = "zone"', 'id = "a;b"').replace('["zone"]', '["a;b"]'),
+                body.replace('scheme = "ifc-globalid"', 'scheme = " "'),
+                body.replace("new Values.TableValue", "new Values.StringValue"),
+                body.replace('to { property = "axioval:example.ifc.reference" }', "to {}"),
+            ):
+                with self.subTest(broken=broken), self.assertRaises(SystemExit):
+                    path.write_text(module(broken), encoding="utf-8")
+                    validate.evaluate(path)
 
 
 if __name__ == "__main__":

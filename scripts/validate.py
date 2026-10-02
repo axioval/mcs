@@ -209,7 +209,11 @@ def main() -> None:
             definitions = evaluate(definition)
             if definitions.get("schemaVersion") != manifest["schemaVersion"]:
                 fail(f"{definition}: schema version disagrees with manifest")
-            validate_definition_document(definitions, str(definition.relative_to(ROOT)))
+            validate_definition_document(
+                definitions,
+                str(definition.relative_to(ROOT)),
+                asset_root=manifest_path.parent,
+            )
             definition_values.append(definitions)
             check_snapshot(definition, definitions)
         bind_ruleset(

@@ -131,6 +131,15 @@ event handlers, external links, document types, processing instructions, style
 content, and foreign SVG content fail closed. Consumers should still apply their
 own image decoding and rendering sandbox.
 
+## Package table files
+
+A `tableFile` value names a CSV file or an `.xlsx` workbook in the package whose
+rows fill a table, and pins its bytes with a SHA-256. Table files are data, not
+executable extensions: the binder needs the package root, as for images, keeps
+every path inside the package, rejects files over 10,000,000 bytes or with
+another digest, and takes each cell as written. Workbook formulas, error cells,
+document types, and processing instructions fail closed.
+
 ## Source and compiled forms
 
 Pkl source is authoritative for editing. A registry may cache validated
