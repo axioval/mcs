@@ -13,7 +13,7 @@ Die Quelltextbeispiele bleiben eingeklappt, bis Sie sie bewusst öffnen.
 | `Types.pkl` | Bezeichner, semantische Versionen, lokalisierter Text, Paketmetadaten |
 | `Citations.pkl` | bibliografische Quellen, Fundstellen, Zitate und Parameterziele |
 | `Values.pkl` | Markierte Skalar- und Listenwerte sowie Objekt- und Eigenschaftsreferenzen |
-| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Eigenschaftsmuster, Klassifikation, abgeleitete Klasse, verbundene Objekte, Disziplin, Quelle und boolesche Zusammensetzung |
+| `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Eigenschaftsmuster, Klassifikation, abgeleitete Klasse, abgeleitete Gruppe, verbundene Objekte, Disziplin, Quelle und boolesche Zusammensetzung |
 | `Definitions.pkl` | Vokabulare und wiederverwendbare Fähigkeitsvorlagen |
 | `RuleSets.pkl` | Konkrete Regelinstanzen und rein kosmetische Ordner |
 
@@ -263,6 +263,8 @@ Selektoren sind deklarativ und werden rekursiv validiert:
   Klassifikationssystem
 - `derivedClass` nach einer Klasse, die eine Klassifikation des Regelsatzes
   ableitet, wahlweise mit ihren Nachfahren
+- `derivedGroup`, der die Gruppen auswählt, die eine Gruppierung des
+  Regelsatzes ableitet
 - `related`, der die über einen Beziehungspfad erreichten Objekte prüft
 - `discipline`, der die Objekte von Quellen mit einer deklarierten Disziplin auswählt
 - `source`, der vergleicht, was eine Quelle über sich selbst angibt, etwa die
@@ -420,7 +422,11 @@ außerdem eine Beziehungsart nennen, `axioval:relationship.<art>`, die jede Quel
 mit ihren eigenen Beziehungstypen beantwortet: `containment`, `aggregation`,
 `voids`, `fills`, `space-boundary`, `type`, `group` oder `connection`, etwa
 `axioval:relationship.containment:backward` von einem Geschoss zu dem, was es
-enthält.
+enthält. `axioval:derived.adjacent-across;tolerance=<m>;overlap=<m>` verbindet
+eine Wand oder Decke mit den Räumen an ihren beiden Seitenflächen, und
+`axioval:derived.group;by=<gruppierung>` ein Mitglied einer Gruppierung
+desselben Regelsatzes mit seiner abgeleiteten Gruppe (siehe Abschnitt
+Abgeleitete Gruppen), `backward` von einer Gruppe zu ihren Mitgliedern.
 
 Ein Schritt darf mehrere Beziehungen nennen, getrennt durch `|`, und jede von
 ihnen gehen. Eine Richtung, nach der letzten geschrieben, gilt für alle, und mit
@@ -448,7 +454,8 @@ Selektor behält seine eigene Normalisierung. Der Binder lehnt einen leeren
 `path`, einen Schritt mit Leerraum, einen leeren Namen oder eine leere
 Alternative, eine in einem Schritt zweimal genannte Beziehung, eine Richtung
 innerhalb einer Alternative statt nach der letzten, eine andere Richtung oder
-eine fehlerhafte abgeleitete Beziehung sowie jeden anderen Wert für
+eine fehlerhafte abgeleitete Beziehung, eine Gruppenbeziehung, die eine vom
+Regelsatz nicht deklarierte Gruppierung nennt, sowie jeden anderen Wert für
 `quantifier` ab. Eine abgeleitete Beziehung behält ihren eigenen Doppelpunkt:
 Nur ein Doppelpunkt, dem ein Richtungswort folgt, beendet die letzte
 Alternative.
@@ -520,6 +527,30 @@ Klassifikation verwenden dürfen, aber nie in einem Zyklus.
       classification = "cost-group"
       `class` = "kg-330"
       includeDescendants = true
+    }
+    ```
+
+### Selektoren für abgeleitete Gruppen
+
+Ein `derivedGroup`-Selektor wählt die Gruppen aus, die eine Gruppierung
+desselben Regelsatzes ableitet (siehe Abschnitt Abgeleitete Gruppen). Gruppen
+sind abgeleitete Objekte, nie Modellobjekte, und nur dieser Selektor erreicht
+sie; kein anderer Selektor und keine Regel, die vor den Gruppierungen
+geschrieben wurde, wählt eine Gruppe aus. Der Binder lehnt eine leere oder
+nicht deklarierte `grouping` und jedes andere Feld ab.
+
+??? example "Selektor für Wohnungen mit mehr als einem Raum anzeigen"
+    ```pkl
+    new Selectors.AllOfSelector {
+      operands {
+        new Selectors.DerivedGroupSelector { grouping = "flats" }
+        new Selectors.PropertySelector {
+          propertySet = "axioval:group"
+          property = "members"
+          operator = "greaterThan"
+          value = new Values.IntegerValue { value = 1 }
+        }
+      }
     }
     ```
 
@@ -890,6 +921,113 @@ des Baums und eine Ebene einer flachen Klassifikation ab.
       property = "cost-group;level=1"
       operator = "equals"
       value = new Values.StringValue { value = "kg-300" }
+    }
+    ```
+
+## Abgeleitete Gruppen
+
+Gruppen wie Wohnungen, Abteilungen oder Zonen ergeben sich oft aus einem Wert,
+den jedes Mitglied angibt, etwa einer Wohnungsnummer an jedem Raum, statt als
+Gruppen angegeben zu sein. Ein Regelsatz deklariert `groupings` nach ID: die
+gruppierten Objekte, `members`, ein Selektor, und wonach sie gruppiert werden,
+`by`, markiert durch `kind`:
+
+| `by.kind` | Felder | Gruppiert Mitglieder nach |
+| --- | --- | --- |
+| `property` | `property`, optional `propertySet` | gleichen Werten einer Eigenschaft, verglichen wie ein Eigenschaftsselektor sie vergleicht; eine abgeleitete Klasse in `axioval:classification` eingeschlossen |
+| `classification` | `system` | gleichen Codes in einem Klassifikationssystem, wie die Quelle sie angibt |
+| `compartment` | `separators`, `boundary`, optional `tolerance`, `overlap` | zusammenhängenden Bereichen, die kein von `boundary` ausgewähltes Element trennt |
+
+Mitglieder einer Quelle mit demselben Wert bilden eine Gruppe. Jede Gruppe ist
+ein abgeleitetes Objekt der Art `axioval:group` mit der Identität
+`axioval:group/<gruppierung>/<wert>`:
+
+- ein `derivedGroup`-Selektor wählt die Gruppen einer Gruppierung aus;
+- die Beziehung `axioval:derived.group;by=<gruppierung>` führt von jedem
+  Mitglied zu seiner Gruppe, sodass `backward` von einer Gruppe ihre Mitglieder
+  erreicht;
+- das reservierte Set `axioval:group` gibt den `key` einer Gruppe an, den
+  Wert, den ihre Mitglieder teilen, als Text, und `members`, wie viele es sind,
+  als ganze Zahl; kein anderes Objekt hat eines von beiden. Ihre `area` in
+  `axioval:measured` ist die Vereinigung der Grundflächen ihrer Mitglieder.
+
+Ein ausgewähltes Objekt ohne Wert ist ungruppiert. Eines, dessen Wert sich
+nicht bestimmen lässt, lässt jede Gruppe seiner Quelle unentschieden, nie
+ungruppiert. Gruppen werden nach den Klassifikationen und vor jeder Regel aus
+dem Modell abgeleitet.
+
+Die ID einer Gruppierung ist Teil der Identität jeder ihrer Gruppen: Sie darf
+nicht leer sein und weder `:`, `;`, `|`, `/` noch Leerraum enthalten.
+Normalisiertes JSON lässt leere `groupings` sowie eine nicht gesetzte
+`description`, `propertySet`, `tolerance` oder `overlap` weg, sodass Pakete
+ohne Gruppierungen byteidentisch gerendert werden. Der Binder lehnt einen
+Map-Schlüssel ungleich der ID ab, Mitglieder, Trenner oder Begrenzungen, die
+ein unbekanntes Konzept nennen, das Ergebnis einer Regel heranziehen oder eine
+abgeleitete Gruppe auswählen (ein `derivedGroup`-Selektor oder eine
+Eigenschaft in `axioval:group`), eine unbekannte oder in `axioval:group`
+liegende Schlüsseleigenschaft `property`, ein leeres `system` sowie eine
+Klassifikationszeile, die eine abgeleitete Gruppe auswählt, da Gruppen nach
+den Klassen abgeleitet werden.
+
+??? example "Wohnungen nach Wohnungsnummer anzeigen"
+    ```pkl
+    groupings {
+      ["flats"] {
+        id = "flats"
+        name { default = "Flats" }
+        members = new Selectors.EntityTypeSelector { objectType = "axioval:example.space" }
+        by = new PropertyGroupingKey {
+          propertySet = "axioval:example.pset-space"
+          property = "axioval:example.flat-number"
+        }
+      }
+    }
+    ```
+
+### Brandabschnitte
+
+Ein `compartment`-Schlüssel leitet Abschnitte ab, etwa Brandabschnitte, die
+von Wänden und Decken mit ausreichender Feuerwiderstandsklasse umschlossen
+sind: die zusammenhängenden Bereiche der Mitglieder, die kein von `boundary`
+ausgewähltes Element trennt. Zwei Mitglieder verbinden sich über ein
+`separators`-Element, das `boundary` nicht auswählt, wenn sie an seinen
+gegenüberliegenden Seitenflächen liegen, nach der abgeleiteten Beziehung
+`axioval:derived.adjacent-across;tolerance=<m>;overlap=<m>`, und dort, wo sie
+sich innerhalb von `tolerance` berühren, ohne an gegenüberliegenden
+Seitenflächen eines Begrenzungselements zu liegen. Jeder zusammenhängende
+Bereich ist eine Gruppe, deren Schlüssel die Identität ihres kleinsten
+Mitglieds ist; ein mit nichts verbundenes Mitglied ist ein eigener Abschnitt.
+
+`tolerance` ist der größte Abstand in Metern, eine endliche Zahl von
+mindestens null, ohne Angabe 0,05; `overlap` die kleinste Überdeckung entlang
+einer Seitenfläche in Metern, eine endliche Zahl größer als null, ohne Angabe
+0,3. Eine Verbindung, die bestehen kann oder nicht, lässt die Abschnitte, die
+sie zusammenführen könnte, unentschieden. Pkl und der Binder lehnen jeden
+anderen Wert ab.
+
+??? example "Brandabschnitte mit klassifizierten Wänden und Decken anzeigen"
+    ```pkl
+    groupings {
+      ["fire"] {
+        id = "fire"
+        name { default = "Fire compartments" }
+        members = new Selectors.EntityTypeSelector { objectType = "axioval:example.space" }
+        by = new CompartmentGroupingKey {
+          separators = new Selectors.AnyOfSelector {
+            operands {
+              new Selectors.EntityTypeSelector { objectType = "axioval:example.wall" }
+              new Selectors.EntityTypeSelector { objectType = "axioval:example.slab" }
+            }
+          }
+          boundary = new Selectors.PropertySelector {
+            property = "axioval:example.fire-rating"
+            operator = "matches"
+            value = new Values.StringValue { value = "EI ?(60|90|120)" }
+          }
+          tolerance = 0.05
+          overlap = 0.3
+        }
+      }
     }
     ```
 

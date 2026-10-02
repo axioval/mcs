@@ -206,6 +206,15 @@ const function normalizedDerivedClassSelector(
 ): Map<String, Any> =
   selector.toMap().filter((key, value) -> !(key == "includeDescendants" && value == false))
 
+/// Select the groups a grouping of the same ruleset derives: derived objects,
+/// one per group, never a model object. Only this selector reaches them, so
+/// no other selector selects a group. The binder checks that `grouping` is
+/// declared.
+class DerivedGroupSelector extends Selector {
+  kind: "derivedGroup" = "derivedGroup"
+  grouping: String(!isBlank)
+}
+
 /// A fact about a whole source that a source selector compares.
 ///
 /// - `fileName` is the file name the checking application loaded the source
@@ -319,7 +328,10 @@ typealias RelatedQuantifier = "any" | "all" | "none"
 /// source's own names, not concepts, while the nested `selector` names concepts
 /// like any other selector. A step may also name a relationship the checking
 /// application derives, `axioval:derived.<name>` with optional `;key=value`
-/// tolerances (`axioval:derived.adjacent-space;reach=1`), a direction, and `+`.
+/// tolerances (`axioval:derived.adjacent-space;reach=1`), a direction, and `+`,
+/// or the relationship from each member of a grouping of the same ruleset to
+/// its group, `axioval:derived.group;by=<grouping>`, whose `backward` direction
+/// reaches a group's members.
 class RelatedSelector extends Selector {
   kind: "related" = "related"
   /// Relationship steps walked in order from the selected object.

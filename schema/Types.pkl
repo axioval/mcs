@@ -24,6 +24,19 @@ const classificationSet = "axioval:classification"
 /// from geometry, by the names in `measuredNames`.
 const measuredSet = "axioval:measured"
 
+/// The reserved property set stating what the checking application knows of
+/// a group a ruleset's grouping derives: `key`, the value its members share
+/// as text, and `members`, how many they are, an integer. No other object
+/// has either.
+const groupSet = "axioval:group"
+
+/// The names in `groupSet`.
+const groupNames: Set<String> = Set("key", "members")
+
+/// A ruleset grouping's ID: not blank, and free of `:`, `;`, `|`, `/` and
+/// whitespace, since it is part of the identity of every group it derives.
+typealias GroupingId = String(matches(Regex(#"[^:;|/\s]+"#)))
+
 /// The names in `measuredSet`, matched ignoring ASCII case: the body's extent
 /// along the world axes (`extent_x`, `extent_y`, `extent_z`), the elevation of
 /// its lowest and highest point (`bottom`, `top`), its footprint area (`area`),
@@ -43,11 +56,13 @@ const measuredNames: Set<String> = Set(
 /// Whether `name` can name a property in `propertySet`: a property in a
 /// derived set is engine or ruleset vocabulary, any other a qualified concept
 /// ID. A classification is named by its ID, or a level of its tree by
-/// `<id>;level=<n>`. The binder checks that a classification ID is declared
+/// `<id>;level=<n>`; a derived group's facts by the names in `groupNames`.
+/// The binder checks that a classification ID is declared
 /// and a level lies within its tree.
 const function isPropertyName(propertySet: String?, name: String): Boolean =
   if (propertySet == classificationSet)
     !name.isBlank && (!name.contains(";") || name.matches(Regex(#"[^;]+;level=[1-9][0-9]*"#)))
+  else if (propertySet == groupSet) groupNames.contains(name)
   else if (propertySet == measuredSet)
     let (base = name.split(";").first.trim())
       base.matches(Regex("[A-Za-z_]+")) && measuredNames.contains(base.toLowerCase())

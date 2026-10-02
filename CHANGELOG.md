@@ -10,6 +10,24 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Derived groups and compartments, mirroring the engine: a ruleset may
+  declare `groupings`, by ID, each grouping selected `members` `by` equal
+  values of a property (`kind: property`, a derived class included), equal
+  codes in a classification system (`kind: classification`), or as
+  compartments (`kind: compartment`), the connected regions not separated by
+  an element its `boundary` selector selects, joined across `separators`
+  within an optional `tolerance` and `overlap`. The new `derivedGroup`
+  selector selects a grouping's groups, the path step
+  `axioval:derived.group;by=<grouping>` runs from a member to its group, and
+  the reserved set `axioval:group` states a group's `key` and `members`. A
+  path step may also name `axioval:derived.adjacent-across` with its
+  tolerances. Pkl and the binder reject a grouping ID that is blank or holds
+  `:`, `;`, `|`, `/` or whitespace, a negative tolerance and an overlap that
+  is not positive; the binder also rejects undeclared groupings, grouping
+  selectors that consult a rule's outcome or a derived group, a key in
+  `axioval:group`, and classification rows that select a derived group.
+  Normalized JSON omits empty `groupings`, so existing packages render
+  byte-identically.
 - A relationship path step may name a relationship kind,
   `axioval:relationship.<kind>` (`containment`, `aggregation`, `voids`,
   `fills`, `space-boundary`, `type`, `group`, `connection`), which every source

@@ -3648,6 +3648,310 @@ class HierarchicalClassificationTests(unittest.TestCase):
                     validate.evaluate(path)
 
 
+GROUP_SET = "axioval:group"
+WALL = "axioval:example.ifc.wall"
+
+
+def walls() -> dict:
+    return {"kind": "entityType", "objectType": WALL, "includeSubtypes": True}
+
+
+def grouping(grouping_id: str = "flats", by: dict | None = None, **fields) -> dict:
+    definition = {
+        "id": grouping_id,
+        "name": {"default": grouping_id, "translations": {}},
+        "members": walls(),
+        "by": by
+        or {"kind": "property", "propertySet": WALL_SET, "property": REFERENCE},
+    }
+    definition.update(fields)
+    return definition
+
+
+def compartments(**fields) -> dict:
+    return {
+        "kind": "compartment",
+        "separators": walls(),
+        "boundary": property_selector(REFERENCE, "like", text("EI*"), propertySet=WALL_SET),
+        **fields,
+    }
+
+
+def derived_group(grouping_id: str = "flats") -> dict:
+    return {"kind": "derivedGroup", "grouping": grouping_id}
+
+
+class GroupingTests(unittest.TestCase):
+    """Groupings derive groups from their members, by a property value, a
+    classification code, or as compartments, and selectors, relationships and
+    the reserved set `axioval:group` reach them."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def bind(self, groupings=None, classifications=None, **rule_fields) -> None:
+        ruleset = copy.deepcopy(self.ruleset)
+        rule = ruleset["root"]["rules"][0]
+        rule.pop("explanatoryImages", None)
+        rule.pop("requirements", None)
+        rule.update(copy.deepcopy(rule_fields))
+        if groupings is not None:
+            ruleset["groupings"] = copy.deepcopy(groupings)
+        if classifications is not None:
+            ruleset["classifications"] = copy.deepcopy(classifications)
+        validate.bind_ruleset(ruleset, [copy.deepcopy(self.definitions)], "test")
+
+    def assert_rejected(self, groupings=None, classifications=None, **rule_fields) -> None:
+        with (
+            self.subTest(groupings=groupings, classifications=classifications, rule=rule_fields),
+            self.assertRaises(SystemExit),
+        ):
+            self.bind(groupings, classifications, **rule_fields)
+
+    def test_accepts_groupings_of_every_kind(self) -> None:
+        declared = {
+            "flats": grouping(description={"default": "Flats", "translations": {}}),
+            "zones": grouping("zones", {"kind": "classification", "system": "Uniclass"}),
+            "uses": grouping(
+                "uses",
+                {"kind": "property", "propertySet": CLASSIFICATION_SET, "property": "use"},
+                members={"kind": "all"},
+            ),
+            "by-area": grouping(
+                "by-area", {"kind": "property", "propertySet": MEASURED_SET, "property": "area"}
+            ),
+            "unscoped": grouping("unscoped", {"kind": "property", "property": REFERENCE}),
+            "fire": grouping("fire", compartments()),
+            "fire-tuned": grouping(
+                "fire-tuned", compartments(tolerance=0, overlap=0.5)
+            ),
+            "fire.2": grouping(
+                "fire.2",
+                compartments(
+                    tolerance=0.1,
+                    separators={"kind": "anyOf", "operands": [walls(), derived_class("wall", "use")]},
+                ),
+            ),
+        }
+        classifications = {"use": classification("use")}
+        self.bind(declared, classifications)
+        for applicability in (
+            derived_group(),
+            derived_group("fire"),
+            {"kind": "not", "operand": derived_group("zones")},
+            property_selector("key", "equals", text("1"), propertySet=GROUP_SET),
+            property_selector(
+                "members", "greaterThan", {"type": "integer", "value": 1}, propertySet=GROUP_SET
+            ),
+            related_selector(["axioval:derived.group;by=flats"]),
+            related_selector(["axioval:derived.group;by=flats:backward"], selector=walls()),
+            related_selector(
+                ["axioval:derived.group;by=flats|axioval:derived.group;by=fire:either"]
+            ),
+            related_selector(
+                ["axioval:derived.adjacent-across;tolerance=0.05;overlap=0.3:either"]
+            ),
+            related_selector(["axioval:derived.adjacent-across"]),
+        ):
+            with self.subTest(applicability=applicability):
+                self.bind(declared, classifications, applicability=applicability)
+        self.bind(
+            declared,
+            classifications,
+            categories=[
+                {"propertySet": GROUP_SET, "property": "key",
+                 "path": ["axioval:derived.group;by=flats"]}
+            ],
+            parameters={
+                "property": {
+                    "type": "propertyReference",
+                    "propertySet": GROUP_SET,
+                    "property": "key",
+                }
+            },
+        )
+
+    def test_rejects_malformed_groupings(self) -> None:
+        for groupings in (
+            {},
+            [grouping()],
+            {"flats": grouping("zones")},
+            {"": grouping("")},
+            {" ": grouping(" ")},
+            {"a b": grouping("a b")},
+            *({f"a{c}b": grouping(f"a{c}b")} for c in ":;|/"),
+            {"flats": {**grouping(), "weight": 1}},
+            {"flats": {k: v for k, v in grouping().items() if k != "by"}},
+            {"flats": {k: v for k, v in grouping().items() if k != "members"}},
+            {"flats": {k: v for k, v in grouping().items() if k != "name"}},
+            {"flats": grouping(members={"kind": "entityType", "objectType": "axioval:example.ifc.door", "includeSubtypes": True})},
+            {"flats": grouping(members={"kind": "ruleOutcome", "rule": "wall-reference-required", "outcome": "passed"})},
+            {"flats": grouping(members=derived_group("flats"))},
+            {"flats": grouping(members={"kind": "not", "operand": property_selector("key", "exists", propertySet=GROUP_SET)})},
+            {"flats": grouping(by={"kind": "colour"})},
+            {"flats": grouping(by={"kind": "property"})},
+            {"flats": grouping(by={"kind": "property", "property": "axioval:example.ifc.unknown"})},
+            {"flats": grouping(by={"kind": "property", "propertySet": "axioval:example.unknown", "property": REFERENCE})},
+            {"flats": grouping(by={"kind": "property", "propertySet": GROUP_SET, "property": "key"})},
+            {"flats": grouping(by={"kind": "property", "propertySet": CLASSIFICATION_SET, "property": "use"})},
+            {"flats": grouping(by={"kind": "property", "propertySet": MEASURED_SET, "property": "mass"})},
+            {"flats": grouping(by={"kind": "property", "property": REFERENCE, "system": "x"})},
+            {"flats": grouping(by={"kind": "classification", "system": " "})},
+            {"flats": grouping(by={"kind": "classification", "system": 1})},
+            {"flats": grouping(by={"kind": "classification"})},
+            {"flats": grouping(by=compartments(tolerance=-0.1))},
+            {"flats": grouping(by=compartments(tolerance=True))},
+            {"flats": grouping(by=compartments(tolerance="0.1"))},
+            {"flats": grouping(by=compartments(overlap=0))},
+            {"flats": grouping(by=compartments(overlap=-1))},
+            {"flats": grouping(by=compartments(overlap=float("inf")))},
+            {"flats": grouping(by=compartments(tolerance=float("nan")))},
+            {"flats": grouping(by=compartments(reach=1))},
+            {"flats": grouping(by={k: v for k, v in compartments().items() if k != "boundary"})},
+            {"flats": grouping(by=compartments(boundary=derived_group("flats")))},
+            {"flats": grouping(by=compartments(separators={"kind": "ruleOutcome", "rule": "wall-reference-required", "outcome": "failed"}))},
+        ):
+            self.assert_rejected(groupings)
+
+    def test_rejects_undeclared_groupings_and_group_facts(self) -> None:
+        declared = {"flats": grouping()}
+        for applicability in (
+            derived_group("zones"),
+            derived_group(" "),
+            {"kind": "derivedGroup"},
+            {"kind": "derivedGroup", "grouping": "flats", "includeDescendants": True},
+            property_selector("count", "exists", propertySet=GROUP_SET),
+            property_selector("Key", "exists", propertySet=GROUP_SET),
+            property_selector("members", "equals", text("1"), propertySet=GROUP_SET),
+            related_selector(["axioval:derived.group;by=zones"]),
+            related_selector(["axioval:derived.group"]),
+            related_selector(["axioval:derived.group;by="]),
+            related_selector(["axioval:derived.group;by=a/b"]),
+            related_selector(["axioval:derived.group;by=flats;by=flats"]),
+            related_selector(["axioval:derived.group;by=flats|axioval:derived.group;by=flats"]),
+        ):
+            self.assert_rejected(declared, applicability=applicability)
+        # Without groupings no group is declared.
+        self.assert_rejected(applicability=derived_group())
+        self.assert_rejected(
+            declared,
+            categories=[{"property": REFERENCE, "path": ["axioval:derived.group;by=zones"]}],
+        )
+        # Classes are derived before groups, so a row never reads one.
+        for row_selector in (
+            derived_group(),
+            property_selector("key", "exists", propertySet=GROUP_SET),
+        ):
+            self.assert_rejected(
+                declared, {"use": classification("use", classification_row("wall", row_selector))}
+            )
+
+    def test_pkl_renders_groupings_and_omits_them_when_empty(self) -> None:
+        rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
+        selectors = (validate.ROOT / "schema/Selectors.pkl").as_uri()
+
+        def module(body: str) -> str:
+            return (
+                f'amends "{rules}"\n\n'
+                f'import "{selectors}"\n\n'
+                'package { id = "axioval:example.groups"; version = "0.1.0"; '
+                'name { default = "Groups" } }\n'
+                'definitionPackages { "axioval:example.definitions" }\n'
+                'root { id = "root"; name { default = "Root" } }\n'
+                f"{body}\n"
+            )
+
+        body = """groupings {
+  ["flats"] {
+    id = "flats"
+    name { default = "flats" }
+    members = new Selectors.EntityTypeSelector { objectType = "axioval:example.ifc.wall" }
+    by = new PropertyGroupingKey { property = "axioval:example.ifc.reference" }
+  }
+  ["zones"] {
+    id = "zones"
+    name { default = "zones" }
+    description { default = "Zones" }
+    members = new Selectors.DerivedGroupSelector { grouping = "flats" }
+    by = new ClassificationGroupingKey { system = "Uniclass" }
+  }
+  ["fire"] {
+    id = "fire"
+    name { default = "fire" }
+    members = new Selectors.AllSelector {}
+    by = new CompartmentGroupingKey {
+      separators = new Selectors.AllSelector {}
+      boundary = new Selectors.AllSelector {}
+      tolerance = 0.1
+    }
+  }
+}"""
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "groups.pkl"
+            path.write_text(module(body), encoding="utf-8")
+            evaluated = validate.evaluate(path)
+            name = lambda text_: {"default": text_, "translations": {}}  # noqa: E731
+            self.assertEqual(
+                evaluated["groupings"],
+                {
+                    "flats": {
+                        "id": "flats",
+                        "name": name("flats"),
+                        "members": walls(),
+                        "by": {"kind": "property", "property": REFERENCE},
+                    },
+                    "zones": {
+                        "id": "zones",
+                        "name": name("zones"),
+                        "description": name("Zones"),
+                        "members": derived_group("flats"),
+                        "by": {"kind": "classification", "system": "Uniclass"},
+                    },
+                    "fire": {
+                        "id": "fire",
+                        "name": name("fire"),
+                        "members": {"kind": "all"},
+                        "by": {
+                            "kind": "compartment",
+                            "separators": {"kind": "all"},
+                            "boundary": {"kind": "all"},
+                            "tolerance": 0.1,
+                        },
+                    },
+                },
+            )
+            self.assertEqual(
+                list(evaluated["groupings"]["fire"]["by"]),
+                ["kind", "separators", "boundary", "tolerance"],
+            )
+            path.write_text(module(""), encoding="utf-8")
+            self.assertNotIn("groupings", validate.evaluate(path))
+            for broken in (
+                body.replace('["fire"] {\n    id = "fire"', '["fire"] {\n    id = "fire2"'),
+                body.replace('id = "zones"', 'id = "zo nes"').replace('["zones"]', '["zo nes"]'),
+                body.replace('id = "zones"', 'id = "a/b"').replace('["zones"]', '["a/b"]'),
+                body.replace("tolerance = 0.1", "tolerance = -0.1"),
+                body.replace("tolerance = 0.1", "overlap = 0"),
+                body.replace('system = "Uniclass"', 'system = " "'),
+                body.replace('grouping = "flats"', 'grouping = " "'),
+                body.replace(
+                    'new PropertyGroupingKey { property',
+                    'new PropertyGroupingKey { propertySet = "axioval:group"; property',
+                ).replace('"axioval:example.ifc.reference" }', '"key" }'),
+                body.replace(
+                    'new PropertyGroupingKey { property',
+                    'new PropertyGroupingKey { propertySet = "axioval:example.pset"; property',
+                ).replace('"axioval:example.ifc.reference" }', '"key" }'),
+            ):
+                self.assertNotEqual(broken, body)
+                path.write_text(module(broken), encoding="utf-8")
+                with self.subTest(broken=broken), self.assertRaises(SystemExit):
+                    validate.evaluate(path)
+
+
 MEASURED_SET = "axioval:measured"
 
 

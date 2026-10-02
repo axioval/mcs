@@ -15,7 +15,7 @@ folded by default so you can scan the concepts first.
 | `Types.pkl` | identifiers, semantic versions, localized text, package metadata |
 | `Citations.pkl` | bibliographic sources, locators, citations, parameter targets |
 | `Values.pkl` | tagged scalar/list values plus object/property references |
-| `Selectors.pkl` | object type, property, property-pattern, classification, derived-class, related-object, discipline, source, boolean-composition selectors |
+| `Selectors.pkl` | object type, property, property-pattern, classification, derived-class, derived-group, related-object, discipline, source, boolean-composition selectors |
 | `Definitions.pkl` | vocabularies and reusable capability templates |
 | `RuleSets.pkl` | concrete rule instances and cosmetic folders |
 
@@ -262,6 +262,7 @@ Selectors are declarative and recursively validated:
   system
 - `derivedClass`, by a class a classification of the ruleset derives,
   optionally with its descendants
+- `derivedGroup`, the groups a grouping of the ruleset derives
 - `related`, testing the objects a relationship path reaches
 - `discipline`, selecting the objects of sources that declare a discipline
 - `source`, comparing what a source states about itself, such as the
@@ -410,6 +411,11 @@ relationship kind, `axioval:relationship.<kind>`, which every source answers
 under its own relationship types: `containment`, `aggregation`, `voids`,
 `fills`, `space-boundary`, `type`, `group`, or `connection`, such as
 `axioval:relationship.containment:backward` from a storey to what it contains.
+`axioval:derived.adjacent-across;tolerance=<m>;overlap=<m>` relates a wall or
+slab to the spaces on either of its faces, and
+`axioval:derived.group;by=<grouping>` a member of a grouping of the same
+ruleset to its [derived group](#derived-groups), `backward` from a group to its
+members.
 
 A step may name several relationships separated by `|` and takes any of them.
 One direction, written after the last, applies to all of them, and with `+` the
@@ -436,7 +442,8 @@ Normalized JSON omits the default `any`, and the nested selector keeps its own
 normalization. The binder rejects an empty `path`, a step with whitespace, an
 empty name or alternative, a relationship named twice in one step, a direction
 inside an alternative rather than after the last, another direction, or a
-malformed derived relationship, and any other `quantifier` value. A derived
+malformed derived relationship, a group relationship naming a grouping the
+ruleset does not declare, and any other `quantifier` value. A derived
 relationship keeps its own colon: only a colon followed by a direction word
 ends the last alternative.
 
@@ -504,6 +511,29 @@ another classification, never in a cycle.
       classification = "cost-group"
       `class` = "kg-330"
       includeDescendants = true
+    }
+    ```
+
+### Derived-group selectors
+
+A `derivedGroup` selector selects the groups a [grouping](#derived-groups) of
+the same ruleset derives. Groups are derived objects, never model objects, and
+only this selector reaches them, so no other selector, and no rule written
+before groupings existed, selects a group. The binder rejects a blank or
+undeclared `grouping` and any other field.
+
+??? example "Show a selector for flats with more than one room"
+    ```pkl
+    new Selectors.AllOfSelector {
+      operands {
+        new Selectors.DerivedGroupSelector { grouping = "flats" }
+        new Selectors.PropertySelector {
+          propertySet = "axioval:group"
+          property = "members"
+          operator = "greaterThan"
+          value = new Values.IntegerValue { value = 1 }
+        }
+      }
     }
     ```
 
@@ -847,6 +877,105 @@ the tree's depth, and a level on a flat classification.
       property = "cost-group;level=1"
       operator = "equals"
       value = new Values.StringValue { value = "kg-300" }
+    }
+    ```
+
+## Derived groups
+
+Groups such as flats, departments, or zones are often implied by a value every
+member states, such as a flat number on every room, rather than stated as
+groups. A ruleset declares `groupings`, by ID: the objects grouped, `members`,
+a selector, and what they are grouped `by`, tagged by `kind`:
+
+| `by.kind` | Fields | Groups members by |
+| --- | --- | --- |
+| `property` | `property`, optional `propertySet` | equal values of one property, compared as a property selector compares it; a derived class in `axioval:classification` included |
+| `classification` | `system` | equal codes in one classification system, as the source states them |
+| `compartment` | `separators`, `boundary`, optional `tolerance`, `overlap` | connected regions not separated by an element `boundary` selects |
+
+Members of one source sharing a value form one group. Each group is a derived
+object of kind `axioval:group` with the identity `axioval:group/<grouping>/<value>`:
+
+- a [`derivedGroup` selector](#derived-group-selectors) selects a grouping's
+  groups;
+- the relationship `axioval:derived.group;by=<grouping>` runs from each member
+  to its group, so `backward` from a group reaches its members;
+- the reserved set `axioval:group` states a group's `key`, the value its members
+  share as text, and `members`, how many they are, an integer; no other object
+  has either. Its `area` in `axioval:measured` is the union of its members'
+  footprints.
+
+A selected object without a value is ungrouped. One whose value cannot be
+determined leaves every group of its source undecided, never ungrouped.
+Groups are derived from the model after the classifications and before any
+rule runs.
+
+A grouping ID is part of every group's identity: it must not be blank or hold
+`:`, `;`, `|`, `/`, or whitespace. Normalized JSON omits empty `groupings` and
+an unset `description`, `propertySet`, `tolerance`, or `overlap`, so packages
+without groupings render byte-identically. The binder rejects a map key other
+than the ID, members, separators, or boundary that name an unknown concept,
+consult a rule's outcome, or select a derived group (a `derivedGroup`
+selector or a property in `axioval:group`), a key `property` that is unknown
+or lies in `axioval:group`, a blank `system`, and a classification row that
+selects a derived group, since groups are derived after the classes.
+
+??? example "Show flats grouped by a flat number"
+    ```pkl
+    groupings {
+      ["flats"] {
+        id = "flats"
+        name { default = "Flats" }
+        members = new Selectors.EntityTypeSelector { objectType = "axioval:example.space" }
+        by = new PropertyGroupingKey {
+          propertySet = "axioval:example.pset-space"
+          property = "axioval:example.flat-number"
+        }
+      }
+    }
+    ```
+
+### Compartments
+
+A `compartment` key derives compartments, such as fire compartments enclosed by
+walls and slabs of a sufficient fire rating: the connected regions of the
+members not separated by an element `boundary` selects. Two members join across
+a `separators` element that `boundary` does not select when they lie on its
+opposite faces, by the derived relationship
+`axioval:derived.adjacent-across;tolerance=<m>;overlap=<m>`, and where they
+touch within `tolerance` without lying on opposite faces of a boundary element.
+Each connected region is one group, keyed by its least member's identity; a
+member joined to nothing is a compartment of its own.
+
+`tolerance` is the largest gap in metres, a finite number of at least zero,
+0.05 when unset; `overlap` the least overlap along a face in metres, a finite
+number greater than zero, 0.3 when unset. A join that may or may not hold
+leaves the compartments it could merge undecided. Pkl and the binder reject
+any other value.
+
+??? example "Show fire compartments bounded by rated walls and slabs"
+    ```pkl
+    groupings {
+      ["fire"] {
+        id = "fire"
+        name { default = "Fire compartments" }
+        members = new Selectors.EntityTypeSelector { objectType = "axioval:example.space" }
+        by = new CompartmentGroupingKey {
+          separators = new Selectors.AnyOfSelector {
+            operands {
+              new Selectors.EntityTypeSelector { objectType = "axioval:example.wall" }
+              new Selectors.EntityTypeSelector { objectType = "axioval:example.slab" }
+            }
+          }
+          boundary = new Selectors.PropertySelector {
+            property = "axioval:example.fire-rating"
+            operator = "matches"
+            value = new Values.StringValue { value = "EI ?(60|90|120)" }
+          }
+          tolerance = 0.05
+          overlap = 0.3
+        }
+      }
     }
     ```
 

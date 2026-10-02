@@ -104,8 +104,14 @@ MEASURED_PATH_RELATIONSHIP = re.compile(r"[^:\s|,;]+")
 # A derived relationship the checking engine computes, with its optional
 # tolerances, as a path step may name it.
 DERIVED_RELATIONSHIP = re.compile(
-    r"axioval:derived\.[a-z][a-z0-9-]*(;[a-z]+=[0-9]+(\.[0-9]+)?)*"
+    r"axioval:derived\.(?!group(?![a-z0-9-]))[a-z][a-z0-9-]*(;[a-z]+=[0-9]+(\.[0-9]+)?)*"
 )
+# A ruleset grouping's ID: not blank, and free of `:`, `;`, `|`, `/` and
+# whitespace, since it is part of the identity of every group it derives.
+GROUPING_ID = re.compile(r"[^:;|/\s]+")
+# The derived relationship from each member of a grouping to its group,
+# `axioval:derived.group;by=<grouping>`; `backward` reaches the members.
+DERIVED_GROUP_RELATIONSHIP = re.compile(r"axioval:derived\.group;by=([^:;|/\s]+)")
 # A relationship kind every source answers under its own relationship types,
 # as the engine names them (`axioval:relationship.<kind>`).
 RELATIONSHIP_KIND = re.compile(
@@ -115,7 +121,8 @@ RELATIONSHIP_KIND = re.compile(
 PATH_STEP_GRAMMAR = (
     "'Relationship[|Relationship...][:forward|backward|either][+]', each "
     "relationship a source relationship name, a derived relationship "
-    "'axioval:derived.<name>' or a relationship kind "
+    "'axioval:derived.<name>', a grouping's "
+    "'axioval:derived.group;by=<grouping>' or a relationship kind "
     "'axioval:relationship.<kind>'"
 )
 # Reserved property sets: engine vocabulary that binds to itself, never a
@@ -128,6 +135,7 @@ RESERVED_PROPERTY_SETS = {
     "axioval:body",
     "axioval:classification",
     "axioval:measured",
+    "axioval:group",
 }
 # The reserved set naming the classes a ruleset's classifications derive: its
 # property names are classification IDs of the same ruleset.
@@ -160,7 +168,14 @@ TRIMMED = (
     "\t\n\x0b\x0c\r \x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005"
     "\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
 )
-DERIVED_PROPERTY_SETS = {CLASSIFICATION_SET, MEASURED_SET}
+# The reserved set stating what the engine knows of a derived group: the
+# value its members share as text (`key`) and how many they are (`members`).
+# No other object has either.
+GROUP_SET = "axioval:group"
+GROUP_NAMES = {"key": "string", "members": "integer"}
+# How a grouping groups its members.
+GROUPING_KINDS = {"property", "classification", "compartment"}
+DERIVED_PROPERTY_SETS = {CLASSIFICATION_SET, MEASURED_SET, GROUP_SET}
 CLASSIFICATION_MODES = {"firstMatch", "allMatch"}
 SEVERITIES = {"info", "warning", "error"}
 # How another rule judged an object, as a rule-outcome selector selects it.
@@ -771,6 +786,7 @@ def resolve_selector_value(
     property_sets: dict[str, dict[str, Any]],
     context: str,
     classifications: dict[str, dict[str, Any]] | None = None,
+    groupings: set[str] | None = None,
 ) -> None:
     if value["type"] == "selector":
         validate_selector(
@@ -780,6 +796,7 @@ def resolve_selector_value(
             properties,
             property_sets,
             classifications=classifications,
+            groupings=groupings,
         )
     elif value["type"] == "table":
         # Selector cells name concepts like any selector parameter.
@@ -792,6 +809,7 @@ def resolve_selector_value(
                     property_sets,
                     f"{context}.value[{index}][{column_id!r}]",
                     classifications,
+                    groupings,
                 )
 
 
@@ -1178,6 +1196,12 @@ def property_name_error(property_set: Any, name: Any) -> str | None:
         return None
     if property_set == MEASURED_SET:
         return measured_name_error(name)
+    if property_set == GROUP_SET:
+        return (
+            None
+            if name in GROUP_NAMES
+            else "a derived group states only 'key' and 'members'"
+        )
     if not QUALIFIED_ID.fullmatch(name):
         return "property must be a qualified identifier"
     return None
@@ -1227,6 +1251,7 @@ def path_step_error(
         if not (
             relationship_name.fullmatch(alternative)
             or DERIVED_RELATIONSHIP.fullmatch(alternative)
+            or DERIVED_GROUP_RELATIONSHIP.fullmatch(alternative)
             or RELATIONSHIP_KIND.fullmatch(alternative)
         ):
             return f"path step {step!r} must be {PATH_STEP_GRAMMAR}"
@@ -1234,6 +1259,29 @@ def path_step_error(
             return f"path step {step!r} names {alternative!r} more than once"
         seen.add(alternative)
     return None
+
+
+def path_step_groupings(step: str) -> set[str]:
+    """The groupings a checked path step's `axioval:derived.group;by=<id>`
+    alternatives name."""
+    body = step[:-1] if step.endswith("+") else step
+    return {
+        match.group(1)
+        for alternative in body.split("|")
+        if (match := DERIVED_GROUP_RELATIONSHIP.match(alternative)) is not None
+    }
+
+
+def check_path_groupings(
+    path: list[str], groupings: set[str] | None, context: str
+) -> None:
+    """Bind the groupings a checked path names against the ruleset's, when
+    known: a group relationship names a grouping the same ruleset declares."""
+    if groupings is None:
+        return
+    for index, step in enumerate(path):
+        for grouping in sorted(path_step_groupings(step) - groupings):
+            fail(f"{context}[{index}]", f"unknown grouping {grouping!r}")
 
 
 def measured_name_error(name: str) -> str | None:
@@ -1380,8 +1428,14 @@ def derived_property_kind(
 
     A classification is read by its ID: a string for a first-match
     classification, a list of strings for an all-match one. A measured value
-    is a quantity, or an interval the application compares as one.
+    is a quantity, or an interval the application compares as one. A derived
+    group states its `key`, a string, and its `members`, an integer.
     """
+    if property_set == GROUP_SET:
+        reason = property_name_error(property_set, name)
+        if reason is not None:
+            fail(context, reason)
+        return GROUP_NAMES[name]
     if property_set == MEASURED_SET:
         reason = property_name_error(property_set, name)
         if reason is not None:
@@ -1418,12 +1472,14 @@ def validate_selector(
     property_sets: dict[str, dict[str, Any]] | None = None,
     *,
     classifications: dict[str, dict[str, Any]] | None = None,
+    groupings: set[str] | None = None,
 ) -> None:
     """Check a selector, and bind its concepts when the catalogs are given.
 
     `classifications` are the ruleset's classifications by ID, which the
-    reserved set `axioval:classification` names; with the catalogs given and
-    no classifications, none is declared.
+    reserved set `axioval:classification` names, and `groupings` the IDs of
+    its groupings, which `derivedGroup` selectors and group relationships
+    name; with the catalogs given and neither, none is declared.
     """
     value = object_value(value, context)
     kind = value.get("kind")
@@ -1582,6 +1638,7 @@ def validate_selector(
                 properties,
                 property_sets,
                 classifications=classifications,
+                groupings=groupings,
             )
     elif kind == "not":
         exact_keys(value, {"kind", "operand"}, set(), context)
@@ -1592,6 +1649,7 @@ def validate_selector(
             properties,
             property_sets,
             classifications=classifications,
+            groupings=groupings,
         )
     elif kind == "related":
         exact_keys(value, {"kind", "path", "selector"}, {"quantifier"}, context)
@@ -1607,6 +1665,8 @@ def validate_selector(
             or value["quantifier"] not in RELATED_QUANTIFIERS
         ):
             fail(context, "quantifier must be 'any', 'all', or 'none'")
+        if properties is not None:
+            check_path_groupings(path, groupings or set(), f"{context}.path")
         validate_selector(
             value["selector"],
             f"{context}.selector",
@@ -1614,6 +1674,7 @@ def validate_selector(
             properties,
             property_sets,
             classifications=classifications,
+            groupings=groupings,
         )
     elif kind == "derivedClass":
         exact_keys(
@@ -1638,6 +1699,15 @@ def validate_selector(
                     f"the classification {value['classification']!r} has no class "
                     f"{value['class']!r}",
                 )
+    elif kind == "derivedGroup":
+        exact_keys(value, {"kind", "grouping"}, set(), context)
+        if type(value["grouping"]) is not str or not value["grouping"].strip():
+            fail(context, "grouping must be a non-blank string")
+        # With the catalogs given the selector binds against the ruleset's
+        # groupings, as a derived-class selector does against its
+        # classifications.
+        if properties is not None and value["grouping"] not in (groupings or set()):
+            fail(context, f"unknown grouping {value['grouping']!r}")
     elif kind == "ruleOutcome":
         exact_keys(value, {"kind", "rule", "outcome"}, set(), context)
         # Whether `rule` names a rule of the same ruleset is checked once the
@@ -1762,6 +1832,7 @@ def validate_severity_overrides(
     properties: dict[str, dict[str, Any]],
     property_sets: dict[str, dict[str, Any]],
     classifications: dict[str, dict[str, Any]],
+    groupings: set[str],
 ) -> None:
     """Check a rule's `severityOverrides`, binding each selector's concepts."""
     overrides = list_value(value, context)
@@ -1778,6 +1849,7 @@ def validate_severity_overrides(
             properties,
             property_sets,
             classifications=classifications,
+            groupings=groupings,
         )
         if type(entry["severity"]) is not str or entry["severity"] not in SEVERITIES:
             fail(entry_context, "severity must be 'info', 'warning', or 'error'")
@@ -1789,6 +1861,7 @@ def validate_categories(
     properties: dict[str, dict[str, Any]],
     property_sets: dict[str, dict[str, Any]],
     classifications: dict[str, dict[str, Any]],
+    groupings: set[str],
 ) -> None:
     """Check a rule's `categories`: bound properties, sets, and paths."""
     levels = list_value(value, context)
@@ -1829,6 +1902,7 @@ def validate_categories(
                 error = path_step_error(step)
                 if error is not None:
                     fail(f"{level_context}.path[{step_index}]", error)
+            check_path_groupings(path, groupings, f"{level_context}.path")
 
 
 def validate_applicability(
@@ -1838,6 +1912,7 @@ def validate_applicability(
     properties: dict[str, dict[str, Any]],
     property_sets: dict[str, dict[str, Any]],
     classifications: dict[str, dict[str, Any]],
+    groupings: set[str],
 ) -> set[str]:
     value = object_value(value, context)
     if "kind" in value:
@@ -1848,6 +1923,7 @@ def validate_applicability(
             properties,
             property_sets,
             classifications=classifications,
+            groupings=groupings,
         )
         return set()
     exact_keys(value, {"groups"}, set(), context)
@@ -1879,6 +1955,7 @@ def validate_applicability(
             properties,
             property_sets,
             classifications=classifications,
+            groupings=groupings,
         )
         group_ids.add(group_id)
     return group_ids
@@ -1906,12 +1983,14 @@ def validate_classifications(
     object_types: dict[str, dict[str, Any]],
     properties: dict[str, dict[str, Any]],
     property_sets: dict[str, dict[str, Any]],
+    groupings: set[str],
 ) -> dict[str, dict[str, Any]]:
     """Check a ruleset's `classifications` and return them by ID.
 
     Each is keyed by its non-blank ID and has rows of a selector bound
     against the concept catalogs and a non-blank class. Rows never read a
-    rule's outcome, since classes are derived before any rule runs, and
+    rule's outcome, since classes are derived before any rule runs, nor a
+    derived group, since groups are derived after the classes, and
     classifications never read one another in a cycle. A hierarchical
     classification's declared `classes` form a tree (`validate_classes`) and
     its rows assign declared classes.
@@ -1966,6 +2045,7 @@ def validate_classifications(
                 properties,
                 property_sets,
                 classifications=classifications,
+                groupings=groupings,
             )
             rules: set[str] = set()
             selector_rule_references(row["selector"], rules)
@@ -1974,6 +2054,12 @@ def validate_classifications(
                     row_context,
                     "a row must not read a rule's outcome; classes are derived "
                     "before any rule runs",
+                )
+            if selector_reads_groups(row["selector"]):
+                fail(
+                    row_context,
+                    "a row must not read a derived group; groups are derived "
+                    "after the classes",
                 )
             selector_classification_reads(row["selector"], read)
         reads[key] = read
@@ -1991,6 +2077,206 @@ def validate_classifications(
             )
         pending -= set(ready)
     return classifications
+
+
+def selector_reads_groups(value: dict[str, Any]) -> bool:
+    """Whether a checked selector reads derived groups: a `derivedGroup`
+    selector or a property of the reserved set `axioval:group`."""
+    kind = value["kind"]
+    if kind == "derivedGroup":
+        return True
+    if kind == "property":
+        return value.get("propertySet") == GROUP_SET
+    if kind in {"allOf", "anyOf"}:
+        return any(selector_reads_groups(operand) for operand in value["operands"])
+    if kind == "not":
+        return selector_reads_groups(value["operand"])
+    if kind == "related":
+        return selector_reads_groups(value["selector"])
+    return False
+
+
+def validate_grouping_selector(
+    value: Any,
+    context: str,
+    object_types: dict[str, dict[str, Any]],
+    properties: dict[str, dict[str, Any]],
+    property_sets: dict[str, dict[str, Any]],
+    classifications: dict[str, dict[str, Any]],
+    groupings: set[str],
+) -> None:
+    """Check a selector of a grouping, bound against the concept catalogs.
+
+    Groups are derived from the model alone before any rule runs, so the
+    selector reads neither a rule's outcome nor a derived group.
+    """
+    validate_selector(
+        value,
+        context,
+        object_types,
+        properties,
+        property_sets,
+        classifications=classifications,
+        groupings=groupings,
+    )
+    rules: set[str] = set()
+    selector_rule_references(value, rules)
+    if rules:
+        fail(
+            context,
+            "a grouping must not read a rule's outcome; groups are derived "
+            "before any rule runs",
+        )
+    if selector_reads_groups(value):
+        fail(
+            context,
+            "a grouping must not read a derived group; groups are derived "
+            "from the model alone",
+        )
+
+
+def validate_grouping_key(
+    value: Any,
+    context: str,
+    object_types: dict[str, dict[str, Any]],
+    properties: dict[str, dict[str, Any]],
+    property_sets: dict[str, dict[str, Any]],
+    classifications: dict[str, dict[str, Any]],
+    groupings: set[str],
+) -> None:
+    """Check what a grouping groups its members `by`, tagged by `kind`.
+
+    - `property`: equal values of one bound property, never one of the
+      reserved set `axioval:group`.
+    - `classification`: equal codes in the non-blank classification `system`
+      the source states.
+    - `compartment`: connected regions of members not separated by an
+      element `boundary` selects, joined across `separators`; the optional
+      `tolerance` is a finite number of at least zero, `overlap` a finite
+      positive one.
+    """
+    value = object_value(value, context)
+    kind = value.get("kind")
+    if type(kind) is not str or kind not in GROUPING_KINDS:
+        fail(context, "kind must be 'property', 'classification', or 'compartment'")
+    if kind == "property":
+        exact_keys(value, {"kind", "property"}, {"propertySet"}, context)
+        property_set = value.get("propertySet")
+        if "propertySet" in value and (
+            type(property_set) is not str or not QUALIFIED_ID.fullmatch(property_set)
+        ):
+            fail(context, "propertySet must be a qualified identifier")
+        if property_set == GROUP_SET:
+            fail(context, "a grouping must not group by a derived group's own facts")
+        reason = property_name_error(property_set, value["property"])
+        if reason is not None:
+            fail(context, reason)
+        if property_set in DERIVED_PROPERTY_SETS:
+            # Derived sets name engine or ruleset vocabulary, never a concept.
+            derived_property_kind(
+                property_set, value["property"], classifications, context
+            )
+        else:
+            if value["property"] not in properties:
+                fail(context, f"unknown property concept {value['property']!r}")
+            # Reserved sets are engine vocabulary and bind to themselves.
+            if (
+                property_set is not None
+                and property_set not in RESERVED_PROPERTY_SETS
+                and property_set not in property_sets
+            ):
+                fail(context, f"unknown property-set concept {property_set!r}")
+    elif kind == "classification":
+        exact_keys(value, {"kind", "system"}, set(), context)
+        if type(value["system"]) is not str or not value["system"].strip():
+            fail(context, "system must be a non-blank string")
+    else:
+        exact_keys(
+            value, {"kind", "separators", "boundary"}, {"tolerance", "overlap"}, context
+        )
+        for key, positive in (("tolerance", False), ("overlap", True)):
+            if key not in value:
+                continue
+            number = value[key]
+            if (
+                type(number) not in {int, float}
+                or not math.isfinite(number)
+                or number < 0
+                or (positive and number == 0)
+            ):
+                fail(
+                    context,
+                    f"{key} must be a finite number "
+                    + ("greater than zero" if positive else "of at least zero"),
+                )
+        for key in ("separators", "boundary"):
+            validate_grouping_selector(
+                value[key],
+                f"{context}.{key}",
+                object_types,
+                properties,
+                property_sets,
+                classifications,
+                groupings,
+            )
+
+
+def validate_groupings(
+    value: Any,
+    context: str,
+    object_types: dict[str, dict[str, Any]],
+    properties: dict[str, dict[str, Any]],
+    property_sets: dict[str, dict[str, Any]],
+    classifications: dict[str, dict[str, Any]],
+) -> set[str]:
+    """Check a ruleset's `groupings` and return their IDs.
+
+    Each is keyed by its ID, which is not blank and holds no `:`, `;`, `|`,
+    `/` or whitespace, since it is part of every group's identity. Its
+    `members` selector and what it groups them `by` bind against the concept
+    catalogs and the ruleset's classifications, and read neither a rule's
+    outcome nor a derived group.
+    """
+    groupings = object_value(value, context)
+    if not groupings:
+        fail(context, "groupings is omitted when empty")
+    declared = set(groupings)
+    for key, grouping in groupings.items():
+        entry_context = f"{context}[{key!r}]"
+        grouping = object_value(grouping, entry_context)
+        exact_keys(
+            grouping, {"id", "name", "members", "by"}, {"description"}, entry_context
+        )
+        if type(grouping["id"]) is not str or key != grouping["id"]:
+            fail(entry_context, "grouping map key and id must match")
+        if not GROUPING_ID.fullmatch(key):
+            fail(
+                entry_context,
+                "a grouping id must not be blank or hold ':', ';', '|', '/' or "
+                "whitespace",
+            )
+        localized_text(grouping["name"], f"{entry_context}.name")
+        if "description" in grouping:
+            localized_text(grouping["description"], f"{entry_context}.description")
+        validate_grouping_selector(
+            grouping["members"],
+            f"{entry_context}.members",
+            object_types,
+            properties,
+            property_sets,
+            classifications,
+            declared,
+        )
+        validate_grouping_key(
+            grouping["by"],
+            f"{entry_context}.by",
+            object_types,
+            properties,
+            property_sets,
+            classifications,
+            declared,
+        )
+    return declared
 
 
 def validate_parameter_citations(
@@ -2224,7 +2510,7 @@ def bind_ruleset(
     exact_keys(
         value,
         {"schemaVersion", "package", "sources", "definitionPackages", "root"},
-        {"classifications"},
+        {"classifications", "groupings"},
         context,
     )
     package_metadata(value["package"], f"{context}.package")
@@ -2290,6 +2576,12 @@ def bind_ruleset(
                     f"component id {component_id!r} is both {component_kinds[component_id]} and {kind}",
                 )
             component_kinds[component_id] = kind
+    # The groupings' IDs, which classification rows may not read and every
+    # other selector binds against; the groupings themselves are checked once
+    # the classifications their selectors may read are.
+    groupings: set[str] = set()
+    if "groupings" in value:
+        groupings = set(object_value(value["groupings"], f"{context}.groupings"))
     classifications: dict[str, dict[str, Any]] = {}
     if "classifications" in value:
         classifications = validate_classifications(
@@ -2298,6 +2590,16 @@ def bind_ruleset(
             object_types,
             properties,
             property_sets,
+            groupings,
+        )
+    if "groupings" in value:
+        validate_groupings(
+            value["groupings"],
+            f"{context}.groupings",
+            object_types,
+            properties,
+            property_sets,
+            classifications,
         )
     for definition_id, definition in definitions.items():
         for parameter_id, parameter in definition["parameters"].items():
@@ -2312,6 +2614,7 @@ def bind_ruleset(
                         property_sets,
                         value_context,
                         classifications,
+                        groupings,
                     )
                     resolve_object_type_reference(
                         candidate, object_types, value_context
@@ -2333,6 +2636,7 @@ def bind_ruleset(
                     property_sets,
                     allowed_context,
                     classifications,
+                    groupings,
                 )
                 resolve_object_type_reference(allowed, object_types, allowed_context)
                 resolve_property_reference(
@@ -2481,6 +2785,7 @@ def bind_ruleset(
                     property_sets,
                     f"{rule_context}.parameters[{parameter_id!r}].value",
                     classifications,
+                    groupings,
                 )
                 resolve_object_type_reference(
                     checked,
@@ -2524,6 +2829,7 @@ def bind_ruleset(
                 properties,
                 property_sets,
                 classifications,
+                groupings,
             )
             validate_requirements(
                 rule.get("requirements", []),
@@ -2549,6 +2855,7 @@ def bind_ruleset(
                     properties,
                     property_sets,
                     classifications,
+                    groupings,
                 )
             if "categories" in rule:
                 validate_categories(
@@ -2557,6 +2864,7 @@ def bind_ruleset(
                     properties,
                     property_sets,
                     classifications,
+                    groupings,
                 )
             # Every rule this one reads: its folders' gates and its own, and
             # the rule-outcome selectors of its applicability, parameters

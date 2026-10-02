@@ -260,6 +260,89 @@ const function normalizedClassification(
     && !(key == "classes" && value.isEmpty)
   )
 
+/// What a grouping groups its members by, tagged by `kind`.
+abstract class GroupingKey {
+  kind: String
+}
+
+/// Equal values of one property, compared as a property selector compares
+/// it: text as stated, an integer, a boolean or a number. Members of one
+/// source with one value form one group. A derived class is named in the reserved set
+/// `axioval:classification`; a derived group's own facts in `axioval:group`
+/// are refused.
+class PropertyGroupingKey extends GroupingKey {
+  kind: "property" = "property"
+  /// Normalized JSON omits it when unset.
+  propertySet: Types.QualifiedIdentifier(this != Types.groupSet)?
+  property: String(Types.isPropertyName(propertySet, this))
+}
+
+/// Equal codes in one classification system, as the source states them: the
+/// code a member's assignment in `system`, such as `Uniclass`, carries.
+class ClassificationGroupingKey extends GroupingKey {
+  kind: "classification" = "classification"
+  system: String(!isBlank)
+}
+
+/// Compartments: the connected regions of members not separated by an
+/// element `boundary` selects, such as fire compartments enclosed by walls
+/// and slabs of a sufficient fire rating.
+///
+/// Two members join across a `separators` element `boundary` does not select
+/// when they lie on its opposite faces (the derived relationship
+/// `axioval:derived.adjacent-across` with `tolerance` and `overlap`), and
+/// where they touch within `tolerance` without lying on opposite faces of a
+/// boundary element. Each connected region is one group, keyed by its least
+/// member's identity. A join that may or may not hold leaves the
+/// compartments it could merge undecided.
+class CompartmentGroupingKey extends GroupingKey {
+  kind: "compartment" = "compartment"
+  /// The elements members may lie on opposite faces of, such as walls and
+  /// slabs.
+  separators: Selectors.Selector
+  /// The separating elements that bound a compartment.
+  boundary: Selectors.Selector
+  /// Largest gap between a face or another member and a member, in metres;
+  /// the checking application assumes 0.05 when unset. Normalized JSON omits
+  /// it when unset.
+  tolerance: Number(isFinite && this >= 0)?
+  /// Least overlap along a face, in metres; the checking application assumes
+  /// 0.3 when unset. Normalized JSON omits it when unset.
+  overlap: Number(isFinite && this > 0)?
+}
+
+/// Render a grouping key without an unset property set, tolerance, or
+/// overlap.
+const function normalizedGroupingKey(key: GroupingKey): Map<String, Any> =
+  key.toMap().filter((_, value) -> value != null)
+
+/// A named set of groups the ruleset derives from its `members`, such as the
+/// flats a flat number on every room implies.
+///
+/// Each group is a derived object of kind `axioval:group` with the members
+/// that share its key: a `derivedGroup` selector selects them, the
+/// relationship `axioval:derived.group;by=<id>` runs from each member to its
+/// group, and the reserved set `axioval:group` states each group's `key` and
+/// `members` count. A member without a key is ungrouped; one whose key cannot
+/// be determined leaves the groups of its source undecided, never ungrouped.
+/// The selectors consult neither a rule's outcome nor a derived group, since
+/// groups are derived from the model before any rule runs; the binder checks
+/// them.
+class GroupingDefinition {
+  id: Types.GroupingId
+  name: Types.LocalizedText
+  /// Normalized JSON omits it when unset.
+  description: Types.LocalizedText?
+  /// The objects grouped, such as the spaces.
+  members: Selectors.Selector
+  /// What members are grouped by.
+  by: GroupingKey
+}
+
+/// Render a grouping without an unset description.
+const function normalizedGrouping(grouping: GroupingDefinition): Map<String, Any> =
+  grouping.toMap().filter((_, value) -> value != null)
+
 /// Concrete ruleset package (ABox-like): instances reference definitions by
 /// stable ID. Definition and capability resolution happens in the consuming
 /// application and must fail closed when unavailable.
@@ -275,14 +358,18 @@ root: RuleFolder
 classifications: Mapping<String, ClassificationDefinition>(
   toMap().every((key, value) -> key == value.id)
 ) = new {}
+/// Groupings the ruleset derives, by ID. Normalized JSON omits it when empty.
+groupings: Mapping<String, GroupingDefinition>(
+  toMap().every((key, value) -> key == value.id)
+) = new {}
 
 output {
-  // Omit an empty `classifications`, so packages that declare none keep
-  // byte-identical normalized JSON.
+  // Omit an empty `classifications` or `groupings`, so packages that declare
+  // none keep byte-identical normalized JSON.
   value =
-    let (properties = module.toMap())
-      if (properties["classifications"].isEmpty) properties.remove("classifications")
-      else properties
+    module.toMap().filter((key, value) ->
+      !((key == "classifications" || key == "groupings") && value.isEmpty)
+    )
   renderer {
     // Omit defaulted property-, property-pattern-, and source-selector flags,
     // related-selector quantifiers, unset classification codes, and empty rule
@@ -293,6 +380,8 @@ output {
       [CategoryLevel] = (it) -> normalizedCategoryLevel(it)
       [ClassificationDefinition] = (it) -> normalizedClassification(it)
       [ClassDefinition] = (it) -> normalizedClass(it)
+      [GroupingDefinition] = (it) -> normalizedGrouping(it)
+      [GroupingKey] = (it) -> normalizedGroupingKey(it)
       [Selectors.DerivedClassSelector] = (it) -> Selectors.normalizedDerivedClassSelector(it)
       [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
       [Selectors.PropertyPatternSelector] = (it) ->
