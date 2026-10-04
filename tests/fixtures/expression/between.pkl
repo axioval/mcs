@@ -1,0 +1,24 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.BetweenExpression {
+  operand = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "extent_z"
+  }
+  low = new Expressions.LiteralExpression {
+    value = new Values.QuantityValue {
+      value = 2.4
+      unit = "m"
+    }
+  }
+  high = new Expressions.LiteralExpression {
+    value = new Values.QuantityValue {
+      value = 4.0
+      unit = "m"
+    }
+  }
+  highInclusive = false
+}

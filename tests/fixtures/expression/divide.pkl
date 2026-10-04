@@ -1,0 +1,14 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.DivideExpression {
+  left = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "volume"
+  }
+  right = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "area"
+  }
+}

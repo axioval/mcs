@@ -1,0 +1,483 @@
+/// Typed expressions: values a rule computes and combines, as data.
+///
+/// The language is total: it has no loops, no recursion, no user-defined
+/// functions and no package-provided code, so every finite tree terminates.
+/// The checking application evaluates it over intervals with three-valued
+/// truth; this module only states it. Every node is tagged by `kind` like a
+/// selector and may carry an author `label` that findings name in place of
+/// the node's rendered form.
+///
+/// Keep this module beside `Selectors.pkl` and `Values.pkl` rather than inside
+/// them: an aggregate's member filter is a selector and a literal is a value,
+/// so `ExpressionSelector` and `ExpressionValue` extend those modules' base
+/// classes here instead of importing expressions back into them.
+module axioval.schema.Expressions
+
+import "Types.pkl"
+import "Values.pkl"
+import "Selectors.pkl"
+
+/// How deeply an expression may nest; the binder refuses a deeper one.
+const maxDepth = 64
+
+/// How many nodes an expression may hold, those of its aggregates' member
+/// filters included; the binder refuses a larger one.
+const maxNodes = 2048
+
+/// How deeply aggregates may nest within one another's `value` or `where`;
+/// the binder refuses deeper nesting.
+const maxAggregateNesting = 2
+
+/// The lists of members the checking application measures one by one, such
+/// as a flight's `steps`, which an aggregate may range over by name, written
+/// `name[;key=value...]`. The binder checks each parameter's `key=value`
+/// shape; the application checks the parameters themselves.
+const measuredMemberLists: Set<String> = Set(
+  "axes_within", "end_walls", "exit_pairs", "free_placements", "guard_edges",
+  "handrails", "opening_placements", "parallel_pairs", "recesses", "runs",
+  "steps", "swing_spaces"
+)
+
+/// Whether `name` names a measured member list: a name of
+/// `measuredMemberLists`, matched ignoring ASCII case and surrounding
+/// whitespace, then `;`-separated `key=value` parameters.
+const function isMeasuredMembers(name: String): Boolean =
+  let (parts = name.split(";"))
+    measuredMemberLists.contains(parts.first.trim().toLowerCase())
+      && parts.drop(1).every((part) -> part.contains("=") && !part.split("=").first.isBlank)
+
+/// Whether `name` can name a property an expression reads in `propertySet`.
+///
+/// In `axioval:value` it is a value the ruleset derives, by its name, and in
+/// `axioval:member` a field of a measured member. Any other name is checked as
+/// a selector checks it: a qualified property concept, which the binder
+/// requires to be declared, or a name of the derived sets
+/// `axioval:classification`, `axioval:measured` and `axioval:group`.
+const function isPropertyName(propertySet: String?, name: String): Boolean =
+  if (propertySet == Types.valueSet) name.matches(Regex(#"[a-z][A-Za-z0-9]*(?:[._-][A-Za-z0-9]+)*"#))
+  else if (propertySet == Types.memberSet) !name.isBlank
+  else Types.isPropertyName(propertySet, name)
+
+/// A node of an expression tree, tagged by `kind`.
+abstract class Expression {
+  kind: String
+  /// What findings call the node in place of its rendered form. Normalized
+  /// JSON omits it when unset and writes it after the node's other fields.
+  label: String(!isBlank)?
+}
+
+/// An expression with one operand.
+abstract class UnaryExpression extends Expression {
+  operand: Expression
+}
+
+/// An expression with a left and a right operand.
+abstract class BinaryExpression extends Expression {
+  left: Expression
+  right: Expression
+}
+
+/// An expression over a non-empty list of operands.
+abstract class ListExpression extends Expression {
+  operands: Listing<Expression>(!isEmpty)
+}
+
+/// An enumeration literal naming a value as a source states it, such as
+/// `NOTDEFINED`; unlike an enumeration parameter value it is not limited to
+/// identifiers.
+class EnumLiteralValue extends Values.ParameterValue {
+  type: "enum" = "enum"
+  value: String
+}
+
+/// A literal: one value of a scalar parameter value kind, in the same wire
+/// form. Lists, tables, references and selectors are no literals, and a
+/// number or quantity is finite.
+typealias ScalarValue =
+  Values.BooleanValue
+  | Values.IntegerValue
+  | Values.NumberValue(value.isFinite)
+  | Values.QuantityValue(value.isFinite, !unit.isBlank)
+  | Values.StringValue
+  | Values.EnumValue
+  | EnumLiteralValue
+  | Values.DateValue
+  | Values.DateTimeValue
+
+/// A constant of one scalar kind.
+class LiteralExpression extends Expression {
+  kind: "literal" = "literal"
+  value: ScalarValue
+}
+
+/// The source states no value.
+class NullExpression extends Expression {
+  kind: "null" = "null"
+}
+
+/// Whose property a property expression reads: `subject`, the rule's checked
+/// object, even inside an aggregate's `value` or `where`.
+typealias PropertyScope = "subject"
+
+/// A property of the object in scope. `propertySet` is an optional exact
+/// container qualifier, as on a property selector; names in
+/// `axioval:measured` carry their parameters
+/// (`bottom_above_level;path=...`).
+class PropertyExpression extends Expression {
+  kind: "property" = "property"
+  /// A property-set concept, a reserved set such as `axioval:attributes`, or
+  /// a derived set. Normalized JSON omits it when unset.
+  propertySet: Types.QualifiedIdentifier?
+  property: String(isPropertyName(propertySet, this))
+  /// Normalized JSON omits it when unset: the object in scope.
+  of: PropertyScope?
+}
+
+/// A parameter of the rule, by its ID: a scalar parameter the rule binds or
+/// whose definition gives a default.
+class ParameterExpression extends Expression {
+  kind: "parameter" = "parameter"
+  name: Types.Identifier
+}
+
+/// A value the ruleset derives, by its name in the ruleset's `values`.
+class DerivedExpression extends Expression {
+  kind: "derived" = "derived"
+  name: Types.Identifier
+}
+
+/// The `column` cell of the most specific row of the rule's `table`
+/// parameter whose key columns match `keys`, as a keyed limit selects a row.
+/// Normalized JSON orders `keys` by column ID.
+class LookupExpression extends Expression {
+  kind: "lookup" = "lookup"
+  table: Types.Identifier
+  /// The value each key column is matched against, by column ID.
+  keys: Mapping<Types.Identifier, Expression>(!isEmpty)
+  column: Types.Identifier
+}
+
+class NotExpression extends UnaryExpression {
+  kind: "not" = "not"
+}
+
+class AndExpression extends ListExpression {
+  kind: "and" = "and"
+}
+
+class OrExpression extends ListExpression {
+  kind: "or" = "or"
+}
+
+/// `antecedent -> consequent`.
+class ImpliesExpression extends Expression {
+  kind: "implies" = "implies"
+  antecedent: Expression
+  consequent: Expression
+}
+
+class XorExpression extends BinaryExpression {
+  kind: "xor" = "xor"
+}
+
+/// The binary comparisons of a compare expression. The ordered operators
+/// also take dates and date-times, compared chronologically. `like` is a
+/// wildcard pattern (`*`, `?`, `\` escapes) and `matches` a regular
+/// expression, both over the whole text; `contains` asks whether the right
+/// text occurs in the left.
+typealias ExpressionComparison =
+  "equals" | "notEquals" | "lessThan" | "lessThanOrEquals" | "greaterThan"
+  | "greaterThanOrEquals" | "like" | "matches" | "contains"
+
+/// `left operator right`.
+class CompareExpression extends Expression {
+  kind: "compare" = "compare"
+  operator: ExpressionComparison
+  left: Expression
+  right: Expression
+  /// Whether text comparisons respect case; `false` folds both sides.
+  /// Normalized JSON omits the default `true`.
+  caseSensitive: Boolean = true
+}
+
+/// `low <= operand <= high`, each bound inclusive unless stated otherwise.
+class BetweenExpression extends UnaryExpression {
+  kind: "between" = "between"
+  low: Expression
+  high: Expression
+  /// Normalized JSON omits the default `true`.
+  lowInclusive: Boolean = true
+  /// Normalized JSON omits the default `true`.
+  highInclusive: Boolean = true
+}
+
+/// Whether `operand` equals one of `values`.
+class OneOfExpression extends UnaryExpression {
+  kind: "oneOf" = "oneOf"
+  values: Listing<Expression>(!isEmpty)
+  /// Normalized JSON omits the default `true`.
+  caseSensitive: Boolean = true
+}
+
+/// Whether `operand` equals none of `values`.
+class NoneOfExpression extends UnaryExpression {
+  kind: "noneOf" = "noneOf"
+  values: Listing<Expression>(!isEmpty)
+  /// Normalized JSON omits the default `true`.
+  caseSensitive: Boolean = true
+}
+
+/// Whether `operand` has a value: not `null`.
+class IsDefinedExpression extends UnaryExpression {
+  kind: "isDefined" = "isDefined"
+}
+
+/// Whether `operand` is `null`.
+class IsUndefinedExpression extends UnaryExpression {
+  kind: "isUndefined" = "isUndefined"
+}
+
+/// One `when` -> `then` branch of an if expression.
+class Branch {
+  `when`: Expression
+  `then`: Expression
+}
+
+/// The `then` of the first branch whose `when` holds, else `else`. A ternary
+/// is the one-branch case.
+class IfExpression extends Expression {
+  kind: "if" = "if"
+  branches: Listing<Branch>(!isEmpty)
+  `else`: Expression
+}
+
+/// The first operand that is not `null`.
+class CoalesceExpression extends ListExpression {
+  kind: "coalesce" = "coalesce"
+}
+
+class AddExpression extends BinaryExpression {
+  kind: "add" = "add"
+}
+
+class SubtractExpression extends BinaryExpression {
+  kind: "subtract" = "subtract"
+}
+
+class MultiplyExpression extends BinaryExpression {
+  kind: "multiply" = "multiply"
+}
+
+class DivideExpression extends BinaryExpression {
+  kind: "divide" = "divide"
+}
+
+/// Unary minus.
+class NegateExpression extends UnaryExpression {
+  kind: "negate" = "negate"
+}
+
+class AbsExpression extends UnaryExpression {
+  kind: "abs" = "abs"
+}
+
+class MinExpression extends ListExpression {
+  kind: "min" = "min"
+}
+
+class MaxExpression extends ListExpression {
+  kind: "max" = "max"
+}
+
+/// `operand` rounded to the nearest multiple of `step`.
+class RoundExpression extends UnaryExpression {
+  kind: "round" = "round"
+  step: Expression
+}
+
+class FloorExpression extends UnaryExpression {
+  kind: "floor" = "floor"
+}
+
+class CeilExpression extends UnaryExpression {
+  kind: "ceil" = "ceil"
+}
+
+class SqrtExpression extends UnaryExpression {
+  kind: "sqrt" = "sqrt"
+}
+
+/// The sine of a plane angle.
+class SinExpression extends UnaryExpression {
+  kind: "sin" = "sin"
+}
+
+/// The cosine of a plane angle.
+class CosExpression extends UnaryExpression {
+  kind: "cos" = "cos"
+}
+
+/// The tangent of a plane angle.
+class TanExpression extends UnaryExpression {
+  kind: "tan" = "tan"
+}
+
+/// The plane angle of the vector `(x, y)`.
+class Atan2Expression extends Expression {
+  kind: "atan2" = "atan2"
+  y: Expression
+  x: Expression
+}
+
+/// How a slope is stated: `ratio`, rise over run; `percent`, rise over run
+/// times 100; `angle`, the inclination, a plane angle.
+typealias SlopeForm = "ratio" | "percent" | "angle"
+
+/// A slope restated in another form: `1:12` as a ratio is `8.33` as a
+/// percentage and about `4.76` degrees as an angle.
+class ConvertSlopeExpression extends UnaryExpression {
+  kind: "convertSlope" = "convertSlope"
+  from: SlopeForm
+  to: SlopeForm
+}
+
+/// What an aggregate computes over its members.
+///
+/// - `count`, how many members there are, takes no `value`.
+/// - `sum`, `min`, `max` and `average` combine the members' values.
+/// - `any`, `all` and `none` test the members' truth `value`; `all` needs a
+///   member.
+/// - `distinctCount` counts the members' distinct values.
+typealias AggregateFunction =
+  "count" | "sum" | "min" | "max" | "average" | "any" | "all" | "none" | "distinctCount"
+
+/// The objects an aggregate ranges over, tagged by `kind`.
+abstract class AggregateSource {
+  kind: String
+}
+
+/// The objects a relationship path reaches from the object in scope, its
+/// steps written as a related selector's.
+class PathSource extends AggregateSource {
+  kind: "path" = "path"
+  path: Listing<String(!isEmpty)>(!isEmpty)
+}
+
+/// The members of the derived group of the ruleset's `grouping` the object in
+/// scope is, or belongs to.
+class GroupSource extends AggregateSource {
+  kind: "group" = "group"
+  grouping: Types.GroupingId
+}
+
+/// Every object the selector selects, the object in scope included when it is
+/// selected: the counterparts of a pair rule.
+class SelectorSource extends AggregateSource {
+  kind: "selector" = "selector"
+  selector: Selectors.Selector
+}
+
+/// The members the checking application measures of the object in scope, by
+/// a measured member list written `name[;key=value...]`, such as `steps`. The
+/// object in scope stays the owner; the aggregate's `value` reads each
+/// member's fields in the reserved set `axioval:member`. It takes no `where`:
+/// a condition on members is part of the value.
+class MeasuredSource extends AggregateSource {
+  kind: "measured" = "measured"
+  name: String(isMeasuredMembers(this))
+}
+
+/// An aggregate over the objects `over` reaches from the object in scope,
+/// those `where` selects: `value` is evaluated with each member in scope. A
+/// member whose membership cannot be decided widens the result or leaves it
+/// not evaluated, never dropped.
+class AggregateExpression extends Expression {
+  kind: "aggregate" = "aggregate"
+  `function`: AggregateFunction
+  over: AggregateSource
+  /// The members' filter. Normalized JSON omits it when unset; an aggregate
+  /// over measured members takes none.
+  `where`: Selectors.Selector?(this == null || !(over is MeasuredSource))
+  /// Required unless the aggregate counts, and rejected on a count.
+  /// Normalized JSON omits it when unset.
+  value: Expression?((`function` == "count") == (this == null))
+}
+
+/// How the rule `rule` of the same ruleset judged the object in scope: true
+/// when it passed it, false when it reported a finding about it, `null` when
+/// it did not select it, and not evaluated when it left it open.
+class RuleOutcomeExpression extends Expression {
+  kind: "ruleOutcome" = "ruleOutcome"
+  rule: Types.Identifier
+}
+
+/// How many findings the rule `rule` reported about the object in scope: 0
+/// when it passed or did not select it.
+class FindingCountExpression extends Expression {
+  kind: "findingCount" = "findingCount"
+  rule: Types.Identifier
+}
+
+/// The greatest graded deviation of the rule `rule`'s findings about the
+/// object in scope, a plain number; `null` when it reported none graded.
+class DeviationExpression extends Expression {
+  kind: "deviation" = "deviation"
+  rule: Types.Identifier
+}
+
+class ConcatExpression extends ListExpression {
+  kind: "concat" = "concat"
+}
+
+/// The number of characters of a text.
+class LengthExpression extends UnaryExpression {
+  kind: "length" = "length"
+}
+
+class LowerExpression extends UnaryExpression {
+  kind: "lower" = "lower"
+}
+
+class UpperExpression extends UnaryExpression {
+  kind: "upper" = "upper"
+}
+
+class TrimExpression extends UnaryExpression {
+  kind: "trim" = "trim"
+}
+
+/// Select the objects for which `expression`, a truth, holds.
+///
+/// It is evaluated per candidate object with three-valued truth: true
+/// selects, false and `null` do not, and a value that cannot be obtained or
+/// decided leaves the object not evaluated, never skipped. It reads
+/// properties, measured and derived values, never a rule's parameters.
+class ExpressionSelector extends Selectors.Selector {
+  kind: "expression" = "expression"
+  expression: Expression
+}
+
+/// An expression carried as the value of an `expression` parameter, which
+/// the rule's capability evaluates per object.
+class ExpressionValue extends Values.ParameterValue {
+  type: "expression" = "expression"
+  value: Expression
+}
+
+/// Render an expression node with its fields in declaration order, `label`
+/// last, without unset fields or the default `true` of `caseSensitive`,
+/// `lowInclusive` and `highInclusive`, and with a lookup's `keys` ordered by
+/// column ID, as the checking application writes it.
+const function normalizedExpression(expression: Expression): Map<String, Any> =
+  let (fields = expression.toMap().filter((key, value) ->
+    key != "label"
+      && value != null
+      && !(Set("caseSensitive", "lowInclusive", "highInclusive").contains(key) && value == true)
+  ))
+  let (ordered =
+    if (expression is LookupExpression)
+      let (keys = expression.keys.toMap())
+        fields.put("keys", keys.keys.toList().sort().fold(Map(), (map, key) -> map.put(key, keys[key])))
+    else fields
+  )
+    if (expression.label == null) ordered else ordered.put("label", expression.label)

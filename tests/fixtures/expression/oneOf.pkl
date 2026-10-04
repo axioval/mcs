@@ -1,0 +1,23 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.OneOfExpression {
+  operand = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-wall-common"
+    property = "ex:exposure-class"
+  }
+  values {
+    new Expressions.LiteralExpression {
+      value = new Values.StringValue {
+        value = "XC3"
+      }
+    }
+    new Expressions.LiteralExpression {
+      value = new Values.StringValue {
+        value = "XC4"
+      }
+    }
+  }
+}

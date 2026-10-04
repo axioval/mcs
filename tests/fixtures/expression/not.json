@@ -1,0 +1,8 @@
+{
+  "kind": "not",
+  "operand": {
+    "kind": "property",
+    "propertySet": "ex:pset-wall-common",
+    "property": "ex:is-external"
+  }
+}

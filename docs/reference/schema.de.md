@@ -14,8 +14,9 @@ Die Quelltextbeispiele bleiben eingeklappt, bis Sie sie bewusst öffnen.
 | `Citations.pkl` | bibliografische Quellen, Fundstellen, Zitate und Parameterziele |
 | `Values.pkl` | Markierte Skalar- und Listenwerte, Tabellen und Tabellendateien sowie Objekt- und Eigenschaftsreferenzen |
 | `Selectors.pkl` | Selektoren für Objekttyp, Eigenschaft, Eigenschaftsmuster, Klassifikation, abgeleitete Klasse, abgeleitete Gruppe, verbundene Objekte, Disziplin, Quelle und boolesche Zusammensetzung |
+| `Expressions.pkl` | Ausdrucksknoten, skalare Literale, Aggregatquellen, Ausdrucksselektoren und Ausdruckswerte für Parameter |
 | `Definitions.pkl` | Vokabulare und wiederverwendbare Fähigkeitsvorlagen |
-| `RuleSets.pkl` | Konkrete Regelinstanzen, rein kosmetische Ordner sowie abgeleitete Klassifikationen, Gruppen und Relationen |
+| `RuleSets.pkl` | Konkrete Regelinstanzen, rein kosmetische Ordner sowie abgeleitete Klassifikationen, Gruppen, Relationen und Werte |
 
 ## Paketmetadaten und Zitate
 
@@ -326,6 +327,8 @@ Selektoren sind deklarativ und werden rekursiv validiert:
   Anwendung, die sie geschrieben hat
 - `ruleOutcome`, der danach auswählt, wie eine andere Regel des Regelsatzes ein
   Objekt beurteilt hat
+- `expression`, der die Objekte auswählt, für die ein
+  [Ausdruck](#ausdruecke-und-abgeleitete-werte) gilt
 - `allOf`, `anyOf` und `not`
 
 Ein Vergleichswert auf einem Eigenschaftsselektor muss zur katalogisierten `valueKind` der referenzierten Eigenschaft passen. Die Anwesenheitsoperatoren `exists`, `isEmpty` und `isNotEmpty` lehnen einen Vergleichswert ab. Jeder andere Operator benötigt einen.
@@ -1187,6 +1190,63 @@ Regelsatz nicht deklariert.
             new { id = "from"; header = "pump"; kind = "string" }
             new { id = "to"; header = "room"; kind = "string" }
           }
+        }
+      }
+    }
+    ```
+
+## Ausdrücke und abgeleitete Werte {#ausdruecke-und-abgeleitete-werte}
+
+`Expressions.pkl` beschreibt berechnete Werte als Daten: einen Baum aus Knoten
+mit einer Art `kind` und optional einem nicht leeren `label`, von skalaren
+`literal`-Werten, Eigenschaften, Parametern, Tabellenabfragen und abgeleiteten
+Werten über Logik, Vergleich, Arithmetik, Neigung, Text und `aggregate` bis zu
+den Ergebnissen anderer Regeln. [Mit Ausdrücken rechnen](../expressions.de.md)
+erklärt jede Art.
+
+- Ein Definitionsparameter mit `kind = "expression"` nimmt einen
+  `Expressions.ExpressionValue`, also `type: "expression"` mit dem Ausdruck als
+  `value`. Nur ein solcher Ausdruck liest die Parameter der Regel: ein
+  `parameter` nennt einen skalaren Parameter, den die Regel bindet oder
+  vorgibt, ein `lookup` einen `table`-Parameter und seine Spalten.
+- `Expressions.ExpressionSelector` mit `kind: "expression"` wählt die Objekte,
+  für die sein Ausdruck gilt, überall, wo ein Selektor stehen kann.
+- Die Zuordnung `values` eines Regelsatzes ordnet Bezeichnern einen
+  lokalisierten `name`, eine optionale `description` und eine `expression` zu.
+  Ein `derived`-Knoten oder eine Eigenschaft der reservierten Menge
+  `axioval:value` liest einen solchen Wert. Werte lesen keinen Regelparameter
+  und kein Regelergebnis und einander nie im Kreis.
+
+Normalisiertes JSON schreibt die Felder jedes Knotens in der Reihenfolge der
+prüfenden Anwendung, das `label` zuletzt, lässt nicht gesetzte Felder und die
+Vorgabe `true` von `caseSensitive`, `lowInclusive` und `highInclusive` weg,
+ordnet die `keys` eines Lookups nach Spalten-ID und lässt leere `values` weg,
+sodass bestehende Pakete bytegleich bleiben. Eine Ausdruckseigenschaft nennt ein
+deklariertes Eigenschaftskonzept in einer deklarierten oder reservierten Menge
+oder einen Namen einer abgeleiteten Menge; der Binder lehnt außerdem Ausdrücke
+ab, die tiefer als 64 Ebenen verschachtelt sind, mehr als 2.048 Knoten enthalten
+oder Aggregate tiefer als zwei Ebenen schachteln. Die goldenen
+Ausdrucksfixtures der prüfenden Anwendung liegen in `tests/fixtures/expression`
+und müssen bytegenau ausgegeben werden und bytegenau in der kanonischen Form
+des Transports (sortierte Schlüssel, kompakte Trennzeichen) durch `.mcs`
+zurückkommen.
+
+??? example "Abgeleiteten Wert und eine Regel, die ihn liest, anzeigen"
+    ```pkl
+    values {
+      ["slope_percent"] {
+        name = new Types.LocalizedText { default = "Neigung in Prozent" }
+        expression = new Expressions.ConvertSlopeExpression {
+          operand = new Expressions.DivideExpression {
+            left = new Expressions.PropertyExpression {
+              property = "axioval:example.expressions.rise"
+            }
+            right = new Expressions.PropertyExpression {
+              property = "axioval:example.expressions.run"
+            }
+          }
+          from = "ratio"
+          to = "percent"
         }
       }
     }

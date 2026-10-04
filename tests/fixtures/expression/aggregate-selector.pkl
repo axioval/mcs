@@ -1,0 +1,26 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Selectors.pkl"
+
+expression = new Expressions.AggregateExpression {
+  `function` = "all"
+  over = new Expressions.SelectorSource {
+    selector = new Selectors.EntityTypeSelector {
+      objectType = "ex:door"
+      includeSubtypes = true
+    }
+  }
+  value = new Expressions.CompareExpression {
+    operator = "lessThan"
+    left = new Expressions.PropertyExpression {
+      propertySet = "axioval:measured"
+      property = "z"
+    }
+    right = new Expressions.PropertyExpression {
+      propertySet = "axioval:measured"
+      property = "z"
+      of = "subject"
+    }
+  }
+}

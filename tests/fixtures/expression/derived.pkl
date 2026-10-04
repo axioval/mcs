@@ -1,0 +1,7 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.DerivedExpression {
+  name = "clear_width"
+}

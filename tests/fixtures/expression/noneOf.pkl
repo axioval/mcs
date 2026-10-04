@@ -1,0 +1,19 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.NoneOfExpression {
+  operand = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-wall-common"
+    property = "ex:status"
+  }
+  values {
+    new Expressions.LiteralExpression {
+      value = new Values.StringValue {
+        value = "demolish"
+      }
+    }
+  }
+  caseSensitive = false
+}

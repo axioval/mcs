@@ -1,0 +1,9 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.TanExpression {
+  operand = new Expressions.ParameterExpression {
+    name = "slope_angle"
+  }
+}

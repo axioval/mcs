@@ -1,0 +1,12 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.LiteralExpression {
+  value = new Values.QuantityValue {
+    value = 0.04
+    unit = "m"
+  }
+  label = "minimum cover"
+}

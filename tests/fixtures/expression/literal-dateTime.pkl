@@ -1,0 +1,10 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.LiteralExpression {
+  value = new Values.DateTimeValue {
+    value = "2026-10-04T12:00:00+02:00"
+  }
+}

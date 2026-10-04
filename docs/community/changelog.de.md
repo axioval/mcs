@@ -13,6 +13,7 @@ Das Format folgt [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Paket
 
 ### Hinzugefügt
 
+- Ausdrücke und abgeleitete Werte wie in der prüfenden Anwendung: `Expressions.pkl` typisiert jede Art von Ausdrucksknoten, Parameter mit `kind: expression`, den Selektor `expression` und die abgeleiteten Werte `values` eines Regelsatzes. Normalisiertes JSON folgt bytegenau der Ausgabe der prüfenden Anwendung; der Binder lehnt unbekannte Arten und Felder, zu tiefe oder zu große Ausdrücke, unbekannte Konzepte und Werte, unzulässige Parameter- und Regelergebniszugriffe sowie Zyklen ab. Die goldenen Ausdrucksfixtures liegen in `tests/fixtures/expression`, das Beispiel `examples/expressions` leitet die Neigung einer Rampe ab.
 - Dokumentationsseite mit MkDocs Material und GitHub-Pages-Bereitstellung.
 - Wiederverwendbare Vokabularkomponenten `ObjectTypeDefinition`, `PropertyDefinition` und unabhängige `PropertySetDefinition`.
 - Kanonische Varianten `ObjectTypeReferenceValue` und `PropertyReferenceValue`.

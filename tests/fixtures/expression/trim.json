@@ -1,0 +1,8 @@
+{
+  "kind": "trim",
+  "operand": {
+    "kind": "property",
+    "propertySet": "ex:pset-wall-common",
+    "property": "ex:reference"
+  }
+}

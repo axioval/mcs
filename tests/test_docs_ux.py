@@ -24,7 +24,7 @@ class DocumentationUxTests(unittest.TestCase):
 
     def test_every_public_page_has_a_german_sibling(self) -> None:
         pages = self.public_pages()
-        self.assertEqual(len(pages), 14)
+        self.assertEqual(len(pages), 15)
         missing = [
             path.relative_to(DOCS)
             for path in pages

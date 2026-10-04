@@ -1,0 +1,104 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Definitions.pkl"
+import "../../schema/Types.pkl"
+
+package = new Types.PackageMetadata {
+  id = "axioval:example.expression-definitions"
+  name = new Types.LocalizedText {
+    default = "Expression example definitions"
+    translations { ["de"] = "Definitionen des Ausdrucksbeispiels" }
+  }
+  version = "0.1.0"
+  description = new Types.LocalizedText {
+    default = "Non-production terminology for a ramp computed with expressions."
+    translations { ["de"] = "Nicht produktive Terminologie für eine mit Ausdrücken berechnete Rampe." }
+  }
+  repository = "https://github.com/axioval/mcs"
+}
+
+objectTypes {
+  ["axioval:example.expressions.ramp"] = new Definitions.ObjectTypeDefinition {
+    id = "axioval:example.expressions.ramp"
+    name = new Types.LocalizedText {
+      default = "Ramp"
+      translations { ["de"] = "Rampe" }
+    }
+    externalNames {
+      new Definitions.ExternalName {
+        typeSystem = "https://github.com/axioval/mcs/tree/main/examples"
+        name = "axioval:example.expressions.ramp"
+      }
+    }
+  }
+}
+
+properties {
+  ["axioval:example.expressions.rise"] = new Definitions.PropertyDefinition {
+    id = "axioval:example.expressions.rise"
+    name = new Types.LocalizedText {
+      default = "Rise"
+      translations { ["de"] = "Steigungshöhe" }
+    }
+    valueKind = "quantity"
+    unitDimension = "https://qudt.org/vocab/quantitykind/Length"
+    externalNames {
+      new Definitions.ExternalName {
+        typeSystem = "https://github.com/axioval/mcs/tree/main/examples"
+        name = "axioval:example.expressions.rise"
+      }
+    }
+  }
+  ["axioval:example.expressions.run"] = new Definitions.PropertyDefinition {
+    id = "axioval:example.expressions.run"
+    name = new Types.LocalizedText {
+      default = "Run"
+      translations { ["de"] = "Lauflänge" }
+    }
+    valueKind = "quantity"
+    unitDimension = "https://qudt.org/vocab/quantitykind/Length"
+    externalNames {
+      new Definitions.ExternalName {
+        typeSystem = "https://github.com/axioval/mcs/tree/main/examples"
+        name = "axioval:example.expressions.run"
+      }
+    }
+  }
+}
+
+definitions {
+  ["axioval:example.expression-requirement"] = new Definitions.RuleDefinition {
+    id = "axioval:example.expression-requirement"
+    name = new Types.LocalizedText {
+      default = "Expression requirement"
+      translations { ["de"] = "Ausdrucksanforderung" }
+    }
+    description = new Types.LocalizedText {
+      default = "Holds for every selected object whose requirement, a truth, holds."
+      translations { ["de"] = "Gilt für jedes ausgewählte Objekt, dessen Anforderung, ein Wahrheitswert, gilt." }
+    }
+    capability = "axioval:capability.expression"
+    parameters {
+      ["requirement"] = new Definitions.ParameterDefinition {
+        id = "requirement"
+        name = new Types.LocalizedText {
+          default = "Requirement"
+          translations { ["de"] = "Anforderung" }
+        }
+        kind = "expression"
+      }
+      ["maximum_slope"] = new Definitions.ParameterDefinition {
+        id = "maximum_slope"
+        name = new Types.LocalizedText {
+          default = "Steepest slope in percent"
+          translations { ["de"] = "Größte Neigung in Prozent" }
+        }
+        kind = "number"
+      }
+    }
+    tags {
+      "example"
+      "expression"
+    }
+  }
+}

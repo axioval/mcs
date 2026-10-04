@@ -1,0 +1,11 @@
+{
+  "$schema": "../../schema/registry-manifest.schema.json",
+  "manifestVersion": "0.1.0",
+  "kind": "ruleset",
+  "id": "axioval:example.expressions",
+  "version": "0.1.0",
+  "schemaVersion": "0.1.0",
+  "entrypoint": "ruleset.pkl",
+  "definitionEntrypoints": ["definitions.pkl"],
+  "description": "Instructional package computing a ramp's slope as a derived value and checking it with an expression rule."
+}

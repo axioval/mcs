@@ -96,6 +96,7 @@ schema/                 Pkl contracts, adapters, and static manifest JSON Schema
 examples/minimal/       smallest complete non-production package
 examples/din-276-331/   vocabulary → template → instance tutorial fixture
 examples/geometry-clearance/ IFC4X3 + geometry package integration
+examples/expressions/   expression rule and derived value
 docs/                   GitHub Pages source
 scripts/                fail-closed evaluator and normalized binder
 tests/                  positive and negative contract tests

@@ -16,7 +16,8 @@ pkl test \
   --allowed-modules 'file:,pkl:,package:,projectpackage:' \
   --allowed-resources 'https://openbimrs\.github\.io/pkl/.*,https://github\.com/openbimrs/pkl/releases/download/.*,https://release-assets\.githubusercontent\.com/.*,prop:pkl.outputFormat' \
   --timeout 30 \
-  tests/pkl/adapters.pkl
+  tests/pkl/adapters.pkl \
+  tests/pkl/expressions.pkl
 
 # Exercise the distributable MCS transport without retaining binary artifacts.
 mcs_tmp="$(mktemp -d)"

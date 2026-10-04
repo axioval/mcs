@@ -1,0 +1,56 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.IfExpression {
+  branches {
+    new {
+      `when` = new Expressions.CompareExpression {
+        operator = "equals"
+        left = new Expressions.PropertyExpression {
+          propertySet = "ex:pset-wall-common"
+          property = "ex:exposure-class"
+        }
+        right = new Expressions.LiteralExpression {
+          value = new Values.StringValue {
+            value = "XC4"
+          }
+        }
+      }
+      `then` = new Expressions.LiteralExpression {
+        value = new Values.QuantityValue {
+          value = 40.0
+          unit = "mm"
+        }
+      }
+    }
+    new {
+      `when` = new Expressions.CompareExpression {
+        operator = "equals"
+        left = new Expressions.PropertyExpression {
+          propertySet = "ex:pset-wall-common"
+          property = "ex:exposure-class"
+        }
+        right = new Expressions.LiteralExpression {
+          value = new Values.StringValue {
+            value = "XC3"
+          }
+        }
+      }
+      `then` = new Expressions.LiteralExpression {
+        value = new Values.QuantityValue {
+          value = 35.0
+          unit = "mm"
+        }
+      }
+    }
+  }
+  `else` = new Expressions.LiteralExpression {
+    value = new Values.QuantityValue {
+      value = 25.0
+      unit = "mm"
+    }
+  }
+  label = "required cover"
+}

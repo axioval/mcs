@@ -1,0 +1,10 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.LiteralExpression {
+  value = new Values.BooleanValue {
+    value = true
+  }
+}

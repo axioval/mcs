@@ -96,6 +96,23 @@ typen und Eigenschaftskonzepte über die geladenen Definitionspakete auf.
 Unbekannte Konzepte, fehlerhafte Operanden und nicht unterstützte
 Wertkombinationen werden geschlossen abgelehnt.
 
+## Ausdruckswerte als Parameter
+
+Eine Fähigkeit, die je Objekt einen Wert berechnet, deklariert einen Parameter
+mit `kind = "expression"`. Die Regel bindet über
+`Expressions.ExpressionValue` einen deklarativen Ausdrucksbaum; normalisiert hat
+er `type: "expression"` und den Baum als `value`. Der Baum ist Daten, niemals
+Code: Die prüfende Anwendung wertet ihn mit einer Fähigkeit aus, die sie bereits
+implementiert, und eine Anwendung ohne sie lehnt geschlossen ab.
+
+Der Binder prüft Struktur und Grenzen des Baums, bindet jede Eigenschaft an ein
+deklariertes Konzept oder einen Namen einer abgeleiteten Menge, jeden
+eingebetteten Selektor wie jeden Selektor, jeden `derived`-Knoten an einen Wert,
+den der Regelsatz deklariert, und jeden `parameter`- und `lookup`-Knoten an
+einen Parameter, den die Regel bindet oder vorgibt. Ein Ausdruckswert für einen
+Parameter einer anderen Art wird abgelehnt. Siehe
+[Mit Ausdrücken rechnen](expressions.de.md).
+
 ## Vertrag für Quellenangaben
 
 Jedes Regelsatz- und Definitionsdokument deklariert einen eigenen

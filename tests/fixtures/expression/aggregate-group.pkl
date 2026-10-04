@@ -1,0 +1,14 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.AggregateExpression {
+  `function` = "distinctCount"
+  over = new Expressions.GroupSource {
+    grouping = "flights-of-storey"
+  }
+  value = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-stair-flight-common"
+    property = "ex:riser-height"
+  }
+}

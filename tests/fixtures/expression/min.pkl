@@ -1,0 +1,16 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.MinExpression {
+  operands {
+    new Expressions.PropertyExpression {
+      propertySet = "axioval:measured"
+      property = "extent_x"
+    }
+    new Expressions.PropertyExpression {
+      propertySet = "axioval:measured"
+      property = "extent_y"
+    }
+  }
+}

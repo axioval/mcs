@@ -1,0 +1,146 @@
+/// Proves the expression schema refuses what the binder refuses and renders
+/// the normalized form the checking application writes.
+module axioval.tests.expressions
+
+amends "pkl:test"
+
+import "pkl:test" as test
+
+import "../../schema/Expressions.pkl"
+import "../../schema/Selectors.pkl"
+import "../../schema/Values.pkl"
+
+local measured = new Expressions.PropertyExpression {
+  propertySet = "axioval:measured"
+  property = "extent_z"
+}
+
+local function rendered(value: Any): String =
+  new JsonRenderer {
+    indent = ""
+    converters {
+      [Expressions.Expression] = (it) -> Expressions.normalizedExpression(it)
+    }
+  }.renderValue(value).replaceAll("\n", "")
+
+facts {
+  ["defaults and unset fields are omitted, label last"] {
+    rendered(new Expressions.CompareExpression {
+      label = "low enough"
+      operator = "lessThan"
+      left = measured
+      right = new Expressions.LiteralExpression {
+        value = new Values.QuantityValue { value = 2.5; unit = "m" }
+      }
+    })
+      == #"{"kind":"compare","operator":"lessThan","left":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"},"right":{"kind":"literal","value":{"type":"quantity","value":2.5,"unit":"m"}},"label":"low enough"}"#
+    rendered(new Expressions.BetweenExpression {
+      operand = measured
+      low = new Expressions.NullExpression {}
+      high = new Expressions.NullExpression {}
+      lowInclusive = false
+    })
+      == #"{"kind":"between","operand":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"},"low":{"kind":"null"},"high":{"kind":"null"},"lowInclusive":false}"#
+  }
+
+  ["lookup keys are ordered by column ID"] {
+    rendered(new Expressions.LookupExpression {
+      table = "limits"
+      keys {
+        ["zone"] = new Expressions.NullExpression {}
+        ["class"] = new Expressions.NullExpression {}
+      }
+      column = "maximum"
+    })
+      == #"{"kind":"lookup","table":"limits","keys":{"class":{"kind":"null"},"zone":{"kind":"null"}},"column":"maximum"}"#
+  }
+
+  ["empty operand lists and branches are refused"] {
+    test.catch(() -> new Expressions.AndExpression {}.operands).contains("isEmpty")
+    test.catch(() -> new Expressions.OneOfExpression {
+      operand = measured
+    }.values).contains("isEmpty")
+    test.catch(() -> new Expressions.IfExpression {
+      `else` = measured
+    }.branches).contains("isEmpty")
+    test.catch(() -> new Expressions.LookupExpression {
+      table = "limits"
+      column = "maximum"
+    }.keys).contains("isEmpty")
+  }
+
+  ["blank labels and names are refused"] {
+    test.catch(() -> new Expressions.NullExpression { label = " " }.label).contains("isBlank")
+    test.catch(() -> new Expressions.PropertyExpression { property = "" }.property)
+      .contains("isPropertyName")
+    test.catch(() -> new Expressions.ParameterExpression { name = "" }.name)
+      .contains("matches")
+  }
+
+  ["properties are qualified concepts or derived-set names"] {
+    test.catch(() -> new Expressions.PropertyExpression { property = "IsExternal" }.property)
+      .contains("isPropertyName")
+    test.catch(() -> new Expressions.PropertyExpression {
+      propertySet = "Pset_WallCommon"
+      property = "ex:is-external"
+    }.propertySet).contains("matches")
+    new Expressions.PropertyExpression {
+      propertySet = "axioval:member"
+      property = "rise"
+    }.property == "rise"
+  }
+
+  ["derived-set names are checked as selectors check them"] {
+    test.catch(() -> new Expressions.PropertyExpression {
+      propertySet = "axioval:measured"
+      property = "girth"
+    }.property).contains("isPropertyName")
+    test.catch(() -> new Expressions.PropertyExpression {
+      propertySet = "axioval:value"
+      property = "slope percent"
+    }.property).contains("isPropertyName")
+    new Expressions.PropertyExpression {
+      propertySet = "axioval:value"
+      property = "slope_percent"
+    }.property == "slope_percent"
+  }
+
+  ["literals are finite scalars"] {
+    test.catch(() -> new Expressions.LiteralExpression {
+      value = new Values.NumberValue { value = NaN }
+    }.value).contains("isFinite")
+    test.catch(() -> new Expressions.LiteralExpression {
+      value = new Values.QuantityValue { value = 1.0; unit = " " }
+    }.value).contains("isBlank")
+    test.catch(() -> new Expressions.LiteralExpression {
+      value = new Values.StringListValue { value { "a" } }
+    }.value).contains("Value")
+    new Expressions.LiteralExpression {
+      value = new Expressions.EnumLiteralValue { value = "NOTDEFINED" }
+    }.value.value == "NOTDEFINED"
+  }
+
+  ["an aggregate takes a value unless it counts"] {
+    test.catch(() -> new Expressions.AggregateExpression {
+      `function` = "sum"
+      over = new Expressions.GroupSource { grouping = "flats" }
+    }.value).contains("count")
+    test.catch(() -> new Expressions.AggregateExpression {
+      `function` = "count"
+      over = new Expressions.GroupSource { grouping = "flats" }
+      value = measured
+    }.value).contains("count")
+  }
+
+  ["an aggregate over measured members takes no member filter"] {
+    test.catch(() -> new Expressions.AggregateExpression {
+      `function` = "count"
+      over = new Expressions.MeasuredSource { name = "steps" }
+      `where` = new Selectors.AllSelector {}
+    }.`where`).contains("MeasuredSource")
+    test.catch(() -> new Expressions.MeasuredSource { name = "treads" }.name)
+      .contains("isMeasuredMembers")
+    new Expressions.MeasuredSource { name = "steps;walking_line_offset=0.3" }.name
+      == "steps;walking_line_offset=0.3"
+  }
+}

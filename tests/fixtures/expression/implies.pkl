@@ -1,0 +1,16 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.ImpliesExpression {
+  antecedent = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-wall-common"
+    property = "ex:is-external"
+  }
+  consequent = new Expressions.IsDefinedExpression {
+    operand = new Expressions.PropertyExpression {
+      propertySet = "ex:pset-wall-common"
+      property = "ex:thermal-transmittance"
+    }
+  }
+}

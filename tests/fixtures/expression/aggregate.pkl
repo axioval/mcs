@@ -1,0 +1,22 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Selectors.pkl"
+
+expression = new Expressions.AggregateExpression {
+  `function` = "sum"
+  over = new Expressions.PathSource {
+    path {
+      "IfcRelVoidsElement:forward"
+    }
+  }
+  `where` = new Selectors.EntityTypeSelector {
+    objectType = "ex:opening"
+    includeSubtypes = true
+  }
+  value = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "area"
+  }
+  label = "opening area"
+}

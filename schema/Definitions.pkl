@@ -4,8 +4,11 @@ import "Types.pkl"
 import "Values.pkl"
 import "Selectors.pkl"
 import "Citations.pkl"
+import "Expressions.pkl"
 
-typealias ParameterKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "objectTypeReference" | "propertyReference" | "selector" | "stringList" | "referenceList" | "table" | "date" | "dateTime"
+/// The kind of a rule parameter. An `expression` parameter takes an
+/// `Expressions.ExpressionValue`, which the capability evaluates per object.
+typealias ParameterKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "objectTypeReference" | "propertyReference" | "selector" | "expression" | "stringList" | "referenceList" | "table" | "date" | "dateTime"
 typealias PropertyValueKind = "string" | "boolean" | "integer" | "number" | "quantity" | "enum" | "reference" | "stringList" | "referenceList" | "date" | "dateTime"
 
 /// One external-schema name for a canonical property or container concept.
@@ -117,9 +120,10 @@ definitions: Mapping<String, RuleDefinition>(
 output {
   renderer {
     // Omit defaulted property-, property-pattern-, and source-selector flags,
-    // related-selector quantifiers, and unset classification codes from
-    // normalized JSON.
+    // related-selector quantifiers, unset classification codes, and unset or
+    // defaulted expression fields from normalized JSON.
     converters {
+      [Expressions.Expression] = (it) -> Expressions.normalizedExpression(it)
       [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
       [Selectors.PropertyPatternSelector] = (it) ->
         Selectors.normalizedPropertyPatternSelector(it)

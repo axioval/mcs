@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "0.1.0",
+  "package": {
+    "id": "axioval:example.expressions",
+    "name": {
+      "default": "Expression example",
+      "translations": {
+        "de": "Ausdrucksbeispiel"
+      }
+    },
+    "version": "0.1.0",
+    "description": {
+      "default": "Non-production example: a ramp's slope derived once and checked by an expression rule.",
+      "translations": {
+        "de": "Nicht produktives Beispiel: Die Neigung einer Rampe wird einmal abgeleitet und von einer Ausdrucksregel geprüft."
+      }
+    },
+    "repository": "https://github.com/axioval/mcs",
+    "authors": []
+  },
+  "sources": {},
+  "definitionPackages": [
+    "axioval:example.expression-definitions"
+  ],
+  "root": {
+    "id": "root",
+    "name": {
+      "default": "Ramps",
+      "translations": {
+        "de": "Rampen"
+      }
+    },
+    "rules": [
+      {
+        "id": "ramp-slope",
+        "definitionId": "axioval:example.expression-requirement",
+        "name": {
+          "default": "Ramps are no steeper than the limit",
+          "translations": {
+            "de": "Rampen sind nicht steiler als die Grenze"
+          }
+        },
+        "enabled": true,
+        "severity": "error",
+        "parameters": {
+          "maximum_slope": {
+            "type": "number",
+            "value": 6.0
+          },
+          "requirement": {
+            "type": "expression",
+            "value": {
+              "kind": "compare",
+              "operator": "lessThanOrEquals",
+              "left": {
+                "kind": "derived",
+                "name": "slope_percent",
+                "label": "slope"
+              },
+              "right": {
+                "kind": "parameter",
+                "name": "maximum_slope",
+                "label": "steepest slope"
+              }
+            }
+          }
+        },
+        "applicability": {
+          "kind": "allOf",
+          "operands": [
+            {
+              "kind": "entityType",
+              "objectType": "axioval:example.expressions.ramp",
+              "includeSubtypes": true
+            },
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "and",
+                "operands": [
+                  {
+                    "kind": "isDefined",
+                    "operand": {
+                      "kind": "property",
+                      "property": "axioval:example.expressions.rise"
+                    }
+                  },
+                  {
+                    "kind": "isDefined",
+                    "operand": {
+                      "kind": "property",
+                      "property": "axioval:example.expressions.run"
+                    }
+                  }
+                ],
+                "label": "rise and run stated"
+              }
+            }
+          ]
+        },
+        "requirements": [],
+        "citations": [],
+        "parameterCitations": [],
+        "explanatoryImages": [],
+        "tags": []
+      }
+    ],
+    "folders": []
+  },
+  "values": {
+    "slope_percent": {
+      "name": {
+        "default": "Slope in percent",
+        "translations": {
+          "de": "Neigung in Prozent"
+        }
+      },
+      "description": {
+        "default": "The ramp's rise over its run, restated as a percentage.",
+        "translations": {
+          "de": "Steigungshöhe durch Lauflänge der Rampe, in Prozent ausgedrückt."
+        }
+      },
+      "expression": {
+        "kind": "convertSlope",
+        "operand": {
+          "kind": "divide",
+          "left": {
+            "kind": "property",
+            "property": "axioval:example.expressions.rise"
+          },
+          "right": {
+            "kind": "property",
+            "property": "axioval:example.expressions.run"
+          },
+          "label": "rise over run"
+        },
+        "from": "ratio",
+        "to": "percent"
+      }
+    }
+  }
+}

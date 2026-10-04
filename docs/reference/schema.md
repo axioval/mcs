@@ -16,8 +16,9 @@ folded by default so you can scan the concepts first.
 | `Citations.pkl` | bibliographic sources, locators, citations, parameter targets |
 | `Values.pkl` | tagged scalar/list values, tables and table files, plus object/property references |
 | `Selectors.pkl` | object type, property, property-pattern, classification, derived-class, derived-group, related-object, discipline, source, boolean-composition selectors |
+| `Expressions.pkl` | expression nodes, scalar literals, aggregate sources, expression selectors, and expression parameter values |
 | `Definitions.pkl` | vocabularies and reusable capability templates |
-| `RuleSets.pkl` | concrete rule instances, cosmetic folders, and derived classifications, groups, and relations |
+| `RuleSets.pkl` | concrete rule instances, cosmetic folders, and derived classifications, groups, relations, and values |
 
 ## Package metadata and citations
 
@@ -317,6 +318,8 @@ Selectors are declarative and recursively validated:
 - `source`, comparing what a source states about itself, such as the
   application that wrote it
 - `ruleOutcome`, selecting by how another rule of the ruleset judged an object
+- `expression`, selecting the objects for which an
+  [expression](#expressions-and-derived-values) holds
 - `allOf`, `anyOf`, and `not`
 
 A comparison value on a property selector must match the referenced property's
@@ -1120,6 +1123,59 @@ columns, and a path step naming a relation the same ruleset does not declare.
             new { id = "from"; header = "pump"; kind = "string" }
             new { id = "to"; header = "room"; kind = "string" }
           }
+        }
+      }
+    }
+    ```
+
+## Expressions and derived values
+
+`Expressions.pkl` states computed values as data: a tree of nodes tagged by
+`kind`, each with an optional non-blank `label`, from scalar `literal`s,
+properties, parameters, table lookups, and derived values, through logic,
+comparison, arithmetic, slope, text, and `aggregate` nodes, to the outcomes of
+other rules. [Compute with expressions](../expressions.md) explains every kind.
+
+- A definition parameter of `kind = "expression"` takes an
+  `Expressions.ExpressionValue`, `type: "expression"` with the expression as
+  `value`. Only such an expression reads the rule's parameters: a `parameter`
+  names a scalar parameter the rule binds or defaults, a `lookup` a `table`
+  parameter and its columns.
+- `Expressions.ExpressionSelector`, `kind: "expression"`, selects the objects
+  for which its expression holds, wherever a selector goes.
+- A ruleset's `values` map names identifiers to a localized `name`, an
+  optional `description`, and an `expression`. A `derived` node, or a property
+  of the reserved set `axioval:value`, reads one. Values read no rule parameter
+  and no rule outcome, and never one another in a cycle.
+
+Normalized JSON writes each node's fields in the checking application's order,
+its `label` last, omits unset fields and the default `true` of
+`caseSensitive`, `lowInclusive`, and `highInclusive`, orders a lookup's `keys`
+by column ID, and omits empty `values`, so existing packages render
+byte-identically. An expression property names a declared property concept, in
+a declared or reserved set, or a name of a derived set; the binder also refuses
+expressions nesting deeper than 64 levels, holding more than 2,048 nodes, or
+nesting aggregates more than two deep. The engine's golden expression fixtures
+are kept in `tests/fixtures/expression`; each must render byte for byte and
+round-trip through `.mcs` byte for byte in the transport's canonical form
+(sorted keys, compact separators).
+
+??? example "Show a derived value and a rule reading it"
+    ```pkl
+    values {
+      ["slope_percent"] {
+        name = new Types.LocalizedText { default = "Slope in percent" }
+        expression = new Expressions.ConvertSlopeExpression {
+          operand = new Expressions.DivideExpression {
+            left = new Expressions.PropertyExpression {
+              property = "axioval:example.expressions.rise"
+            }
+            right = new Expressions.PropertyExpression {
+              property = "axioval:example.expressions.run"
+            }
+          }
+          from = "ratio"
+          to = "percent"
         }
       }
     }

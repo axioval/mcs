@@ -1,0 +1,24 @@
+{
+  "kind": "oneOf",
+  "operand": {
+    "kind": "property",
+    "propertySet": "ex:pset-wall-common",
+    "property": "ex:exposure-class"
+  },
+  "values": [
+    {
+      "kind": "literal",
+      "value": {
+        "type": "string",
+        "value": "XC3"
+      }
+    },
+    {
+      "kind": "literal",
+      "value": {
+        "type": "string",
+        "value": "XC4"
+      }
+    }
+  ]
+}

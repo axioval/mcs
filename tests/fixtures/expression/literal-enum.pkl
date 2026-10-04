@@ -1,0 +1,9 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.LiteralExpression {
+  value = new Expressions.EnumLiteralValue {
+    value = "NOTDEFINED"
+  }
+}

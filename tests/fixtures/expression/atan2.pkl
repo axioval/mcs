@@ -1,0 +1,19 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.Atan2Expression {
+  y = new Expressions.LiteralExpression {
+    value = new Values.QuantityValue {
+      value = 0.5
+      unit = "m"
+    }
+  }
+  x = new Expressions.LiteralExpression {
+    value = new Values.QuantityValue {
+      value = 6.0
+      unit = "m"
+    }
+  }
+}

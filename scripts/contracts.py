@@ -28,6 +28,7 @@ VALUE_KINDS = {
     "objectTypeReference",
     "propertyReference",
     "selector",
+    "expression",
     "stringList",
     "referenceList",
     "table",
@@ -42,6 +43,7 @@ PROPERTY_VALUE_KINDS = VALUE_KINDS - {
     "objectTypeReference",
     "propertyReference",
     "selector",
+    "expression",
     "table",
 }
 # Table column kinds and the value variant each cell is written as.
@@ -215,6 +217,165 @@ SEVERITIES = {"info", "warning", "error"}
 RULE_OUTCOMES = {"passed", "failed"}
 # When a gated rule runs, and on what.
 GATE_CONDITIONS = {"allIfPassed", "allIfFailed", "passedObjects", "failedObjects"}
+# The reserved set naming the values a ruleset derives from expressions, by
+# their names in its `values`, and the reserved set naming the fields of a
+# measured member, read only inside an aggregate over measured members.
+VALUE_SET = "axioval:value"
+MEMBER_SET = "axioval:member"
+# Every expression node `kind`, in the engine's declaration order.
+EXPRESSION_KINDS = (
+    "literal",
+    "null",
+    "property",
+    "parameter",
+    "derived",
+    "lookup",
+    "not",
+    "and",
+    "or",
+    "implies",
+    "xor",
+    "compare",
+    "between",
+    "oneOf",
+    "noneOf",
+    "isDefined",
+    "isUndefined",
+    "if",
+    "coalesce",
+    "add",
+    "subtract",
+    "multiply",
+    "divide",
+    "negate",
+    "abs",
+    "min",
+    "max",
+    "round",
+    "floor",
+    "ceil",
+    "sqrt",
+    "sin",
+    "cos",
+    "tan",
+    "atan2",
+    "convertSlope",
+    "aggregate",
+    "ruleOutcome",
+    "findingCount",
+    "deviation",
+    "concat",
+    "length",
+    "lower",
+    "upper",
+    "trim",
+)
+# The fields of each expression kind besides `kind` and `label`: required,
+# then optional. Operands are expressions unless named below.
+EXPRESSION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
+    "literal": ({"value"}, set()),
+    "null": (set(), set()),
+    "property": ({"property"}, {"propertySet", "of"}),
+    "parameter": ({"name"}, set()),
+    "derived": ({"name"}, set()),
+    "lookup": ({"table", "keys", "column"}, set()),
+    "implies": ({"antecedent", "consequent"}, set()),
+    "compare": ({"operator", "left", "right"}, {"caseSensitive"}),
+    "between": ({"operand", "low", "high"}, {"lowInclusive", "highInclusive"}),
+    "oneOf": ({"operand", "values"}, {"caseSensitive"}),
+    "noneOf": ({"operand", "values"}, {"caseSensitive"}),
+    "if": ({"branches", "else"}, set()),
+    "round": ({"operand", "step"}, set()),
+    "atan2": ({"y", "x"}, set()),
+    "convertSlope": ({"operand", "from", "to"}, set()),
+    "aggregate": ({"function", "over"}, {"where", "value"}),
+    "ruleOutcome": ({"rule"}, set()),
+    "findingCount": ({"rule"}, set()),
+    "deviation": ({"rule"}, set()),
+}
+for _kind in ("not", "isDefined", "isUndefined", "negate", "abs", "floor", "ceil"):
+    EXPRESSION_FIELDS[_kind] = ({"operand"}, set())
+for _kind in ("sqrt", "sin", "cos", "tan", "length", "lower", "upper", "trim"):
+    EXPRESSION_FIELDS[_kind] = ({"operand"}, set())
+for _kind in ("and", "or", "coalesce", "min", "max", "concat"):
+    EXPRESSION_FIELDS[_kind] = ({"operands"}, set())
+for _kind in ("xor", "add", "subtract", "multiply", "divide"):
+    EXPRESSION_FIELDS[_kind] = ({"left", "right"}, set())
+# Fields holding one operand expression, and fields holding a list of them.
+EXPRESSION_OPERAND_FIELDS = (
+    "operand",
+    "left",
+    "right",
+    "antecedent",
+    "consequent",
+    "low",
+    "high",
+    "step",
+    "y",
+    "x",
+)
+EXPRESSION_LIST_FIELDS = ("operands", "values")
+# Flags whose default `true` normalized JSON omits.
+EXPRESSION_FLAGS = ("caseSensitive", "lowInclusive", "highInclusive")
+# The scalar value kinds a literal may hold, in their parameter value form.
+SCALAR_VALUE_KINDS = {
+    "boolean",
+    "integer",
+    "number",
+    "quantity",
+    "string",
+    "enum",
+    "date",
+    "dateTime",
+}
+EXPRESSION_COMPARISONS = {
+    "equals",
+    "notEquals",
+    "lessThan",
+    "lessThanOrEquals",
+    "greaterThan",
+    "greaterThanOrEquals",
+    "like",
+    "matches",
+    "contains",
+}
+AGGREGATE_FUNCTIONS = {
+    "count",
+    "sum",
+    "min",
+    "max",
+    "average",
+    "any",
+    "all",
+    "none",
+    "distinctCount",
+}
+AGGREGATE_SOURCES = {"path", "group", "selector", "measured"}
+SLOPE_FORMS = {"ratio", "percent", "angle"}
+PROPERTY_SCOPES = {"subject"}
+# The expression kinds that read another rule's outcome.
+RULE_READING_EXPRESSIONS = {"ruleOutcome", "findingCount", "deviation"}
+# The lists of members the engine measures one by one, which an aggregate
+# ranges over as `name[;key=value...]`.
+MEASURED_MEMBER_LISTS = {
+    "axes_within",
+    "end_walls",
+    "exit_pairs",
+    "free_placements",
+    "guard_edges",
+    "handrails",
+    "opening_placements",
+    "parallel_pairs",
+    "recesses",
+    "runs",
+    "steps",
+    "swing_spaces",
+}
+# How deeply an expression nests, how many nodes it holds (its aggregates'
+# member filters included), and how deeply aggregates nest within one another.
+MAX_EXPRESSION_DEPTH = 64
+MAX_EXPRESSION_NODES = 2048
+MAX_AGGREGATE_NESTING = 2
 # A discipline name a source declares; no vocabulary is fixed.
 DISCIPLINE_TOKEN = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 # The Unicode general categories an XML Schema `\p{...}` escape may name.
@@ -1261,6 +1422,9 @@ def parameter_value(
     if kind == "selector":
         validate_selector(item, f"{context}.value")
         return value
+    if kind == "expression":
+        validate_expression(item, f"{context}.value")
+        return value
     if kind == "table":
         table_rows(value, columns, context)
         return value
@@ -1365,7 +1529,11 @@ def resolve_selector_value(
     classifications: dict[str, dict[str, Any]] | None = None,
     groupings: set[str] | None = None,
     relations: set[str] | None = None,
+    parameters: dict[str, dict[str, Any]] | None = None,
 ) -> None:
+    """Bind the concepts a checked selector or expression value, or a
+    table's selector cells, name. An expression reads the rule parameters
+    `parameters` declares."""
     if value["type"] == "selector":
         validate_selector(
             value["value"],
@@ -1376,6 +1544,18 @@ def resolve_selector_value(
             classifications=classifications,
             groupings=groupings,
             relations=relations,
+        )
+    elif value["type"] == "expression":
+        validate_expression(
+            value["value"],
+            context,
+            object_types,
+            properties,
+            property_sets,
+            classifications=classifications,
+            groupings=groupings,
+            relations=relations,
+            parameters=parameters,
         )
     elif value["type"] == "table":
         # Selector cells name concepts like any selector parameter.
@@ -2055,6 +2235,476 @@ def derived_property_kind(
     return None
 
 
+def expression_children(node: dict[str, Any]) -> list[dict[str, Any]]:
+    """The direct operands of a checked expression node, in written order:
+    a lookup's keys by column ID, an `if`'s branches `when` before `then`,
+    `else` last, and an aggregate's `value`."""
+    kind = node["kind"]
+    children: list[dict[str, Any]] = []
+    if kind == "lookup":
+        children.extend(child for _, child in sorted(node["keys"].items()))
+    elif kind == "if":
+        for branch in node["branches"]:
+            children.extend((branch["when"], branch["then"]))
+        children.append(node["else"])
+    elif kind == "aggregate":
+        if "value" in node:
+            children.append(node["value"])
+    else:
+        children.extend(node[key] for key in EXPRESSION_OPERAND_FIELDS if key in node)
+        for key in EXPRESSION_LIST_FIELDS:
+            children.extend(node.get(key, []))
+    return children
+
+
+def expression_parts(expression: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """Every node of a checked expression tree, as `("expression", node)`,
+    and every selector it embeds directly, an aggregate's `where` or
+    `over.selector`, as `("selector", selector)`; embedded selectors are not
+    entered."""
+    parts: list[tuple[str, dict[str, Any]]] = []
+    pending = [expression]
+    while pending:
+        node = pending.pop()
+        parts.append(("expression", node))
+        if node["kind"] == "aggregate":
+            if "where" in node:
+                parts.append(("selector", node["where"]))
+            if node["over"]["kind"] == "selector":
+                parts.append(("selector", node["over"]["selector"]))
+        pending.extend(reversed(expression_children(node)))
+    return parts
+
+
+def expression_rule_references(expression: dict[str, Any], out: set[str]) -> None:
+    """Collect the rules a checked expression reads: its `ruleOutcome`,
+    `findingCount` and `deviation` nodes and the `ruleOutcome` selectors of
+    the selectors it embeds."""
+    for role, part in expression_parts(expression):
+        if role == "selector":
+            selector_rule_references(part, out)
+        elif part["kind"] in RULE_READING_EXPRESSIONS:
+            out.add(part["rule"])
+
+
+def selector_value_reads(value: dict[str, Any], out: set[str]) -> None:
+    """Collect the derived values the expressions of a checked selector read."""
+    kind = value["kind"]
+    if kind == "expression":
+        expression_value_reads(value["expression"], out)
+    elif kind in {"allOf", "anyOf"}:
+        for operand in value["operands"]:
+            selector_value_reads(operand, out)
+    elif kind == "not":
+        selector_value_reads(value["operand"], out)
+    elif kind == "related":
+        selector_value_reads(value["selector"], out)
+
+
+def expression_value_reads(expression: dict[str, Any], out: set[str]) -> None:
+    """Collect the derived values a checked expression reads: its `derived`
+    nodes, its properties in `axioval:value`, and those of the selectors it
+    embeds."""
+    for role, part in expression_parts(expression):
+        if role == "selector":
+            selector_value_reads(part, out)
+        elif part["kind"] == "derived":
+            out.add(part["name"])
+        elif part["kind"] == "property" and part.get("propertySet") == VALUE_SET:
+            out.add(part["property"])
+
+
+def expression_size(expression: dict[str, Any]) -> tuple[int, int]:
+    """How many nodes a checked expression holds, its aggregates' member
+    filters included, and how deeply its aggregates nest, as the engine
+    counts them."""
+    nodes, nesting = 1, 0
+    inner = list(expression_children(expression))
+    if expression["kind"] == "aggregate" and "where" in expression:
+        inner.extend(selector_expressions(expression["where"]))
+    for child in inner:
+        more, depth = expression_size(child)
+        nodes += more
+        nesting = max(nesting, depth)
+    if expression["kind"] == "aggregate":
+        nesting += 1
+    return nodes, nesting
+
+
+def selector_expressions(value: dict[str, Any]) -> list[dict[str, Any]]:
+    """The expressions of a checked selector's `expression` selectors."""
+    kind = value["kind"]
+    if kind == "expression":
+        return [value["expression"]]
+    if kind in {"allOf", "anyOf"}:
+        return [
+            expression
+            for operand in value["operands"]
+            for expression in selector_expressions(operand)
+        ]
+    if kind == "not":
+        return selector_expressions(value["operand"])
+    if kind == "related":
+        return selector_expressions(value["selector"])
+    return []
+
+
+def measured_members_error(name: Any) -> str | None:
+    """Why `name` names no measured member list, if it names none: a list
+    name, ignoring ASCII case and surrounding whitespace, then `;`-separated
+    `key=value` parameters, each key stated once."""
+    if type(name) is not str:
+        return "a measured member list must be a string"
+    base, *parts = name.split(";")
+    base = ascii_lower(base.strip(TRIMMED))
+    if base not in MEASURED_MEMBER_LISTS:
+        return f"{base!r} is not a measured member list {sorted(MEASURED_MEMBER_LISTS)}"
+    keys: set[str] = set()
+    for part in parts:
+        key, separator, _ = part.partition("=")
+        key = ascii_lower(key.strip(TRIMMED))
+        if not separator or not key:
+            return f"{part!r} is not 'key=value'"
+        if key in keys:
+            return f"{key!r} is stated twice"
+        keys.add(key)
+    return None
+
+
+def literal_error(value: Any) -> str | None:
+    """Why `value` is no literal, if it is none: one value of a scalar
+    parameter value kind in its wire form, a number or quantity finite and a
+    quantity's unit not blank. An enumeration literal is any text, as a
+    source states it."""
+    if type(value) is not dict:
+        return "a literal value must be an object"
+    kind = value.get("type")
+    if type(kind) is not str or kind not in SCALAR_VALUE_KINDS:
+        return f"a literal is one scalar value, not {kind!r}"
+    keys = {"type", "value", "unit"} if kind == "quantity" else {"type", "value"}
+    if set(value) != keys:
+        return f"a {kind} literal holds exactly {sorted(keys)}"
+    item = value["value"]
+    if kind == "boolean":
+        return None if type(item) is bool else "value must be a boolean"
+    if kind == "integer":
+        return None if type(item) is int else "value must be an integer"
+    if kind in {"number", "quantity"}:
+        if type(item) not in {int, float} or not math.isfinite(item):
+            return "a literal number is not finite"
+        if kind == "quantity" and (
+            type(value["unit"]) is not str or not value["unit"].strip()
+        ):
+            return "a quantity literal names a blank unit"
+        return None
+    if type(item) is not str:
+        return "value must be a string"
+    if kind == "date":
+        reason = date_literal_error(item)
+        return None if reason is None else f"{item!r} is not a date: {reason}"
+    if kind == "dateTime":
+        reason = date_time_literal_error(item)
+        return None if reason is None else f"{item!r} is not a date-time: {reason}"
+    return None
+
+
+def is_blank(value: Any) -> bool:
+    return type(value) is not str or not value.strip()
+
+
+def validate_expression(
+    value: Any,
+    context: str,
+    object_types: dict[str, dict[str, Any]] | None = None,
+    properties: dict[str, dict[str, Any]] | None = None,
+    property_sets: dict[str, dict[str, Any]] | None = None,
+    *,
+    classifications: dict[str, dict[str, Any]] | None = None,
+    groupings: set[str] | None = None,
+    relations: set[str] | None = None,
+    parameters: dict[str, dict[str, Any]] | None = None,
+    depth: int = 1,
+) -> None:
+    """Check an expression tree, and bind what it reads when the catalogs are
+    given.
+
+    Without the catalogs only its structure is checked, as the engine's
+    contract states it: known kinds and fields, non-empty operand lists and
+    branches, names and labels that are not blank, property names a selector
+    would accept, finite literal numbers,
+    an aggregate's `value` unless it counts, the depth, size and aggregate
+    nesting limits, and `axioval:member` only inside an aggregate over
+    measured members. With them every property binds to a declared concept
+    in a declared or reserved set, or to a name of a derived set, every
+    embedded selector binds as any selector does, and `parameters`, the
+    rule's readable parameter definitions by ID, bind its `parameter` and
+    `lookup` nodes; without `parameters` it reads none. Derived values and
+    rule outcomes are bound once the whole ruleset is known. `depth` is the
+    level of its root, below an aggregate whose member filter holds it.
+    """
+    bind = properties is not None
+
+    def check(node: Any, node_context: str, depth: int, members: bool) -> None:
+        if depth > MAX_EXPRESSION_DEPTH:
+            fail(
+                node_context,
+                f"an expression nests deeper than {MAX_EXPRESSION_DEPTH} levels",
+            )
+        node = object_value(node, node_context)
+        kind = node.get("kind")
+        if type(kind) is not str or kind not in EXPRESSION_FIELDS:
+            fail(node_context, f"unknown expression kind {kind!r}")
+        required, optional = EXPRESSION_FIELDS[kind]
+        exact_keys(node, {"kind", *required}, {"label", *optional}, node_context)
+        if "label" in node and is_blank(node["label"]):
+            fail(node_context, f"a {kind!r} expression names a blank label")
+        for flag in EXPRESSION_FLAGS:
+            if flag in node and node[flag] is not False:
+                fail(node_context, f"{flag} is false or omitted")
+        for key in EXPRESSION_LIST_FIELDS:
+            if key in node and not list_value(node[key], f"{node_context}.{key}"):
+                fail(node_context, f"a {kind!r} expression has no {key}")
+        if kind == "literal":
+            reason = literal_error(node["value"])
+            if reason is not None:
+                fail(f"{node_context}.value", reason)
+        elif kind == "property":
+            check_property(node, node_context, members)
+        elif kind in {"parameter", "derived"}:
+            if type(node["name"]) is not str or not IDENTIFIER.fullmatch(node["name"]):
+                fail(node_context, f"a {kind!r} expression names no valid {kind}")
+            if kind == "parameter" and bind:
+                parameter = readable_parameter(node["name"], node_context)
+                if parameter["kind"] not in SCALAR_VALUE_KINDS:
+                    fail(
+                        node_context,
+                        f"parameter {node['name']!r} is no single value; "
+                        f"its kind is {parameter['kind']!r}",
+                    )
+        elif kind == "lookup":
+            check_lookup(node, node_context)
+        elif kind in RULE_READING_EXPRESSIONS:
+            # Whether `rule` names a rule of the same ruleset is checked once
+            # the whole ruleset is known.
+            if type(node["rule"]) is not str or not IDENTIFIER.fullmatch(node["rule"]):
+                fail(node_context, "rule must be a rule id")
+        elif kind == "compare":
+            if (
+                type(node["operator"]) is not str
+                or node["operator"] not in EXPRESSION_COMPARISONS
+            ):
+                fail(node_context, f"unknown comparison {node['operator']!r}")
+        elif kind == "if":
+            branches = list_value(node["branches"], f"{node_context}.branches")
+            if not branches:
+                fail(node_context, "an 'if' expression has no branch")
+            for index, branch in enumerate(branches):
+                branch_context = f"{node_context}.branches[{index}]"
+                branch = object_value(branch, branch_context)
+                exact_keys(branch, {"when", "then"}, set(), branch_context)
+        elif kind == "convertSlope":
+            for key in ("from", "to"):
+                if type(node[key]) is not str or node[key] not in SLOPE_FORMS:
+                    fail(node_context, f"{key} must be 'ratio', 'percent' or 'angle'")
+        elif kind == "aggregate":
+            members = check_aggregate(node, node_context, depth) or members
+        if kind == "aggregate":
+            # Only the value of an aggregate over measured members reads
+            # their fields; its source and member filter read none.
+            if "value" in node:
+                check(node["value"], f"{node_context}.value", depth + 1, members)
+            return
+        if kind == "lookup":
+            for key in sorted(node["keys"]):
+                check(
+                    node["keys"][key],
+                    f"{node_context}.keys[{key!r}]",
+                    depth + 1,
+                    members,
+                )
+            return
+        if kind == "if":
+            for index, branch in enumerate(node["branches"]):
+                for key in ("when", "then"):
+                    check(
+                        branch[key],
+                        f"{node_context}.branches[{index}].{key}",
+                        depth + 1,
+                        members,
+                    )
+            check(node["else"], f"{node_context}.else", depth + 1, members)
+            return
+        for key in EXPRESSION_OPERAND_FIELDS:
+            if key in node:
+                check(node[key], f"{node_context}.{key}", depth + 1, members)
+        for key in EXPRESSION_LIST_FIELDS:
+            for index, operand in enumerate(node.get(key, [])):
+                check(operand, f"{node_context}.{key}[{index}]", depth + 1, members)
+
+    def check_property(node: dict[str, Any], node_context: str, members: bool) -> None:
+        property_set = node.get("propertySet")
+        name = node["property"]
+        if "propertySet" in node and (
+            type(property_set) is not str or not QUALIFIED_ID.fullmatch(property_set)
+        ):
+            fail(node_context, "propertySet must be a qualified identifier")
+        if is_blank(name):
+            fail(node_context, "a 'property' expression names a blank property")
+        if "of" in node and (
+            type(node["of"]) is not str or node["of"] not in PROPERTY_SCOPES
+        ):
+            fail(node_context, "of must be 'subject'")
+        if property_set == VALUE_SET:
+            if not IDENTIFIER.fullmatch(name):
+                fail(node_context, f"{name!r} names no derived value")
+            return
+        if property_set == MEMBER_SET:
+            if not members:
+                fail(
+                    node_context,
+                    "axioval:member is read only inside the value of an "
+                    "aggregate over measured members",
+                )
+            return
+        # Any other name is checked as a selector checks it: a qualified
+        # property concept, or a name of a derived set.
+        reason = property_name_error(property_set, name)
+        if reason is not None:
+            fail(node_context, reason)
+        if property_set in DERIVED_PROPERTY_SETS:
+            if bind:
+                derived_property_kind(
+                    property_set, name, classifications or {}, node_context
+                )
+            return
+        if not bind:
+            return
+        # Any other property is a concept, bound as a selector binds it.
+        if name not in properties:
+            fail(node_context, f"unknown property concept {name!r}")
+        if (
+            property_set is not None
+            and property_set not in RESERVED_PROPERTY_SETS
+            and property_set not in (property_sets or {})
+        ):
+            fail(node_context, f"unknown property-set concept {property_set!r}")
+
+    def readable_parameter(name: str, node_context: str) -> dict[str, Any]:
+        if parameters is None:
+            fail(
+                node_context,
+                "only the value of a rule's expression parameter reads the "
+                "rule's parameters",
+            )
+        if name not in parameters:
+            fail(node_context, f"the rule has no parameter {name!r} to read")
+        return parameters[name]
+
+    def check_lookup(node: dict[str, Any], node_context: str) -> None:
+        for key in ("table", "column"):
+            if type(node[key]) is not str or not IDENTIFIER.fullmatch(node[key]):
+                fail(node_context, f"a 'lookup' expression names no valid {key}")
+        keys = object_value(node["keys"], f"{node_context}.keys")
+        if not keys:
+            fail(
+                node_context,
+                f"a 'lookup' expression of {node['table']!r} matches no key column",
+            )
+        for key in keys:
+            if not IDENTIFIER.fullmatch(key):
+                fail(node_context, f"key column {key!r} is no column id")
+        if not bind:
+            return
+        table = readable_parameter(node["table"], node_context)
+        if table["kind"] != "table":
+            fail(node_context, f"parameter {node['table']!r} is no table")
+        columns = {column["id"] for column in table["columns"]}
+        for key in [*sorted(keys), node["column"]]:
+            if key not in columns:
+                fail(node_context, f"table {node['table']!r} has no column {key!r}")
+
+    def check_aggregate(node: dict[str, Any], node_context: str, depth: int) -> bool:
+        """Check an aggregate's own fields; whether it ranges over measured
+        members."""
+        function = node["function"]
+        if type(function) is not str or function not in AGGREGATE_FUNCTIONS:
+            fail(node_context, f"unknown aggregate function {function!r}")
+        if (function == "count") == ("value" in node):
+            fail(
+                node_context,
+                f"an aggregate {function!r} takes a value unless it counts, "
+                "and a count takes none",
+            )
+        over_context = f"{node_context}.over"
+        over = object_value(node["over"], over_context)
+        source = over.get("kind")
+        if type(source) is not str or source not in AGGREGATE_SOURCES:
+            fail(over_context, f"unknown aggregate source {source!r}")
+        if source == "path":
+            exact_keys(over, {"kind", "path"}, set(), over_context)
+            path = list_value(over["path"], f"{over_context}.path")
+            if not path:
+                fail(over_context, "an aggregate path names no step")
+            for index, step in enumerate(path):
+                error = path_step_error(step)
+                if error is not None:
+                    fail(f"{over_context}.path[{index}]", error)
+            if bind:
+                check_path_derived(
+                    path, groupings or set(), relations or set(), f"{over_context}.path"
+                )
+        elif source == "group":
+            exact_keys(over, {"kind", "grouping"}, set(), over_context)
+            if type(over["grouping"]) is not str or not GROUPING_ID.fullmatch(
+                over["grouping"]
+            ):
+                fail(over_context, "grouping must be a grouping id")
+            if bind and over["grouping"] not in (groupings or set()):
+                fail(over_context, f"unknown grouping {over['grouping']!r}")
+        elif source == "selector":
+            exact_keys(over, {"kind", "selector"}, set(), over_context)
+            embedded(over["selector"], f"{over_context}.selector")
+        else:
+            exact_keys(over, {"kind", "name"}, set(), over_context)
+            reason = measured_members_error(over["name"])
+            if reason is not None:
+                fail(over_context, reason)
+            if "where" in node:
+                fail(
+                    node_context,
+                    "an aggregate over measured members takes no where; state "
+                    "the condition in its value",
+                )
+        if "where" in node:
+            # The member filter's expressions nest one level below the
+            # aggregate.
+            embedded(node["where"], f"{node_context}.where", depth)
+        return source == "measured"
+
+    def embedded(selector: Any, selector_context: str, depth: int = 0) -> None:
+        validate_selector(
+            selector,
+            selector_context,
+            object_types,
+            properties,
+            property_sets,
+            classifications=classifications,
+            groupings=groupings,
+            relations=relations,
+            expression_depth=depth,
+        )
+
+    check(value, context, depth, False)
+    nodes, nesting = expression_size(value)
+    if nodes > MAX_EXPRESSION_NODES:
+        fail(context, f"an expression holds more than {MAX_EXPRESSION_NODES} nodes")
+    if nesting > MAX_AGGREGATE_NESTING:
+        fail(
+            context,
+            f"aggregates nest deeper than {MAX_AGGREGATE_NESTING} within one another",
+        )
+
+
 def validate_selector(
     value: Any,
     context: str,
@@ -2065,6 +2715,7 @@ def validate_selector(
     classifications: dict[str, dict[str, Any]] | None = None,
     groupings: set[str] | None = None,
     relations: set[str] | None = None,
+    expression_depth: int = 0,
 ) -> None:
     """Check a selector, and bind its concepts when the catalogs are given.
 
@@ -2073,6 +2724,8 @@ def validate_selector(
     groupings, which `derivedGroup` selectors and group relationships name,
     and `relations` the IDs of its relations, which relation relationships
     name; with the catalogs given and none of them, none is declared.
+    An `expression` selector's expression reads no rule parameter; inside an
+    aggregate's member filter its root nests at `expression_depth + 1`.
     """
     value = object_value(value, context)
     kind = value.get("kind")
@@ -2233,6 +2886,7 @@ def validate_selector(
                 classifications=classifications,
                 groupings=groupings,
                 relations=relations,
+                expression_depth=expression_depth,
             )
     elif kind == "not":
         exact_keys(value, {"kind", "operand"}, set(), context)
@@ -2245,6 +2899,7 @@ def validate_selector(
             classifications=classifications,
             groupings=groupings,
             relations=relations,
+            expression_depth=expression_depth,
         )
     elif kind == "related":
         exact_keys(value, {"kind", "path", "selector"}, {"quantifier"}, context)
@@ -2273,6 +2928,7 @@ def validate_selector(
             classifications=classifications,
             groupings=groupings,
             relations=relations,
+            expression_depth=expression_depth,
         )
     elif kind == "derivedClass":
         exact_keys(
@@ -2306,6 +2962,21 @@ def validate_selector(
         # classifications.
         if properties is not None and value["grouping"] not in (groupings or set()):
             fail(context, f"unknown grouping {value['grouping']!r}")
+    elif kind == "expression":
+        exact_keys(value, {"kind", "expression"}, set(), context)
+        # Selection reads properties, measured and derived values, never a
+        # rule's parameters.
+        validate_expression(
+            value["expression"],
+            f"{context}.expression",
+            object_types,
+            properties,
+            property_sets,
+            classifications=classifications,
+            groupings=groupings,
+            relations=relations,
+            depth=expression_depth + 1,
+        )
     elif kind == "ruleOutcome":
         exact_keys(value, {"kind", "rule", "outcome"}, set(), context)
         # Whether `rule` names a rule of the same ruleset is checked once the
@@ -2319,7 +2990,8 @@ def validate_selector(
 
 
 def selector_rule_references(value: dict[str, Any], out: set[str]) -> None:
-    """Collect the rules the `ruleOutcome` selectors in a checked selector read."""
+    """Collect the rules the `ruleOutcome` selectors and the expressions in a
+    checked selector read."""
     kind = value["kind"]
     if kind == "ruleOutcome":
         out.add(value["rule"])
@@ -2330,12 +3002,17 @@ def selector_rule_references(value: dict[str, Any], out: set[str]) -> None:
         selector_rule_references(value["operand"], out)
     elif kind == "related":
         selector_rule_references(value["selector"], out)
+    elif kind == "expression":
+        expression_rule_references(value["expression"], out)
 
 
 def value_rule_references(value: dict[str, Any], out: set[str]) -> None:
-    """Collect the rules a checked selector value or table's cells read."""
+    """Collect the rules a checked selector or expression value or table's
+    cells read."""
     if value["type"] == "selector":
         selector_rule_references(value["value"], out)
+    elif value["type"] == "expression":
+        expression_rule_references(value["value"], out)
     elif value["type"] == "table":
         for row in value["value"]:
             for cell in row.values():
@@ -2566,7 +3243,8 @@ def validate_applicability(
 
 
 def selector_classification_reads(value: dict[str, Any], out: set[str]) -> None:
-    """Collect the classifications the property selectors in a checked selector read."""
+    """Collect the classifications the property selectors and expressions in a
+    checked selector read."""
     kind = value["kind"]
     if kind == "property" and value.get("propertySet") == CLASSIFICATION_SET:
         out.add(value["property"].partition(";")[0])
@@ -2579,6 +3257,15 @@ def selector_classification_reads(value: dict[str, Any], out: set[str]) -> None:
         selector_classification_reads(value["operand"], out)
     elif kind == "related":
         selector_classification_reads(value["selector"], out)
+    elif kind == "expression":
+        for role, part in expression_parts(value["expression"]):
+            if role == "selector":
+                selector_classification_reads(part, out)
+            elif (
+                part["kind"] == "property"
+                and part.get("propertySet") == CLASSIFICATION_SET
+            ):
+                out.add(part["property"].partition(";")[0])
 
 
 def validate_classifications(
@@ -2687,7 +3374,8 @@ def validate_classifications(
 
 def selector_reads_groups(value: dict[str, Any]) -> bool:
     """Whether a checked selector reads derived groups: a `derivedGroup`
-    selector or a property of the reserved set `axioval:group`."""
+    selector, a property of the reserved set `axioval:group`, or an aggregate
+    over a group."""
     kind = value["kind"]
     if kind == "derivedGroup":
         return True
@@ -2699,6 +3387,14 @@ def selector_reads_groups(value: dict[str, Any]) -> bool:
         return selector_reads_groups(value["operand"])
     if kind == "related":
         return selector_reads_groups(value["selector"])
+    if kind == "expression":
+        return any(
+            selector_reads_groups(part)
+            if role == "selector"
+            else (part["kind"] == "property" and part.get("propertySet") == GROUP_SET)
+            or (part["kind"] == "aggregate" and part["over"]["kind"] == "group")
+            for role, part in expression_parts(value["expression"])
+        )
     return False
 
 
@@ -2904,7 +3600,8 @@ def validate_groupings(
 
 def selector_reads_relations(value: dict[str, Any]) -> bool:
     """Whether a checked selector walks a declared relation: a related
-    selector with a path step naming `axioval:derived.relation;id=`."""
+    selector or an aggregate path with a step naming
+    `axioval:derived.relation;id=`."""
     kind = value["kind"]
     if kind == "related":
         return any(
@@ -2914,6 +3611,17 @@ def selector_reads_relations(value: dict[str, Any]) -> bool:
         return any(selector_reads_relations(operand) for operand in value["operands"])
     if kind == "not":
         return selector_reads_relations(value["operand"])
+    if kind == "expression":
+        return any(
+            selector_reads_relations(part)
+            if role == "selector"
+            else part["kind"] == "aggregate"
+            and part["over"]["kind"] == "path"
+            and any(
+                RELATION_RELATIONSHIP_PREFIX in step for step in part["over"]["path"]
+            )
+            for role, part in expression_parts(value["expression"])
+        )
     return False
 
 
@@ -3276,6 +3984,99 @@ def validate_explanatory_images(
             validate_image_content(candidate, media_type, image_context)
 
 
+def document_expressions(value: Any) -> list[dict[str, Any]]:
+    """Every expression a checked document holds in an `expression` selector
+    or an `expression` value, wherever it appears; expressions nested in
+    those are reached through them."""
+    found: list[dict[str, Any]] = []
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if type(item) is list:
+            pending.extend(item)
+        elif type(item) is dict:
+            if item.get("kind") == "expression" and set(item) == {"kind", "expression"}:
+                found.append(item["expression"])
+            elif item.get("type") == "expression" and set(item) == {"type", "value"}:
+                found.append(item["value"])
+            else:
+                pending.extend(item.values())
+    return found
+
+
+def validate_values(
+    value: Any,
+    context: str,
+    object_types: dict[str, dict[str, Any]],
+    properties: dict[str, dict[str, Any]],
+    property_sets: dict[str, dict[str, Any]],
+    classifications: dict[str, dict[str, Any]],
+    groupings: set[str],
+    relations: set[str],
+) -> set[str]:
+    """Check a ruleset's derived `values` and return their names.
+
+    Each is keyed by an identifier and has a localized `name`, an optional
+    `description` and an `expression` bound against the concept catalogs and
+    the ruleset's classifications, groupings and relations. It reads no rule
+    parameter and no rule's outcome, since values are derived before any rule
+    runs, only declared values, and values never read one another in a cycle.
+    """
+    values = object_value(value, context)
+    if not values:
+        fail(context, "values is omitted when empty")
+    reads: dict[str, set[str]] = {}
+    for name, definition in values.items():
+        entry_context = f"{context}[{name!r}]"
+        if not IDENTIFIER.fullmatch(name):
+            fail(entry_context, "a value name must be an identifier")
+        definition = object_value(definition, entry_context)
+        exact_keys(definition, {"name", "expression"}, {"description"}, entry_context)
+        localized_text(definition["name"], f"{entry_context}.name")
+        if "description" in definition:
+            localized_text(definition["description"], f"{entry_context}.description")
+        expression = definition["expression"]
+        validate_expression(
+            expression,
+            f"{entry_context}.expression",
+            object_types,
+            properties,
+            property_sets,
+            classifications=classifications,
+            groupings=groupings,
+            relations=relations,
+        )
+        rules: set[str] = set()
+        expression_rule_references(expression, rules)
+        if rules:
+            fail(
+                entry_context,
+                f"a value must not read rule {min(rules)!r}'s outcome; "
+                "values are derived before any rule runs",
+            )
+        read: set[str] = set()
+        expression_value_reads(expression, read)
+        for unknown in sorted(read - values.keys()):
+            fail(entry_context, f"the ruleset derives no value {unknown!r}")
+        reads[name] = read
+    pending = set(reads)
+    while pending:
+        ready = {
+            name
+            for name in pending
+            if not any(needed in pending for needed in reads[name])
+        }
+        if not ready:
+            fail(
+                context,
+                "the values "
+                + ", ".join(repr(name) for name in sorted(pending))
+                + " read one another in a cycle",
+            )
+        pending -= ready
+    return set(values)
+
+
 def bind_ruleset(
     value: Any,
     definition_documents: list[dict[str, Any]],
@@ -3287,7 +4088,7 @@ def bind_ruleset(
     exact_keys(
         value,
         {"schemaVersion", "package", "sources", "definitionPackages", "root"},
-        {"classifications", "groupings", "relations"},
+        {"classifications", "groupings", "relations", "values"},
         context,
     )
     package_metadata(value["package"], f"{context}.package")
@@ -3397,6 +4198,20 @@ def bind_ruleset(
             groupings,
             asset_root,
         )
+    # The values the ruleset derives, which `derived` expressions and the
+    # reserved set `axioval:value` name.
+    values: set[str] = set()
+    if "values" in value:
+        values = validate_values(
+            value["values"],
+            f"{context}.values",
+            object_types,
+            properties,
+            property_sets,
+            classifications,
+            groupings,
+            relations,
+        )
     for definition_id, definition in definitions.items():
         for parameter_id, parameter in definition["parameters"].items():
             for field in ("defaultValue",):
@@ -3412,6 +4227,7 @@ def bind_ruleset(
                         classifications,
                         groupings,
                         relations,
+                        definition["parameters"],
                     )
                     resolve_object_type_reference(
                         candidate, object_types, value_context
@@ -3435,6 +4251,7 @@ def bind_ruleset(
                     classifications,
                     groupings,
                     relations,
+                    definition["parameters"],
                 )
                 resolve_object_type_reference(allowed, object_types, allowed_context)
                 resolve_property_reference(
@@ -3568,6 +4385,13 @@ def bind_ruleset(
                     rule_context,
                     f"unknown parameters={sorted(unknown)}, missing required parameters={sorted(missing)}",
                 )
+            # The parameters a rule's expressions read: those it binds and
+            # those its definition gives a default.
+            readable = {
+                parameter_id: parameter
+                for parameter_id, parameter in parameters.items()
+                if parameter_id in bindings or "defaultValue" in parameter
+            }
             for parameter_id, binding in bindings.items():
                 parameter = parameters[parameter_id]
                 checked = parameter_value(
@@ -3586,6 +4410,7 @@ def bind_ruleset(
                     classifications,
                     groupings,
                     relations,
+                    readable,
                 )
                 resolve_object_type_reference(
                     checked,
@@ -3607,6 +4432,25 @@ def bind_ruleset(
                     fail(
                         rule_context,
                         f"parameter {parameter_id!r} is outside allowedValues",
+                    )
+            # A defaulted expression reads the parameters of the rule using it.
+            for parameter_id, parameter in parameters.items():
+                default = parameter.get("defaultValue")
+                if (
+                    parameter_id not in bindings
+                    and default is not None
+                    and default["type"] == "expression"
+                ):
+                    resolve_selector_value(
+                        default,
+                        object_types,
+                        properties,
+                        property_sets,
+                        f"{rule_context}.parameters[{parameter_id!r}].defaultValue",
+                        classifications,
+                        groupings,
+                        relations,
+                        readable,
                     )
             citation_ids: set[str] = set()
             validate_citations(
@@ -3703,6 +4547,20 @@ def bind_ruleset(
         return subtree
 
     walk(value["root"], f"{context}.root", ())
+    # Every expression the ruleset and its definitions hold reads only the
+    # values the ruleset derives.
+    for document_context, document in (
+        (context, value),
+        *(
+            (f"{context}.definitionDocuments[{index}]", document)
+            for index, document in enumerate(definition_documents)
+        ),
+    ):
+        for expression in document_expressions(document):
+            read: set[str] = set()
+            expression_value_reads(expression, read)
+            for name in sorted(read - values):
+                fail(document_context, f"the ruleset derives no value {name!r}")
     for rule_id, read in reads.items():
         unknown = sorted(read - reads.keys())
         if unknown:

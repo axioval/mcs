@@ -1,0 +1,113 @@
+amends "../../schema/RuleSets.pkl"
+
+import "../../schema/Expressions.pkl"
+import "../../schema/RuleSets.pkl"
+import "../../schema/Selectors.pkl"
+import "../../schema/Types.pkl"
+import "../../schema/Values.pkl"
+
+package = new Types.PackageMetadata {
+  id = "axioval:example.expressions"
+  name = new Types.LocalizedText {
+    default = "Expression example"
+    translations { ["de"] = "Ausdrucksbeispiel" }
+  }
+  version = "0.1.0"
+  description = new Types.LocalizedText {
+    default = "Non-production example: a ramp's slope derived once and checked by an expression rule."
+    translations {
+      ["de"] = "Nicht produktives Beispiel: Die Neigung einer Rampe wird einmal abgeleitet und von einer Ausdrucksregel geprüft."
+    }
+  }
+  repository = "https://github.com/axioval/mcs"
+}
+
+definitionPackages {
+  "axioval:example.expression-definitions"
+}
+
+values {
+  ["slope_percent"] {
+    name = new Types.LocalizedText {
+      default = "Slope in percent"
+      translations { ["de"] = "Neigung in Prozent" }
+    }
+    description = new Types.LocalizedText {
+      default = "The ramp's rise over its run, restated as a percentage."
+      translations { ["de"] = "Steigungshöhe durch Lauflänge der Rampe, in Prozent ausgedrückt." }
+    }
+    expression = new Expressions.ConvertSlopeExpression {
+      operand = new Expressions.DivideExpression {
+        left = new Expressions.PropertyExpression {
+          property = "axioval:example.expressions.rise"
+        }
+        right = new Expressions.PropertyExpression {
+          property = "axioval:example.expressions.run"
+        }
+        label = "rise over run"
+      }
+      from = "ratio"
+      to = "percent"
+    }
+  }
+}
+
+root = new RuleSets.RuleFolder {
+  id = "root"
+  name = new Types.LocalizedText {
+    default = "Ramps"
+    translations { ["de"] = "Rampen" }
+  }
+  rules {
+    new RuleSets.RuleInstance {
+      id = "ramp-slope"
+      definitionId = "axioval:example.expression-requirement"
+      name = new Types.LocalizedText {
+        default = "Ramps are no steeper than the limit"
+        translations { ["de"] = "Rampen sind nicht steiler als die Grenze" }
+      }
+      severity = "error"
+      // Only ramps stating both their rise and their run are judged.
+      applicability = new Selectors.AllOfSelector {
+        operands {
+          new Selectors.EntityTypeSelector {
+            objectType = "axioval:example.expressions.ramp"
+          }
+          new Expressions.ExpressionSelector {
+            expression = new Expressions.AndExpression {
+              operands {
+                new Expressions.IsDefinedExpression {
+                  operand = new Expressions.PropertyExpression {
+                    property = "axioval:example.expressions.rise"
+                  }
+                }
+                new Expressions.IsDefinedExpression {
+                  operand = new Expressions.PropertyExpression {
+                    property = "axioval:example.expressions.run"
+                  }
+                }
+              }
+              label = "rise and run stated"
+            }
+          }
+        }
+      }
+      parameters {
+        ["maximum_slope"] = new Values.NumberValue { value = 6.0 }
+        ["requirement"] = new Expressions.ExpressionValue {
+          value = new Expressions.CompareExpression {
+            operator = "lessThanOrEquals"
+            left = new Expressions.DerivedExpression {
+              name = "slope_percent"
+              label = "slope"
+            }
+            right = new Expressions.ParameterExpression {
+              name = "maximum_slope"
+              label = "steepest slope"
+            }
+          }
+        }
+      }
+    }
+  }
+}

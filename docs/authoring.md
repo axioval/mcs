@@ -67,6 +67,10 @@ violations.
     classification and assert the object type in the rule. Selecting only walls
     would silently exclude incorrectly typed objects.
 
+When a requirement is a calculation, such as a slope from a rise and a run,
+state it as an expression and name shared intermediate values once in the
+ruleset's `values`; see [Compute with expressions](expressions.md).
+
 ## 6. Declare the static manifest
 
 ??? example "Show the manifest"

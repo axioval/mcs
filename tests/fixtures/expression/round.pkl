@@ -1,0 +1,17 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.RoundExpression {
+  operand = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "extent_z"
+  }
+  step = new Expressions.LiteralExpression {
+    value = new Values.QuantityValue {
+      value = 5.0
+      unit = "mm"
+    }
+  }
+}

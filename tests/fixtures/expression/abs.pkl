@@ -1,0 +1,10 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.AbsExpression {
+  operand = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "z"
+  }
+}

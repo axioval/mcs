@@ -1,0 +1,10 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.LowerExpression {
+  operand = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-wall-common"
+    property = "ex:reference"
+  }
+}

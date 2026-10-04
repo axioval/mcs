@@ -1,0 +1,16 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.CoalesceExpression {
+  operands {
+    new Expressions.PropertyExpression {
+      propertySet = "ex:pset-wall-common"
+      property = "ex:nominal-width"
+    }
+    new Expressions.PropertyExpression {
+      propertySet = "axioval:measured"
+      property = "extent_x"
+    }
+  }
+}

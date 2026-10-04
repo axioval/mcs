@@ -1,0 +1,25 @@
+/// One shared expression conformance fixture: `expression` rendered alone as
+/// normalized JSON, byte for byte as the checking application writes it.
+module axioval.tests.expression.Fixture
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Selectors.pkl"
+
+expression: Expressions.Expression
+
+output {
+  value = expression
+  renderer = new JsonRenderer {
+    converters {
+      [Expressions.Expression] = (it) -> Expressions.normalizedExpression(it)
+      [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
+      [Selectors.PropertyPatternSelector] = (it) ->
+        Selectors.normalizedPropertyPatternSelector(it)
+      [Selectors.RelatedSelector] = (it) -> Selectors.normalizedRelatedSelector(it)
+      [Selectors.ClassificationSelector] = (it) ->
+        Selectors.normalizedClassificationSelector(it)
+      [Selectors.SourceSelector] = (it) -> Selectors.normalizedSourceSelector(it)
+      [Selectors.DerivedClassSelector] = (it) -> Selectors.normalizedDerivedClassSelector(it)
+    }
+  }
+}

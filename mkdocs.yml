@@ -54,6 +54,7 @@ nav:
   - Make and share:
       - When location matters: concepts/property-addressing.md
       - Make a bundle: authoring.md
+      - Compute with expressions: expressions.md
   - For tool builders:
       - How Axioval fits together: concepts/layers.md
       - Safe sharing checks: package-contract.md
@@ -117,6 +118,7 @@ plugins:
             Make and share: Erstellen und teilen
             When location matters: Wenn der Ablageort wichtig ist
             Make a bundle: Ein Paket erstellen
+            Compute with expressions: Mit Ausdrücken rechnen
             For tool builders: Für Werkzeugentwickler
             How Axioval fits together: So hängt Axioval zusammen
             Safe sharing checks: Sicheres Teilen

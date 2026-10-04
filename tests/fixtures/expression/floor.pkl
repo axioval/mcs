@@ -1,0 +1,12 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.FloorExpression {
+  operand = new Expressions.LiteralExpression {
+    value = new Values.NumberValue {
+      value = 2.7
+    }
+  }
+}

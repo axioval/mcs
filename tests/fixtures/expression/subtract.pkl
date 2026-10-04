@@ -1,0 +1,14 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.SubtractExpression {
+  left = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "top"
+  }
+  right = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "bottom"
+  }
+}

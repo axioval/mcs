@@ -1,0 +1,6 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.NullExpression {
+}

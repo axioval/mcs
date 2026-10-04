@@ -10,6 +10,39 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- Expressions and derived values, mirroring the engine: `Expressions.pkl`
+  types every expression node kind (`literal`, `null`, `property`,
+  `parameter`, `derived`, `lookup`, logic, comparison, choice, arithmetic,
+  angle and slope, `aggregate` over a `path`, `group`, `selector` or
+  `measured` member list, rule outcomes and text), scalar literals,
+  comparison operators, aggregate functions and slope forms. A definition
+  parameter may have `kind: expression`, bound by an `ExpressionValue`; an
+  `expression` selector selects the objects its expression holds for; a
+  ruleset may name derived `values`, each a localized `name`, an optional
+  `description` and an `expression`, read by `derived` nodes and the reserved
+  set `axioval:value`. Normalized JSON writes each node's fields in the
+  engine's order with `label` last, omits unset fields, the default `true` of
+  `caseSensitive`, `lowInclusive` and `highInclusive`, and empty `values`, and
+  orders a lookup's `keys`, so existing packages render byte-identically. Pkl
+  and the binder reject unknown kinds and fields, empty operand lists and
+  branches, blank labels and names, literals that are not one finite scalar,
+  an aggregate `value` that does not match its function and a `where` on
+  measured members; the binder also rejects expressions deeper than 64
+  levels, larger than 2,048 nodes or nesting aggregates more than two deep,
+  unknown concepts, groupings, relations, classifications and derived values,
+  `axioval:member` outside a measured aggregate, parameters and lookups
+  outside an expression parameter or naming a parameter the rule neither
+  binds nor defaults, rule outcomes naming no rule of the ruleset or read in
+  a cycle, rule outcomes in values, classifications, groupings and relations,
+  and values read in a cycle. The engine's 54 golden expression fixtures are
+  shared in `tests/fixtures/expression` with a Pkl module authoring each; the
+  tests require every fixture to render byte-identically, to bind in a
+  package declaring the `ex:` concepts it names and to round-trip through
+  `.mcs` byte for byte in the transport's canonical form (sorted keys,
+  compact separators), and, with `AXIOVAL_ENGINE_FIXTURES`, byte equality
+  with the engine's copies. An expression property names a qualified concept
+  or a derived-set name, as a selector does. The new `examples/expressions` package derives a
+  ramp's slope and checks it with an expression rule.
 - Tables from data files, mirroring the engine: wherever a `table` value is
   allowed (a rule binding, a definition's `defaultValue`, a relation's
   `pairs`), a `tableFile` value may name a UTF-8 CSV file or a named `sheet`

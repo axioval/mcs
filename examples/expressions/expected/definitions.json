@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "0.1.0",
+  "package": {
+    "id": "axioval:example.expression-definitions",
+    "name": {
+      "default": "Expression example definitions",
+      "translations": {
+        "de": "Definitionen des Ausdrucksbeispiels"
+      }
+    },
+    "version": "0.1.0",
+    "description": {
+      "default": "Non-production terminology for a ramp computed with expressions.",
+      "translations": {
+        "de": "Nicht produktive Terminologie für eine mit Ausdrücken berechnete Rampe."
+      }
+    },
+    "repository": "https://github.com/axioval/mcs",
+    "authors": []
+  },
+  "sources": {},
+  "objectTypes": {
+    "axioval:example.expressions.ramp": {
+      "id": "axioval:example.expressions.ramp",
+      "name": {
+        "default": "Ramp",
+        "translations": {
+          "de": "Rampe"
+        }
+      },
+      "externalNames": [
+        {
+          "typeSystem": "https://github.com/axioval/mcs/tree/main/examples",
+          "name": "axioval:example.expressions.ramp"
+        }
+      ],
+      "citations": []
+    }
+  },
+  "properties": {
+    "axioval:example.expressions.rise": {
+      "id": "axioval:example.expressions.rise",
+      "name": {
+        "default": "Rise",
+        "translations": {
+          "de": "Steigungshöhe"
+        }
+      },
+      "valueKind": "quantity",
+      "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+      "externalNames": [
+        {
+          "typeSystem": "https://github.com/axioval/mcs/tree/main/examples",
+          "name": "axioval:example.expressions.rise"
+        }
+      ],
+      "citations": []
+    },
+    "axioval:example.expressions.run": {
+      "id": "axioval:example.expressions.run",
+      "name": {
+        "default": "Run",
+        "translations": {
+          "de": "Lauflänge"
+        }
+      },
+      "valueKind": "quantity",
+      "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+      "externalNames": [
+        {
+          "typeSystem": "https://github.com/axioval/mcs/tree/main/examples",
+          "name": "axioval:example.expressions.run"
+        }
+      ],
+      "citations": []
+    }
+  },
+  "propertySets": {},
+  "definitions": {
+    "axioval:example.expression-requirement": {
+      "id": "axioval:example.expression-requirement",
+      "name": {
+        "default": "Expression requirement",
+        "translations": {
+          "de": "Ausdrucksanforderung"
+        }
+      },
+      "description": {
+        "default": "Holds for every selected object whose requirement, a truth, holds.",
+        "translations": {
+          "de": "Gilt für jedes ausgewählte Objekt, dessen Anforderung, ein Wahrheitswert, gilt."
+        }
+      },
+      "capability": "axioval:capability.expression",
+      "parameters": {
+        "requirement": {
+          "id": "requirement",
+          "name": {
+            "default": "Requirement",
+            "translations": {
+              "de": "Anforderung"
+            }
+          },
+          "kind": "expression",
+          "required": true,
+          "allowedValues": [],
+          "citations": []
+        },
+        "maximum_slope": {
+          "id": "maximum_slope",
+          "name": {
+            "default": "Steepest slope in percent",
+            "translations": {
+              "de": "Größte Neigung in Prozent"
+            }
+          },
+          "kind": "number",
+          "required": true,
+          "allowedValues": [],
+          "citations": []
+        }
+      },
+      "citations": [],
+      "tags": [
+        "example",
+        "expression"
+      ]
+    }
+  }
+}

@@ -1,0 +1,18 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.CompareExpression {
+  operator = "like"
+  left = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-wall-common"
+    property = "ex:reference"
+  }
+  right = new Expressions.LiteralExpression {
+    value = new Values.StringValue {
+      value = "W-*"
+    }
+  }
+  caseSensitive = false
+}

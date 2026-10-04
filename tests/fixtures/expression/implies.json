@@ -1,0 +1,16 @@
+{
+  "kind": "implies",
+  "antecedent": {
+    "kind": "property",
+    "propertySet": "ex:pset-wall-common",
+    "property": "ex:is-external"
+  },
+  "consequent": {
+    "kind": "isDefined",
+    "operand": {
+      "kind": "property",
+      "propertySet": "ex:pset-wall-common",
+      "property": "ex:thermal-transmittance"
+    }
+  }
+}

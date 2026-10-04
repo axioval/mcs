@@ -101,6 +101,22 @@ binder recursively validates that object and resolves every object-type and
 property concept through the loaded definition packages. Unknown concepts,
 malformed operands, and unsupported value combinations fail closed.
 
+## Expression-valued parameters
+
+A capability that computes a value per object declares a parameter with
+`kind = "expression"`. The rule binds a declarative expression tree using
+`Expressions.ExpressionValue`; normalized, it has `type: "expression"` and the
+tree as `value`. The tree is data, never code: the checking application
+evaluates it with a capability it already implements, and an application
+without one fails closed.
+
+The binder checks the tree's structure and limits, binds every property to a
+declared concept or a derived-set name, every embedded selector as any
+selector, every `derived` node to a value the ruleset declares, and every
+`parameter` and `lookup` node to a parameter the rule binds or defaults. An
+expression value for a parameter of any other kind is rejected. See
+[Compute with expressions](expressions.md).
+
 ## Citation contract
 
 Every ruleset and definition document declares its own source catalog. Citations

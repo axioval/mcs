@@ -30,6 +30,15 @@ const measuredSet = "axioval:measured"
 /// has either.
 const groupSet = "axioval:group"
 
+/// The reserved property set naming the values a ruleset derives from
+/// expressions, by their names in the ruleset's `values`. The checking
+/// application answers it; its names bind to no concept.
+const valueSet = "axioval:value"
+
+/// The reserved property set naming the fields of a measured member, which
+/// only the `value` of an aggregate over measured members may name.
+const memberSet = "axioval:member"
+
 /// The names in `groupSet`.
 const groupNames: Set<String> = Set("key", "members")
 

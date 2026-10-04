@@ -1,0 +1,17 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.LookupExpression {
+  table = "limits"
+  keys {
+    ["key_1"] = new Expressions.PropertyExpression {
+      propertySet = "ex:pset-wall-common"
+      property = "ex:fire-class"
+    }
+    ["key_2"] = new Expressions.PropertyExpression {
+      property = "ex:occupancy-type"
+    }
+  }
+  column = "maximum"
+}

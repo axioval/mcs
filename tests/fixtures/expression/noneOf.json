@@ -1,0 +1,18 @@
+{
+  "kind": "noneOf",
+  "operand": {
+    "kind": "property",
+    "propertySet": "ex:pset-wall-common",
+    "property": "ex:status"
+  },
+  "values": [
+    {
+      "kind": "literal",
+      "value": {
+        "type": "string",
+        "value": "demolish"
+      }
+    }
+  ],
+  "caseSensitive": false
+}

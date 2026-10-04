@@ -4,6 +4,7 @@ import "Types.pkl"
 import "Values.pkl"
 import "Selectors.pkl"
 import "Citations.pkl"
+import "Expressions.pkl"
 
 typealias ImageMediaType = "image/png" | "image/jpeg" | "image/webp" | "image/svg+xml"
 
@@ -425,6 +426,23 @@ class RelationDefinition {
   by: RelationKey
 }
 
+/// A value the ruleset names once and derives for every object from an
+/// expression, such as a slope in percent.
+///
+/// An expression obtains it through a `derived` node naming it, or as a
+/// property of the reserved set `axioval:value`, so an expression selector
+/// may select by it.
+/// A value may use other values, never in a cycle, and never a rule's
+/// parameters or outcome, since values are derived before any rule runs. The
+/// checking application evaluates it at most once per object and cites the
+/// evidence it was computed from.
+class ValueDefinition {
+  name: Types.LocalizedText
+  /// Normalized JSON omits it when unset.
+  description: Types.LocalizedText?
+  expression: Expressions.Expression
+}
+
 /// Concrete ruleset package (ABox-like): instances reference definitions by
 /// stable ID. Definition and capability resolution happens in the consuming
 /// application and must fail closed when unavailable.
@@ -449,19 +467,24 @@ groupings: Mapping<String, GroupingDefinition>(
 relations: Mapping<String, RelationDefinition>(
   toMap().every((key, value) -> key == value.id)
 ) = new {}
+/// Values the ruleset derives per object from expressions, by name.
+/// Normalized JSON omits it when empty.
+values: Mapping<Types.Identifier, ValueDefinition> = new {}
 
 output {
-  // Omit an empty `classifications`, `groupings` or `relations`, so packages
-  // that declare none keep byte-identical normalized JSON.
+  // Omit an empty `classifications`, `groupings`, `relations` or `values`,
+  // so packages that declare none keep byte-identical normalized JSON.
   value =
     module.toMap().filter((key, value) ->
-      !(Set("classifications", "groupings", "relations").contains(key) && value.isEmpty)
+      !(Set("classifications", "groupings", "relations", "values").contains(key) && value.isEmpty)
     )
   renderer {
     // Omit defaulted property-, property-pattern-, and source-selector flags,
-    // related-selector quantifiers, unset classification codes, and empty rule
-    // refinements from normalized JSON.
+    // related-selector quantifiers, unset classification codes, empty rule
+    // refinements, and unset or defaulted expression fields from normalized
+    // JSON.
     converters {
+      [Expressions.Expression] = (it) -> Expressions.normalizedExpression(it)
       [RuleInstance] = (it) -> normalizedRuleInstance(it)
       [RuleFolder] = (it) -> normalizedRuleFolder(it)
       [CategoryLevel] = (it) -> normalizedCategoryLevel(it)

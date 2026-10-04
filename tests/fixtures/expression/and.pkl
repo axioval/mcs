@@ -1,0 +1,16 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.AndExpression {
+  operands {
+    new Expressions.PropertyExpression {
+      propertySet = "ex:pset-wall-common"
+      property = "ex:is-external"
+    }
+    new Expressions.PropertyExpression {
+      propertySet = "ex:pset-wall-common"
+      property = "ex:load-bearing"
+    }
+  }
+}

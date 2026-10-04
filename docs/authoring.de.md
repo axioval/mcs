@@ -51,6 +51,8 @@ Ein Regelwerkmodul ergänzt `schema/RuleSets.pkl`, deklariert jedes Definitionsp
 !!! example "Umfang im Vergleich zur Behauptung"
     Um zu verlangen, dass jedes `DIN 276 / 331`-Objekt eine `IfcWall` ist, wählen Sie über die Klassifikation aus und behaupten den Objekttyp in der Regel. Nur Wände auszuwählen würde falsch typisierte Objekte still ausschließen.
 
+Ist eine Anforderung eine Rechnung, etwa eine Neigung aus Steigungshöhe und Lauflänge, beschreiben Sie sie als Ausdruck und benennen gemeinsame Zwischenwerte einmal in `values` des Regelsatzes; siehe [Mit Ausdrücken rechnen](expressions.de.md).
+
 ## 6. Das statische Manifest deklarieren
 
 ??? example "Quelltext oder Befehle anzeigen"

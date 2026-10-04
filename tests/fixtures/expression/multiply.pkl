@@ -1,0 +1,16 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.MultiplyExpression {
+  left = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "area"
+  }
+  right = new Expressions.LiteralExpression {
+    value = new Values.IntegerValue {
+      value = 2
+    }
+  }
+}
