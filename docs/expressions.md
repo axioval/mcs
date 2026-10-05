@@ -46,10 +46,10 @@ for it instead of its rendered form.
 | truth | `not`, `and`, `or`, `implies`, `xor`, `isDefined`, `isUndefined` |
 | comparison | `compare`, `between`, `oneOf`, `noneOf` |
 | choice | `if`, `coalesce` |
-| arithmetic | `add`, `subtract`, `multiply`, `divide`, `negate`, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt` |
+| arithmetic | `add`, `subtract`, `multiply`, `divide`, `negate`, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `inUnit` |
 | angles and slopes | `sin`, `cos`, `tan`, `atan2`, `convertSlope` |
 | members | `aggregate` |
-| other rules | `ruleOutcome`, `findingCount`, `deviation` |
+| other rules | `ruleOutcome`, `selected`, `findingCount`, `deviation` |
 | text | `concat`, `length`, `lower`, `upper`, `trim` |
 
 - A `literal` holds one scalar value in its parameter value form: `boolean`,
@@ -71,6 +71,9 @@ for it instead of its rendered form.
   its `else`.
 - `convertSlope` restates a slope `from` one of `ratio`, `percent`, and
   `angle` `to` another.
+- `inUnit` restates its `operand` in a written `unit` of the same dimension,
+  such as `mm`, `cm`, or `%`: the same value, shown in that unit. A `sum`
+  over no member is zero in its members' unit.
 - `aggregate` computes `count`, `sum`, `min`, `max`, `average`, `any`, `all`,
   `none`, or `distinctCount` over members it reaches `over` a relationship
   `path`, the derived `group` of a grouping, a `selector`, or a `measured`
@@ -79,7 +82,9 @@ for it instead of its rendered form.
   other function needs one. Inside the `value` of an aggregate over measured
   members, the reserved set `axioval:member` names each member's fields.
 - `ruleOutcome`, `findingCount`, and `deviation` read how another rule of the
-  same ruleset judged the object in scope.
+  same ruleset judged the object in scope, and `selected` whether it selected
+  it. `ruleOutcome` is `null` for an object the rule did not select, so guard
+  it with `selected`: `implies(selected(r), ruleOutcome(r))`.
 
 ??? example "Show a requirement comparing a derived slope with a parameter"
     ```pkl
@@ -97,6 +102,28 @@ for it instead of its rendered form.
       }
     }
     ```
+
+## Truth and absent values
+
+A truth is true, false, `null`, or not evaluated. `null` is a value the source
+states as absent; not evaluated means a value could not be read or a result
+cannot be decided. The checking application uses Kleene's three-valued logic
+over true, false, and `null`, with not evaluated kept apart:
+
+- A comparison with `null` is `null`, never false, so `not(x == 5)` and
+  `x != 5` never hold for an object that states no `x`. `noneOf` is always
+  `not oneOf`.
+- `and` is false when any operand is false, and `or` true when any is true;
+  otherwise an operand not evaluated decides, then `null`.
+- `any`, `all`, and `none` read a `null` member as unknown, and `sum`, `min`,
+  `max`, `average`, and `distinctCount` are `null` when a member's value is.
+- A requirement that is `null` is a missing-information finding, never a pass.
+  Only `isDefined`, `isUndefined`, and `coalesce` read `null` as a value: write
+  `implies(isDefined(x), test)` to lift a requirement where `x` is absent,
+  `and(isDefined(x), test)` to require a value, or `coalesce(flag, false)` to
+  read an absent flag as false.
+
+The engine's book lists the truth table of every operator.
 
 ## Derived values
 

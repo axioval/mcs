@@ -10,6 +10,11 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- `Expressions.InUnitExpression` (`inUnit`) mirrors the engine's unit-restate
+  node (axioval/engine#277): its `operand` restated in a written, non-blank
+  `unit` such as `mm` or `%`, bound by the binder and covered by the shared
+  `inUnit` fixture through Pkl, normalized JSON and `.mcs`.
+
 - Expressions and derived values, mirroring the engine: `Expressions.pkl`
   types every expression node kind (`literal`, `null`, `property`,
   `parameter`, `derived`, `lookup`, logic, comparison, choice, arithmetic,
@@ -296,6 +301,16 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   and bounded text-only navigation.
 
 ### Changed
+
+- Expressions mirror the engine's handling of stated-absent values
+  (axioval/engine#269): `Expressions.SelectedExpression` (`selected`) states
+  whether another rule of the ruleset selected the object in scope, bound by
+  the binder like the other rule-reading nodes, so a `ruleOutcome`, `null` for
+  an object the rule did not select, is guarded explicitly instead of making an
+  implication pass vacuously. The expression page documents the truth rules: a
+  comparison with `null` is `null`, `noneOf` is `not oneOf`, aggregates never
+  skip a `null` member, and a requirement that is `null` is a
+  missing-information finding. The shared fixtures add `selected`.
 
 - `PackageMetadata.name` and `description` now use `LocalizedText`.
 - Entity-type selectors now reference reusable object-type concepts instead of

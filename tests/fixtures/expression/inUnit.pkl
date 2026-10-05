@@ -1,0 +1,12 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.InUnitExpression {
+  operand = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "extent_z"
+  }
+  unit = "mm"
+  label = "height in millimetres"
+}

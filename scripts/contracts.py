@@ -260,8 +260,10 @@ EXPRESSION_KINDS = (
     "tan",
     "atan2",
     "convertSlope",
+    "inUnit",
     "aggregate",
     "ruleOutcome",
+    "selected",
     "findingCount",
     "deviation",
     "concat",
@@ -288,8 +290,10 @@ EXPRESSION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
     "round": ({"operand", "step"}, set()),
     "atan2": ({"y", "x"}, set()),
     "convertSlope": ({"operand", "from", "to"}, set()),
+    "inUnit": ({"operand", "unit"}, set()),
     "aggregate": ({"function", "over"}, {"where", "value"}),
     "ruleOutcome": ({"rule"}, set()),
+    "selected": ({"rule"}, set()),
     "findingCount": ({"rule"}, set()),
     "deviation": ({"rule"}, set()),
 }
@@ -354,7 +358,12 @@ AGGREGATE_SOURCES = {"path", "group", "selector", "measured"}
 SLOPE_FORMS = {"ratio", "percent", "angle"}
 PROPERTY_SCOPES = {"subject"}
 # The expression kinds that read another rule's outcome.
-RULE_READING_EXPRESSIONS = {"ruleOutcome", "findingCount", "deviation"}
+RULE_READING_EXPRESSIONS = {
+    "ruleOutcome",
+    "selected",
+    "findingCount",
+    "deviation",
+}
 # The lists of members the engine measures one by one, which an aggregate
 # ranges over as `name[;key=value...]`.
 MEASURED_MEMBER_LISTS = {
@@ -2278,8 +2287,8 @@ def expression_parts(expression: dict[str, Any]) -> list[tuple[str, dict[str, An
 
 def expression_rule_references(expression: dict[str, Any], out: set[str]) -> None:
     """Collect the rules a checked expression reads: its `ruleOutcome`,
-    `findingCount` and `deviation` nodes and the `ruleOutcome` selectors of
-    the selectors it embeds."""
+    `selected`, `findingCount` and `deviation` nodes and the `ruleOutcome`
+    selectors of the selectors it embeds."""
     for role, part in expression_parts(expression):
         if role == "selector":
             selector_rule_references(part, out)
@@ -2506,6 +2515,9 @@ def validate_expression(
             for key in ("from", "to"):
                 if type(node[key]) is not str or node[key] not in SLOPE_FORMS:
                     fail(node_context, f"{key} must be 'ratio', 'percent' or 'angle'")
+        elif kind == "inUnit":
+            if type(node["unit"]) is not str or not node["unit"].strip():
+                fail(node_context, "an 'inUnit' expression names a blank unit")
         elif kind == "aggregate":
             members = check_aggregate(node, node_context, depth) or members
         if kind == "aggregate":

@@ -1,0 +1,8 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.SelectedExpression {
+  rule = "fire-resistance"
+  label = "fire rule applies"
+}

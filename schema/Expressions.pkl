@@ -2,10 +2,12 @@
 ///
 /// The language is total: it has no loops, no recursion, no user-defined
 /// functions and no package-provided code, so every finite tree terminates.
-/// The checking application evaluates it over intervals with three-valued
-/// truth; this module only states it. Every node is tagged by `kind` like a
-/// selector and may carry an author `label` that findings name in place of
-/// the node's rendered form.
+/// The checking application evaluates it over intervals with Kleene's
+/// three-valued truth over true, false and `null`, not evaluated apart: a
+/// comparison with `null` is `null`, and a requirement that is `null` is a
+/// missing-information finding, never a pass. This module only states it.
+/// Every node is tagged by `kind` like a selector and may carry an author
+/// `label` that findings name in place of the node's rendered form.
 ///
 /// Keep this module beside `Selectors.pkl` and `Values.pkl` rather than inside
 /// them: an aggregate's member filter is a selector and a literal is a value,
@@ -341,6 +343,14 @@ class ConvertSlopeExpression extends UnaryExpression {
   to: SlopeForm
 }
 
+/// `operand` restated in `unit`, a written unit of the same dimension such
+/// as `mm`, `cm` or `%`: the same value, shown in that unit. The checking
+/// application checks the unit and its dimension.
+class InUnitExpression extends UnaryExpression {
+  kind: "inUnit" = "inUnit"
+  unit: String(!isBlank)
+}
+
 /// What an aggregate computes over its members.
 ///
 /// - `count`, how many members there are, takes no `value`.
@@ -405,9 +415,17 @@ class AggregateExpression extends Expression {
 
 /// How the rule `rule` of the same ruleset judged the object in scope: true
 /// when it passed it, false when it reported a finding about it, `null` when
-/// it did not select it, and not evaluated when it left it open.
+/// it did not select it, and not evaluated when it left it open. `null`
+/// decides no requirement: guard a reading with `SelectedExpression`.
 class RuleOutcomeExpression extends Expression {
   kind: "ruleOutcome" = "ruleOutcome"
+  rule: Types.Identifier
+}
+
+/// Whether the rule `rule` of the same ruleset selected the object in scope:
+/// true or false, and not evaluated when it could not decide.
+class SelectedExpression extends Expression {
+  kind: "selected" = "selected"
   rule: Types.Identifier
 }
 

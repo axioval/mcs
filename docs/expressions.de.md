@@ -48,10 +48,10 @@ ihn statt seiner ausgeschriebenen Form nennen.
 | Wahrheit | `not`, `and`, `or`, `implies`, `xor`, `isDefined`, `isUndefined` |
 | Vergleich | `compare`, `between`, `oneOf`, `noneOf` |
 | Auswahl | `if`, `coalesce` |
-| Arithmetik | `add`, `subtract`, `multiply`, `divide`, `negate`, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt` |
+| Arithmetik | `add`, `subtract`, `multiply`, `divide`, `negate`, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `inUnit` |
 | Winkel und Neigungen | `sin`, `cos`, `tan`, `atan2`, `convertSlope` |
 | Mitglieder | `aggregate` |
-| andere Regeln | `ruleOutcome`, `findingCount`, `deviation` |
+| andere Regeln | `ruleOutcome`, `selected`, `findingCount`, `deviation` |
 | Text | `concat`, `length`, `lower`, `upper`, `trim` |
 
 - Ein `literal` enthält einen skalaren Wert in seiner Parameterwertform:
@@ -75,6 +75,10 @@ ihn statt seiner ausgeschriebenen Form nennen.
   sonst sein `else`.
 - `convertSlope` drückt eine Neigung `from` einer der Formen `ratio`,
   `percent` und `angle` `to` in einer anderen aus.
+- `inUnit` drückt seinen `operand` in einer geschriebenen Einheit `unit`
+  derselben Dimension aus, etwa `mm`, `cm` oder `%`: derselbe Wert, in dieser
+  Einheit angezeigt. Eine `sum` über kein Mitglied ist null in der Einheit
+  ihrer Mitglieder.
 - `aggregate` berechnet `count`, `sum`, `min`, `max`, `average`, `any`, `all`,
   `none` oder `distinctCount` über Mitglieder, die es `over` einen
   Beziehungspfad `path`, die abgeleitete Gruppe `group` einer Gruppierung,
@@ -84,7 +88,10 @@ ihn statt seiner ausgeschriebenen Form nennen.
   Funktion braucht eines. Im `value` eines Aggregats über gemessene Mitglieder
   nennt die reservierte Menge `axioval:member` die Felder jedes Mitglieds.
 - `ruleOutcome`, `findingCount` und `deviation` lesen, wie eine andere Regel
-  desselben Regelsatzes das betrachtete Objekt beurteilt hat.
+  desselben Regelsatzes das betrachtete Objekt beurteilt hat, und `selected`,
+  ob sie es ausgewählt hat. `ruleOutcome` ist `null` für ein Objekt, das die
+  Regel nicht ausgewählt hat; sichern Sie es daher mit `selected` ab:
+  `implies(selected(r), ruleOutcome(r))`.
 
 ??? example "Anforderung anzeigen, die eine abgeleitete Neigung mit einem Parameter vergleicht"
     ```pkl
@@ -102,6 +109,30 @@ ihn statt seiner ausgeschriebenen Form nennen.
       }
     }
     ```
+
+## Wahrheit und fehlende Werte
+
+Eine Wahrheit ist wahr, falsch, `null` oder ungeprüft. `null` ist ein Wert, den
+die Quelle als fehlend angibt; ungeprüft heißt, dass ein Wert nicht gelesen oder
+ein Ergebnis nicht entschieden werden konnte. Die prüfende Anwendung verwendet
+Kleenes dreiwertige Logik über wahr, falsch und `null` und hält ungeprüft davon
+getrennt:
+
+- Ein Vergleich mit `null` ist `null`, nie falsch; `not(x == 5)` und `x != 5`
+  gelten daher nie für ein Objekt, das kein `x` angibt. `noneOf` ist stets
+  `not oneOf`.
+- `and` ist falsch, sobald ein Operand falsch ist, und `or` wahr, sobald einer
+  wahr ist; sonst entscheidet ein ungeprüfter Operand, danach `null`.
+- `any`, `all` und `none` lesen ein Mitglied mit `null` als unbekannt, und
+  `sum`, `min`, `max`, `average` und `distinctCount` sind `null`, sobald der
+  Wert eines Mitglieds es ist.
+- Eine Anforderung, die `null` ist, ist ein Befund wegen fehlender Angaben, nie
+  ein Bestehen. Nur `isDefined`, `isUndefined` und `coalesce` lesen `null` als
+  Wert: `implies(isDefined(x), test)` hebt eine Anforderung auf, wo `x` fehlt,
+  `and(isDefined(x), test)` verlangt einen Wert, und `coalesce(flag, false)`
+  liest ein fehlendes Kennzeichen als falsch.
+
+Das Buch der Engine führt die Wahrheitstafel jedes Operators auf.
 
 ## Abgeleitete Werte
 

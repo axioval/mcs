@@ -240,7 +240,7 @@ class ExpressionFixtureTests(unittest.TestCase):
             {value["kind"] for value in values.values()},
             set(contracts.EXPRESSION_KINDS),
         )
-        self.assertEqual(len(contracts.EXPRESSION_KINDS), 45)
+        self.assertEqual(len(contracts.EXPRESSION_KINDS), 47)
         self.assertEqual(
             {
                 value["value"]["type"]
@@ -275,7 +275,7 @@ class ExpressionFixtureTests(unittest.TestCase):
 
     def test_pkl_authors_every_fixture_byte_for_byte(self) -> None:
         stems = sorted(fixtures())
-        self.assertEqual(len(stems), 54)
+        self.assertEqual(len(stems), 56)
         with tempfile.TemporaryDirectory() as output:
             proc = subprocess.run(
                 [
