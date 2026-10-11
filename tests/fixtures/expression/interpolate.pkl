@@ -1,0 +1,14 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.InterpolateExpression {
+  table = "minimum_cover"
+  keyColumn = "span"
+  key = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-slab-common"
+    property = "ex:span"
+  }
+  column = "cover"
+  clamp = true
+}

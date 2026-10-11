@@ -55,6 +55,69 @@ facts {
       == #"{"kind":"lookup","table":"limits","keys":{"class":{"kind":"null"},"zone":{"kind":"null"}},"column":"maximum"}"#
   }
 
+  ["floor and ceil write a step only when it is set"] {
+    rendered(new Expressions.FloorExpression { operand = measured })
+      == #"{"kind":"floor","operand":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"}}"#
+    rendered(new Expressions.CeilExpression {
+      label = "whole spaces"
+      operand = measured
+      step = new Expressions.LiteralExpression {
+        value = new Values.IntegerValue { value = 1 }
+      }
+    })
+      == #"{"kind":"ceil","operand":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"},"step":{"kind":"literal","value":{"type":"integer","value":1}},"label":"whole spaces"}"#
+  }
+
+  ["table reads omit their default false flags"] {
+    rendered(new Expressions.InterpolateExpression {
+      table = "cover_by_span"
+      keyColumn = "span"
+      key = measured
+      column = "cover"
+    })
+      == #"{"kind":"interpolate","table":"cover_by_span","keyColumn":"span","key":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"},"column":"cover"}"#
+    rendered(new Expressions.Lookup2Expression {
+      label = "cover"
+      clamp = true
+      interpolateRow = true
+      table = "cover"
+      rowKeyColumn = "span"
+      rowKey = measured
+      columnKeyColumn = "class"
+      columnKey = new Expressions.NullExpression {}
+      column = "cover"
+    })
+      == #"{"kind":"lookup2","table":"cover","rowKeyColumn":"span","rowKey":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"},"columnKeyColumn":"class","columnKey":{"kind":"null"},"column":"cover","interpolateRow":true,"clamp":true,"label":"cover"}"#
+  }
+
+  ["argmin and argmax write over, where, by and value in order"] {
+    rendered(new Expressions.ArgmaxExpression {
+      label = "steepest"
+      value = new Expressions.NullExpression {}
+      by = measured
+      `where` = new Selectors.AllSelector {}
+      over = new Expressions.GroupSource { grouping = "faces" }
+    })
+      == #"{"kind":"argmax","over":{"kind":"group","grouping":"faces"},"where":{"kind":"all"},"by":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"},"value":{"kind":"null"},"label":"steepest"}"#
+    test.catch(() -> new Expressions.ArgminExpression {
+      over = new Expressions.MeasuredSource { name = "steps" }
+      `where` = new Selectors.AllSelector {}
+      by = measured
+      value = measured
+    }.`where`).contains("MeasuredSource")
+    new Expressions.ArgminExpression {
+      over = new Expressions.MeasuredSource { name = "steps" }
+      by = new Expressions.PropertyExpression {
+        propertySet = "axioval:member"
+        property = "rise"
+      }
+      value = new Expressions.PropertyExpression {
+        propertySet = "axioval:member"
+        property = "going"
+      }
+    }.over.kind == "measured"
+  }
+
   ["empty operand lists and branches are refused"] {
     test.catch(() -> new Expressions.AndExpression {}.operands).contains("isEmpty")
     test.catch(() -> new Expressions.OneOfExpression {
@@ -74,6 +137,10 @@ facts {
     test.catch(() -> new Expressions.PropertyExpression { property = "" }.property)
       .contains("isPropertyName")
     test.catch(() -> new Expressions.ParameterExpression { name = "" }.name)
+      .contains("matches")
+    test.catch(() -> new Expressions.InterpolateExpression { keyColumn = "span key" }.keyColumn)
+      .contains("matches")
+    test.catch(() -> new Expressions.Lookup2Expression { rowKeyColumn = "" }.rowKeyColumn)
       .contains("matches")
   }
 

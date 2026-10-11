@@ -42,13 +42,13 @@ for it instead of its rendered form.
 
 | Group | Kinds |
 | --- | --- |
-| values | `literal`, `null`, `property`, `parameter`, `derived`, `lookup` |
+| values | `literal`, `null`, `property`, `parameter`, `derived`, `lookup`, `interpolate`, `lookup2` |
 | truth | `not`, `and`, `or`, `implies`, `xor`, `isDefined`, `isUndefined` |
 | comparison | `compare`, `between`, `oneOf`, `noneOf` |
 | choice | `if`, `coalesce` |
 | arithmetic | `add`, `subtract`, `multiply`, `divide`, `negate`, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `inUnit` |
 | angles and slopes | `sin`, `cos`, `tan`, `atan2`, `convertSlope` |
-| members | `aggregate` |
+| members | `aggregate`, `argmin`, `argmax` |
 | other rules | `ruleOutcome`, `selected`, `findingCount`, `deviation` |
 | text | `concat`, `length`, `lower`, `upper`, `trim` |
 
@@ -62,7 +62,8 @@ for it instead of its rendered form.
   reads the rule's checked object inside an aggregate.
 - A `parameter` reads a scalar parameter the rule binds or defaults. A
   `lookup` reads the `column` cell of the most specific row of a `table`
-  parameter whose key columns match `keys`.
+  parameter whose key columns match `keys`. `interpolate` and `lookup2` read
+  between a table's rows; see [Tables](#tables).
 - `compare` takes an `operator`: `equals`, `notEquals`, `lessThan`,
   `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals`, `like`, `matches`,
   or `contains`. `caseSensitive: false` folds case. `between` is inclusive
@@ -71,6 +72,10 @@ for it instead of its rendered form.
   its `else`.
 - `convertSlope` restates a slope `from` one of `ratio`, `percent`, and
   `angle` `to` another.
+- `floor` and `ceil` round down or up to whole numbers, or with an optional
+  `step` of the operand's unit to its multiples, as a norm prescribes the
+  direction: `ceil(4.2, 1)` is 5 parking spaces, `floor(0.987 m, 0.01 m)` is
+  `0.98 m`.
 - `inUnit` restates its `operand` in a written `unit` of the same dimension,
   such as `mm`, `cm`, or `%`: the same value, shown in that unit. A `sum`
   over no member is zero in its members' unit.
@@ -81,6 +86,14 @@ for it instead of its rendered form.
   members, and `value` is evaluated for each; a count takes no `value`, every
   other function needs one. Inside the `value` of an aggregate over measured
   members, the reserved set `axioval:member` names each member's fields.
+- `argmin` and `argmax` choose the member whose `by`, a number, is least or
+  greatest and read its `value`, so a rule refers to the decisive member: the
+  steepest roof face, the longest escape route. They range `over` members and
+  filter them with `where` as an aggregate does, and evaluate `by` and `value`
+  with each member in scope; over measured members both read `axioval:member`.
+  Where intervals overlap, every member that may be the extreme is chosen, and
+  the value is the one they agree on, otherwise not evaluated, never one
+  picked by order.
 - `ruleOutcome`, `findingCount`, and `deviation` read how another rule of the
   same ruleset judged the object in scope, and `selected` whether it selected
   it. `ruleOutcome` is `null` for an object the rule did not select, so guard
@@ -124,6 +137,42 @@ over true, false, and `null`, with not evaluated kept apart:
   read an absent flag as false.
 
 The engine's book lists the truth table of every operator.
+
+## Tables
+
+A rule's `table` parameters are read three ways. `lookup` selects the most
+specific row whose key cells match its `keys`. `interpolate` reads the `column`
+cell at a `key` of the numeric `keyColumn`, interpolated linearly between the
+two rows whose keys bracket it, as norm tables state values at grid points:
+rows `2.0 -> 10` and `3.0 -> 20` give 14 at 2.4. A key beyond the first or
+last row is not evaluated, never extrapolated, unless `clamp: true` declares
+that the nearest end row's value applies.
+
+`lookup2` reads a two-key table, one cell per row, such as a cover by exposure
+class and thickness. It matches `rowKey` in `rowKeyColumn` and `columnKey` in
+`columnKeyColumn` exactly, or with `interpolateRow` or `interpolateColumn`
+interpolates linearly along that numeric key column; bilinearly when both are
+set. A cell no row states is not evaluated, never borrowed from a farther row,
+and `clamp` applies to both keys.
+
+??? example "Show a cover read at a slab's span"
+    ```pkl
+    new Expressions.InterpolateExpression {
+      table = "cover_by_span"
+      keyColumn = "span"
+      key = new Expressions.PropertyExpression {
+        property = "axioval:example.slab.span"
+      }
+      column = "cover"
+      clamp = true
+    }
+    ```
+
+The binder requires the table to be a `table` parameter the rule binds or
+defaults, every named column to be one of its columns, an interpolated key
+column to be an `integer`, `number`, or `quantity` column, and the `column`
+read to be one too when any key is interpolated. The checking application
+checks that a key's unit matches its column's.
 
 ## Derived values
 
@@ -194,9 +243,11 @@ parameters.
 ## Normalized JSON
 
 Normalized JSON writes each node's fields in the order the checking application
-writes them, its `label` last, and omits unset fields and the defaults `true`
-of `caseSensitive`, `lowInclusive`, and `highInclusive`. A lookup's `keys` are
-ordered by column ID. A ruleset without `values` renders byte-identically.
+writes them, its `label` last, and omits unset fields, the defaults `true`
+of `caseSensitive`, `lowInclusive`, and `highInclusive`, and the defaults
+`false` of `clamp`, `interpolateRow`, and `interpolateColumn`. A lookup's
+`keys` are ordered by column ID. A `floor` or `ceil` without a `step` and a
+ruleset without `values` render byte-identically.
 
 The repository keeps the checking application's golden expression fixtures,
 one per kind, in `tests/fixtures/expression` with a Pkl module authoring each.
@@ -214,16 +265,19 @@ Pkl checks each node's shape. The binder then refuses, among others:
   `label` or name, a literal that is not one finite scalar value, and a stated
   default flag;
 - an expression nesting deeper than 64 levels, holding more than 2,048 nodes,
-  or nesting aggregates more than two deep;
+  or nesting aggregates, `argmin`, and `argmax` more than two deep within one
+  another's `value`, `by`, or `where`;
 - an aggregate whose `value` does not match its function, a `where` on
   measured members, an unknown measured member list, and `axioval:member`
-  outside a measured aggregate's `value`;
+  outside the `value` of a measured aggregate or the `by` and `value` of a
+  measured `argmin` or `argmax`;
 - a property that is no declared concept or derived-set name, an unknown
   grouping, relation, or classification, and a `derived` value the ruleset
   does not declare;
-- a `parameter` or `lookup` outside an expression parameter, or naming a
-  parameter the rule neither binds nor defaults, a table column it lacks, or a
-  parameter that is no single value;
+- a `parameter`, `lookup`, `interpolate`, or `lookup2` outside an expression
+  parameter, or naming a parameter the rule neither binds nor defaults, a
+  table column it lacks, a parameter that is no single value, or a
+  non-numeric column it interpolates along or reads interpolated;
 - a rule outcome naming a rule outside the ruleset, a rule reading its own
   outcome, rules reading one another in a cycle, and any rule outcome in a
   derived value, classification, grouping, or relation; and

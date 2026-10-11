@@ -26,8 +26,8 @@ const maxDepth = 64
 /// filters included; the binder refuses a larger one.
 const maxNodes = 2048
 
-/// How deeply aggregates may nest within one another's `value` or `where`;
-/// the binder refuses deeper nesting.
+/// How deeply aggregates, `argmin` and `argmax` may nest within one
+/// another's `value`, `by` or `where`; the binder refuses deeper nesting.
 const maxAggregateNesting = 2
 
 /// The lists of members the checking application measures one by one, such
@@ -157,6 +157,49 @@ class LookupExpression extends Expression {
   /// The value each key column is matched against, by column ID.
   keys: Mapping<Types.Identifier, Expression>(!isEmpty)
   column: Types.Identifier
+}
+
+/// The `column` cell of the rule's `table` parameter at `key` of its numeric
+/// key column `keyColumn`, interpolated linearly between the two rows whose
+/// keys bracket it, as norm tables state values at grid points. A key
+/// interval gives every value its keys allow. A key beyond the rows' keys is
+/// not evaluated, never extrapolated, unless `clamp` holds, which takes the
+/// nearest end row's value. The binder requires `keyColumn` and `column` to
+/// be numeric columns of the table.
+class InterpolateExpression extends Expression {
+  kind: "interpolate" = "interpolate"
+  table: Types.Identifier
+  keyColumn: Types.Identifier
+  key: Expression
+  column: Types.Identifier
+  /// Normalized JSON omits the default `false`.
+  clamp: Boolean = false
+}
+
+/// The `column` cell of the rule's two-key `table` parameter, one cell per
+/// row, at `rowKey` in the key column `rowKeyColumn` and `columnKey` in
+/// `columnKeyColumn`. Each key is matched exactly, or with `interpolateRow`
+/// or `interpolateColumn` interpolated linearly as `InterpolateExpression`
+/// does between the bracketing keys of its numeric key column; bilinear when
+/// both are. A grid point no row states is not evaluated, never borrowed
+/// from a farther row, and so is a key beyond an interpolated key column's
+/// rows unless `clamp` holds for both keys. The binder requires an
+/// interpolated key column, and `column` when either key is interpolated,
+/// to be numeric.
+class Lookup2Expression extends Expression {
+  kind: "lookup2" = "lookup2"
+  table: Types.Identifier
+  rowKeyColumn: Types.Identifier
+  rowKey: Expression
+  columnKeyColumn: Types.Identifier
+  columnKey: Expression
+  column: Types.Identifier
+  /// Normalized JSON omits the default `false`.
+  interpolateRow: Boolean = false
+  /// Normalized JSON omits the default `false`.
+  interpolateColumn: Boolean = false
+  /// Normalized JSON omits the default `false`.
+  clamp: Boolean = false
 }
 
 class NotExpression extends UnaryExpression {
@@ -297,12 +340,22 @@ class RoundExpression extends UnaryExpression {
   step: Expression
 }
 
+/// `operand` rounded down: to the greatest whole number not above it, or
+/// with a `step` of the operand's unit to the greatest multiple of `step`
+/// not above it, as a norm prescribes the direction.
 class FloorExpression extends UnaryExpression {
   kind: "floor" = "floor"
+  /// Normalized JSON omits it when unset: round to whole numbers.
+  step: Expression?
 }
 
+/// `operand` rounded up: to the least whole number not below it, or with a
+/// `step` of the operand's unit to the least multiple of `step` not below
+/// it, such as a required number of parking spaces.
 class CeilExpression extends UnaryExpression {
   kind: "ceil" = "ceil"
+  /// Normalized JSON omits it when unset: round to whole numbers.
+  step: Expression?
 }
 
 class SqrtExpression extends UnaryExpression {
@@ -413,6 +466,35 @@ class AggregateExpression extends Expression {
   value: Expression?((`function` == "count") == (this == null))
 }
 
+/// The `value` of the member whose `by`, a number, is least, among the
+/// objects `over` reaches that `where` selects, as an aggregate ranges over
+/// them: `by` and `value` are evaluated with each member in scope, so
+/// `value` reads the chosen member's other values, and over measured members
+/// both reach its fields in `axioval:member`. Where intervals overlap, every
+/// member that may be the least is chosen: the value is the one they agree
+/// on, otherwise not evaluated, never one picked by order.
+class ArgminExpression extends Expression {
+  kind: "argmin" = "argmin"
+  over: AggregateSource
+  /// The members' filter. Normalized JSON omits it when unset; measured
+  /// members take none.
+  `where`: Selectors.Selector?(this == null || !(over is MeasuredSource))
+  by: Expression
+  value: Expression
+}
+
+/// `ArgminExpression` for the member whose `by` is greatest: the steepest
+/// roof face, the longest escape route.
+class ArgmaxExpression extends Expression {
+  kind: "argmax" = "argmax"
+  over: AggregateSource
+  /// The members' filter. Normalized JSON omits it when unset; measured
+  /// members take none.
+  `where`: Selectors.Selector?(this == null || !(over is MeasuredSource))
+  by: Expression
+  value: Expression
+}
+
 /// How the rule `rule` of the same ruleset judged the object in scope: true
 /// when it passed it, false when it reported a finding about it, `null` when
 /// it did not select it, and not evaluated when it left it open. `null`
@@ -483,14 +565,16 @@ class ExpressionValue extends Values.ParameterValue {
 }
 
 /// Render an expression node with its fields in declaration order, `label`
-/// last, without unset fields or the default `true` of `caseSensitive`,
-/// `lowInclusive` and `highInclusive`, and with a lookup's `keys` ordered by
-/// column ID, as the checking application writes it.
+/// last, without unset fields, the default `true` of `caseSensitive`,
+/// `lowInclusive` and `highInclusive` or the default `false` of `clamp`,
+/// `interpolateRow` and `interpolateColumn`, and with a lookup's `keys`
+/// ordered by column ID, as the checking application writes it.
 const function normalizedExpression(expression: Expression): Map<String, Any> =
   let (fields = expression.toMap().filter((key, value) ->
     key != "label"
       && value != null
       && !(Set("caseSensitive", "lowInclusive", "highInclusive").contains(key) && value == true)
+      && !(Set("clamp", "interpolateRow", "interpolateColumn").contains(key) && value == false)
   ))
   let (ordered =
     if (expression is LookupExpression)

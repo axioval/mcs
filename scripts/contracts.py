@@ -230,6 +230,8 @@ EXPRESSION_KINDS = (
     "parameter",
     "derived",
     "lookup",
+    "interpolate",
+    "lookup2",
     "not",
     "and",
     "or",
@@ -262,6 +264,8 @@ EXPRESSION_KINDS = (
     "convertSlope",
     "inUnit",
     "aggregate",
+    "argmin",
+    "argmax",
     "ruleOutcome",
     "selected",
     "findingCount",
@@ -281,6 +285,11 @@ EXPRESSION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
     "parameter": ({"name"}, set()),
     "derived": ({"name"}, set()),
     "lookup": ({"table", "keys", "column"}, set()),
+    "interpolate": ({"table", "keyColumn", "key", "column"}, {"clamp"}),
+    "lookup2": (
+        {"table", "rowKeyColumn", "rowKey", "columnKeyColumn", "columnKey", "column"},
+        {"interpolateRow", "interpolateColumn", "clamp"},
+    ),
     "implies": ({"antecedent", "consequent"}, set()),
     "compare": ({"operator", "left", "right"}, {"caseSensitive"}),
     "between": ({"operand", "low", "high"}, {"lowInclusive", "highInclusive"}),
@@ -292,13 +301,17 @@ EXPRESSION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
     "convertSlope": ({"operand", "from", "to"}, set()),
     "inUnit": ({"operand", "unit"}, set()),
     "aggregate": ({"function", "over"}, {"where", "value"}),
+    "argmin": ({"over", "by", "value"}, {"where"}),
+    "argmax": ({"over", "by", "value"}, {"where"}),
     "ruleOutcome": ({"rule"}, set()),
     "selected": ({"rule"}, set()),
     "findingCount": ({"rule"}, set()),
     "deviation": ({"rule"}, set()),
 }
-for _kind in ("not", "isDefined", "isUndefined", "negate", "abs", "floor", "ceil"):
+for _kind in ("not", "isDefined", "isUndefined", "negate", "abs"):
     EXPRESSION_FIELDS[_kind] = ({"operand"}, set())
+for _kind in ("floor", "ceil"):
+    EXPRESSION_FIELDS[_kind] = ({"operand"}, {"step"})
 for _kind in ("sqrt", "sin", "cos", "tan", "length", "lower", "upper", "trim"):
     EXPRESSION_FIELDS[_kind] = ({"operand"}, set())
 for _kind in ("and", "or", "coalesce", "min", "max", "concat"):
@@ -307,6 +320,9 @@ for _kind in ("xor", "add", "subtract", "multiply", "divide"):
     EXPRESSION_FIELDS[_kind] = ({"left", "right"}, set())
 # Fields holding one operand expression, and fields holding a list of them.
 EXPRESSION_OPERAND_FIELDS = (
+    "key",
+    "rowKey",
+    "columnKey",
     "operand",
     "left",
     "right",
@@ -321,6 +337,8 @@ EXPRESSION_OPERAND_FIELDS = (
 EXPRESSION_LIST_FIELDS = ("operands", "values")
 # Flags whose default `true` normalized JSON omits.
 EXPRESSION_FLAGS = ("caseSensitive", "lowInclusive", "highInclusive")
+# Flags whose default `false` normalized JSON omits.
+EXPRESSION_FALSE_FLAGS = ("clamp", "interpolateRow", "interpolateColumn")
 # The scalar value kinds a literal may hold, in their parameter value form.
 SCALAR_VALUE_KINDS = {
     "boolean",
@@ -355,6 +373,11 @@ AGGREGATE_FUNCTIONS = {
     "distinctCount",
 }
 AGGREGATE_SOURCES = {"path", "group", "selector", "measured"}
+# The expression kinds that range over members as an aggregate does: their
+# source, member filter and nesting are checked alike.
+MEMBER_EXPRESSIONS = {"aggregate", "argmin", "argmax"}
+# The table column kinds a key or cell interpolates along: numbers.
+NUMERIC_COLUMN_KINDS = {"integer", "number", "quantity"}
 SLOPE_FORMS = {"ratio", "percent", "angle"}
 PROPERTY_SCOPES = {"subject"}
 # The expression kinds that read another rule's outcome.
@@ -2247,11 +2270,14 @@ def derived_property_kind(
 def expression_children(node: dict[str, Any]) -> list[dict[str, Any]]:
     """The direct operands of a checked expression node, in written order:
     a lookup's keys by column ID, an `if`'s branches `when` before `then`,
-    `else` last, and an aggregate's `value`."""
+    `else` last, an aggregate's `value`, and an `argmin`'s or `argmax`'s
+    `by` before its `value`."""
     kind = node["kind"]
     children: list[dict[str, Any]] = []
     if kind == "lookup":
         children.extend(child for _, child in sorted(node["keys"].items()))
+    elif kind in {"argmin", "argmax"}:
+        children.extend((node["by"], node["value"]))
     elif kind == "if":
         for branch in node["branches"]:
             children.extend((branch["when"], branch["then"]))
@@ -2268,15 +2294,15 @@ def expression_children(node: dict[str, Any]) -> list[dict[str, Any]]:
 
 def expression_parts(expression: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     """Every node of a checked expression tree, as `("expression", node)`,
-    and every selector it embeds directly, an aggregate's `where` or
-    `over.selector`, as `("selector", selector)`; embedded selectors are not
-    entered."""
+    and every selector it embeds directly, the `where` or `over.selector` of
+    an aggregate, `argmin` or `argmax`, as `("selector", selector)`; embedded
+    selectors are not entered."""
     parts: list[tuple[str, dict[str, Any]]] = []
     pending = [expression]
     while pending:
         node = pending.pop()
         parts.append(("expression", node))
-        if node["kind"] == "aggregate":
+        if node["kind"] in MEMBER_EXPRESSIONS:
             if "where" in node:
                 parts.append(("selector", node["where"]))
             if node["over"]["kind"] == "selector":
@@ -2324,18 +2350,18 @@ def expression_value_reads(expression: dict[str, Any], out: set[str]) -> None:
 
 
 def expression_size(expression: dict[str, Any]) -> tuple[int, int]:
-    """How many nodes a checked expression holds, its aggregates' member
-    filters included, and how deeply its aggregates nest, as the engine
-    counts them."""
+    """How many nodes a checked expression holds, the member filters of its
+    aggregates, `argmin` and `argmax` included, and how deeply those nest
+    within one another, as the engine counts them."""
     nodes, nesting = 1, 0
     inner = list(expression_children(expression))
-    if expression["kind"] == "aggregate" and "where" in expression:
+    if expression["kind"] in MEMBER_EXPRESSIONS and "where" in expression:
         inner.extend(selector_expressions(expression["where"]))
     for child in inner:
         more, depth = expression_size(child)
         nodes += more
         nesting = max(nesting, depth)
-    if expression["kind"] == "aggregate":
+    if expression["kind"] in MEMBER_EXPRESSIONS:
         nesting += 1
     return nodes, nesting
 
@@ -2442,12 +2468,14 @@ def validate_expression(
     branches, names and labels that are not blank, property names a selector
     would accept, finite literal numbers,
     an aggregate's `value` unless it counts, the depth, size and aggregate
-    nesting limits, and `axioval:member` only inside an aggregate over
+    nesting limits, and `axioval:member` only inside the `value` of an
+    aggregate, or the `by` and `value` of an `argmin` or `argmax`, over
     measured members. With them every property binds to a declared concept
     in a declared or reserved set, or to a name of a derived set, every
     embedded selector binds as any selector does, and `parameters`, the
-    rule's readable parameter definitions by ID, bind its `parameter` and
-    `lookup` nodes; without `parameters` it reads none. Derived values and
+    rule's readable parameter definitions by ID, bind its `parameter`,
+    `lookup`, `interpolate` and `lookup2` nodes, an interpolated key column
+    and cell column numeric; without `parameters` it reads none. Derived values and
     rule outcomes are bound once the whole ruleset is known. `depth` is the
     level of its root, below an aggregate whose member filter holds it.
     """
@@ -2470,6 +2498,9 @@ def validate_expression(
         for flag in EXPRESSION_FLAGS:
             if flag in node and node[flag] is not False:
                 fail(node_context, f"{flag} is false or omitted")
+        for flag in EXPRESSION_FALSE_FLAGS:
+            if flag in node and node[flag] is not True:
+                fail(node_context, f"{flag} is true or omitted")
         for key in EXPRESSION_LIST_FIELDS:
             if key in node and not list_value(node[key], f"{node_context}.{key}"):
                 fail(node_context, f"a {kind!r} expression has no {key}")
@@ -2492,6 +2523,8 @@ def validate_expression(
                     )
         elif kind == "lookup":
             check_lookup(node, node_context)
+        elif kind in {"interpolate", "lookup2"}:
+            check_table_read(node, node_context)
         elif kind in RULE_READING_EXPRESSIONS:
             # Whether `rule` names a rule of the same ruleset is checked once
             # the whole ruleset is known.
@@ -2520,11 +2553,18 @@ def validate_expression(
                 fail(node_context, "an 'inUnit' expression names a blank unit")
         elif kind == "aggregate":
             members = check_aggregate(node, node_context, depth) or members
+        elif kind in {"argmin", "argmax"}:
+            members = check_source(node, node_context, depth) or members
         if kind == "aggregate":
             # Only the value of an aggregate over measured members reads
             # their fields; its source and member filter read none.
             if "value" in node:
                 check(node["value"], f"{node_context}.value", depth + 1, members)
+            return
+        if kind in {"argmin", "argmax"}:
+            # `by` and `value` are evaluated with each member in scope.
+            for key in ("by", "value"):
+                check(node[key], f"{node_context}.{key}", depth + 1, members)
             return
         if kind == "lookup":
             for key in sorted(node["keys"]):
@@ -2575,7 +2615,8 @@ def validate_expression(
                 fail(
                     node_context,
                     "axioval:member is read only inside the value of an "
-                    "aggregate over measured members",
+                    "aggregate, or the by and value of an argmin or argmax, "
+                    "over measured members",
                 )
             return
         # Any other name is checked as a selector checks it: a qualified
@@ -2635,6 +2676,48 @@ def validate_expression(
             if key not in columns:
                 fail(node_context, f"table {node['table']!r} has no column {key!r}")
 
+    def check_table_read(node: dict[str, Any], node_context: str) -> None:
+        """Check the table and columns an `interpolate` or `lookup2` node
+        names, and bind them against the rule's table parameter: every column
+        declared, an interpolated key column numeric, and the cell column
+        numeric when a key is interpolated, as the engine's type checker
+        requires."""
+        kind = node["kind"]
+        if kind == "interpolate":
+            names = ("table", "keyColumn", "column")
+            interpolated = {"keyColumn"}
+        else:
+            names = ("table", "rowKeyColumn", "columnKeyColumn", "column")
+            interpolated = {
+                column
+                for column, flag in (
+                    ("rowKeyColumn", "interpolateRow"),
+                    ("columnKeyColumn", "interpolateColumn"),
+                )
+                if node.get(flag) is True
+            }
+        for key in names:
+            if type(node[key]) is not str or not IDENTIFIER.fullmatch(node[key]):
+                fail(node_context, f"a {kind!r} expression names no valid {key}")
+        if interpolated:
+            interpolated.add("column")
+        if not bind:
+            return
+        table = readable_parameter(node["table"], node_context)
+        if table["kind"] != "table":
+            fail(node_context, f"parameter {node['table']!r} is no table")
+        columns = {column["id"]: column["kind"] for column in table["columns"]}
+        for key in names[1:]:
+            column = node[key]
+            if column not in columns:
+                fail(node_context, f"table {node['table']!r} has no column {column!r}")
+            if key in interpolated and columns[column] not in NUMERIC_COLUMN_KINDS:
+                fail(
+                    node_context,
+                    f"column {column!r} of table {node['table']!r} is "
+                    f"{columns[column]!r}, not a number to interpolate",
+                )
+
     def check_aggregate(node: dict[str, Any], node_context: str, depth: int) -> bool:
         """Check an aggregate's own fields; whether it ranges over measured
         members."""
@@ -2647,16 +2730,22 @@ def validate_expression(
                 f"an aggregate {function!r} takes a value unless it counts, "
                 "and a count takes none",
             )
+        return check_source(node, node_context, depth)
+
+    def check_source(node: dict[str, Any], node_context: str, depth: int) -> bool:
+        """Check the source and member filter of an aggregate, `argmin` or
+        `argmax`; whether it ranges over measured members."""
+        kind = node["kind"]
         over_context = f"{node_context}.over"
         over = object_value(node["over"], over_context)
         source = over.get("kind")
         if type(source) is not str or source not in AGGREGATE_SOURCES:
-            fail(over_context, f"unknown aggregate source {source!r}")
+            fail(over_context, f"unknown {kind} source {source!r}")
         if source == "path":
             exact_keys(over, {"kind", "path"}, set(), over_context)
             path = list_value(over["path"], f"{over_context}.path")
             if not path:
-                fail(over_context, "an aggregate path names no step")
+                fail(over_context, f"an {kind} path names no step")
             for index, step in enumerate(path):
                 error = path_step_error(step)
                 if error is not None:
@@ -2684,12 +2773,12 @@ def validate_expression(
             if "where" in node:
                 fail(
                     node_context,
-                    "an aggregate over measured members takes no where; state "
+                    f"an {kind} over measured members takes no where; state "
                     "the condition in its value",
                 )
         if "where" in node:
             # The member filter's expressions nest one level below the
-            # aggregate.
+            # node ranging over members.
             embedded(node["where"], f"{node_context}.where", depth)
         return source == "measured"
 
@@ -3404,7 +3493,7 @@ def selector_reads_groups(value: dict[str, Any]) -> bool:
             selector_reads_groups(part)
             if role == "selector"
             else (part["kind"] == "property" and part.get("propertySet") == GROUP_SET)
-            or (part["kind"] == "aggregate" and part["over"]["kind"] == "group")
+            or (part["kind"] in MEMBER_EXPRESSIONS and part["over"]["kind"] == "group")
             for role, part in expression_parts(value["expression"])
         )
     return False
@@ -3627,7 +3716,7 @@ def selector_reads_relations(value: dict[str, Any]) -> bool:
         return any(
             selector_reads_relations(part)
             if role == "selector"
-            else part["kind"] == "aggregate"
+            else part["kind"] in MEMBER_EXPRESSIONS
             and part["over"]["kind"] == "path"
             and any(
                 RELATION_RELATIONSHIP_PREFIX in step for step in part["over"]["path"]

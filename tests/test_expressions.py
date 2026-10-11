@@ -159,6 +159,34 @@ package {
           }
         }
       }
+      ["minimum_cover"] {
+        id = "minimum_cover"
+        name { default = "Minimum cover" }
+        kind = "table"
+        required = false
+        columns {
+          new { id = "class"; name { default = "Class" }; kind = "string"; required = false }
+          new {
+            id = "thickness"
+            name { default = "Thickness" }
+            kind = "quantity"
+            unitDimension = "https://qudt.org/vocab/quantitykind/Length"
+            required = false
+          }
+          new { id = "span"; name { default = "Span" }; kind = "number"; required = false }
+          new { id = "cover"; name { default = "Cover" }; kind = "number" }
+        }
+        defaultValue = new Values.TableValue {
+          value {
+            new {
+              ["class"] = new Values.StringValue { value = "XC1" }
+              ["thickness"] = new Values.QuantityValue { value = 0.2; unit = "m" }
+              ["span"] = new Values.NumberValue { value = 4.0 }
+              ["cover"] = new Values.NumberValue { value = 20.0 }
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -192,6 +220,12 @@ groupings {{
   ["flights-of-storey"] {{
     id = "flights-of-storey"
     name {{ default = "Flights of a storey" }}
+    members = new Selectors.AllSelector {{}}
+    by = new ClassificationGroupingKey {{ system = "conformance" }}
+  }}
+  ["routes-of-storey"] {{
+    id = "routes-of-storey"
+    name {{ default = "Routes of a storey" }}
     members = new Selectors.AllSelector {{}}
     by = new ClassificationGroupingKey {{ system = "conformance" }}
   }}
@@ -240,7 +274,7 @@ class ExpressionFixtureTests(unittest.TestCase):
             {value["kind"] for value in values.values()},
             set(contracts.EXPRESSION_KINDS),
         )
-        self.assertEqual(len(contracts.EXPRESSION_KINDS), 47)
+        self.assertEqual(len(contracts.EXPRESSION_KINDS), 51)
         self.assertEqual(
             {
                 value["value"]["type"]
@@ -275,7 +309,7 @@ class ExpressionFixtureTests(unittest.TestCase):
 
     def test_pkl_authors_every_fixture_byte_for_byte(self) -> None:
         stems = sorted(fixtures())
-        self.assertEqual(len(stems), 56)
+        self.assertEqual(len(stems), 61)
         with tempfile.TemporaryDirectory() as output:
             proc = subprocess.run(
                 [
@@ -560,6 +594,140 @@ class ExpressionBindingTests(unittest.TestCase):
         lookup["table"] = "maximum_slope"
         self.assert_refused(ruleset, definitions, "is no table")
 
+    def test_table_reads_bind_numeric_columns(self) -> None:
+        ruleset, definitions = self.documents()
+        key = {"kind": "literal", "value": {"type": "number", "value": 2.4}}
+        exposure = {"kind": "literal", "value": {"type": "string", "value": "XC1"}}
+        interpolate = {
+            "kind": "interpolate",
+            "table": "cover",
+            "keyColumn": "span",
+            "key": key,
+            "column": "cover",
+        }
+        self.requirement(ruleset)["right"] = interpolate
+        self.assert_refused(ruleset, definitions, "has no parameter 'cover'")
+
+        def column(column_id: str, kind: str) -> dict:
+            return {
+                "id": column_id,
+                "name": {"default": column_id, "translations": {}},
+                "kind": kind,
+                "required": True,
+            }
+
+        definition = definitions["definitions"][
+            "axioval:example.expression-requirement"
+        ]
+        definition["parameters"]["cover"] = {
+            "id": "cover",
+            "name": {"default": "Cover", "translations": {}},
+            "kind": "table",
+            "required": True,
+            "allowedValues": [],
+            "columns": [
+                column("class", "string"),
+                column("span", "number"),
+                column("cover", "integer"),
+                column("note", "string"),
+            ],
+        }
+        self.rule(ruleset)["parameters"]["cover"] = {
+            "type": "table",
+            "value": [
+                {
+                    "class": {"type": "string", "value": "XC1"},
+                    "span": {"type": "number", "value": 2.0},
+                    "cover": {"type": "integer", "value": 10},
+                    "note": {"type": "string", "value": "-"},
+                }
+            ],
+        }
+        self.bind(ruleset, definitions)
+        interpolate["keyColumn"] = "class"
+        self.assert_refused(
+            ruleset, definitions, "'class' of table 'cover' is 'string'"
+        )
+        interpolate["keyColumn"] = "span"
+        interpolate["column"] = "note"
+        self.assert_refused(ruleset, definitions, "'note' of table 'cover' is 'string'")
+        interpolate["column"] = "depth"
+        self.assert_refused(ruleset, definitions, "has no column 'depth'")
+        interpolate["column"] = "cover"
+        interpolate["table"] = "maximum_slope"
+        self.assert_refused(ruleset, definitions, "is no table")
+
+        lookup2 = {
+            "kind": "lookup2",
+            "table": "cover",
+            "rowKeyColumn": "class",
+            "rowKey": exposure,
+            "columnKeyColumn": "span",
+            "columnKey": key,
+            "column": "note",
+        }
+        self.requirement(ruleset)["right"] = lookup2
+        # Matched exactly, any column is read as it is.
+        self.bind(ruleset, definitions)
+        lookup2["interpolateColumn"] = True
+        self.assert_refused(ruleset, definitions, "'note' of table 'cover' is 'string'")
+        lookup2["column"] = "cover"
+        lookup2["clamp"] = True
+        self.bind(ruleset, definitions)
+        lookup2["interpolateRow"] = True
+        self.assert_refused(
+            ruleset, definitions, "'class' of table 'cover' is 'string'"
+        )
+        del lookup2["interpolateRow"]
+        lookup2["columnKeyColumn"] = "width"
+        self.assert_refused(ruleset, definitions, "has no column 'width'")
+        # A derived value reads no rule parameter.
+        ruleset, definitions = self.documents()
+        ruleset["values"]["slope_percent"]["expression"] = interpolate
+        self.assert_refused(
+            ruleset, definitions, "only the value of a rule's expression"
+        )
+
+    def test_argmin_and_argmax_range_over_members(self) -> None:
+        member = {
+            "kind": "property",
+            "propertySet": "axioval:member",
+            "property": "rise",
+        }
+        for kind in ("argmin", "argmax"):
+            ruleset, definitions = self.documents()
+            node = {
+                "kind": kind,
+                "over": {"kind": "measured", "name": "steps"},
+                "by": member,
+                "value": member,
+            }
+            self.requirement(ruleset)["left"] = node
+            with self.subTest(kind=kind):
+                self.bind(ruleset, definitions)
+                node["where"] = {"kind": "all"}
+                self.assert_refused(ruleset, definitions, "takes no where")
+                node["over"] = {"kind": "path", "path": ["IfcRelAggregates:forward"]}
+                self.assert_refused(ruleset, definitions, "axioval:member is read only")
+                node["by"] = node["value"] = {"kind": "null"}
+                self.bind(ruleset, definitions)
+                node["over"] = {"kind": "group", "grouping": "flats"}
+                self.assert_refused(ruleset, definitions, "unknown grouping 'flats'")
+                node["over"] = {"kind": "path", "path": ["IfcRelAggregates:forward"]}
+                node["where"] = {
+                    "kind": "entityType",
+                    "objectType": "axioval:unknown",
+                    "includeSubtypes": True,
+                }
+                self.assert_refused(ruleset, definitions, "unknown object-type concept")
+                node["where"] = {
+                    "kind": "expression",
+                    "expression": {"kind": "ruleOutcome", "rule": "handrails"},
+                }
+                self.assert_refused(
+                    ruleset, definitions, "which the ruleset does not define"
+                )
+
     def test_rule_outcomes_bind_and_never_cycle(self) -> None:
         ruleset, definitions = self.documents()
         self.requirement(ruleset)["right"] = {"kind": "deviation", "rule": "ramp-slope"}
@@ -813,6 +981,63 @@ class ExpressionBindingTests(unittest.TestCase):
                 {"kind": "lookup", "table": "limits", "keys": {}, "column": "maximum"},
                 "matches no key column",
             ),
+            (
+                {
+                    "kind": "interpolate",
+                    "table": "cover",
+                    "keyColumn": "span",
+                    "key": literal,
+                    "column": "cover",
+                    "clamp": False,
+                },
+                "clamp is true or omitted",
+            ),
+            (
+                {
+                    "kind": "lookup2",
+                    "table": "cover",
+                    "rowKeyColumn": "class",
+                    "rowKey": literal,
+                    "columnKeyColumn": "span key",
+                    "columnKey": literal,
+                    "column": "cover",
+                },
+                "names no valid columnKeyColumn",
+            ),
+            (
+                {
+                    "kind": "lookup2",
+                    "table": "cover",
+                    "rowKeyColumn": "class",
+                    "rowKey": literal,
+                    "columnKeyColumn": "span",
+                    "columnKey": literal,
+                    "column": "cover",
+                    "interpolateRow": False,
+                },
+                "interpolateRow is true or omitted",
+            ),
+            (
+                {"kind": "floor", "operand": literal, "step": "0.01"},
+                "test.step: expected object",
+            ),
+            (
+                {
+                    "kind": "argmax",
+                    "over": {"kind": "group", "grouping": "g"},
+                    "by": literal,
+                },
+                "missing=['value']",
+            ),
+            (
+                {
+                    "kind": "argmin",
+                    "over": {"kind": "path", "path": []},
+                    "by": literal,
+                    "value": literal,
+                },
+                "an argmin path names no step",
+            ),
         )
         for expression, reason in cases:
             with self.subTest(expression=expression):
@@ -860,6 +1085,23 @@ class ExpressionBindingTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as failure:
             contracts.validate_expression(filtered, "test")
         self.assertIn("aggregates nest deeper than 2", str(failure.exception))
+        # `argmin` and `argmax` nest as aggregates do, in `by`, `value` and
+        # `where`.
+        for key in ("by", "value", "where"):
+            chosen = {
+                "kind": "argmax",
+                "over": {"kind": "path", "path": ["IfcRelAggregates"]},
+                "by": {"kind": "null"},
+                "value": {"kind": "null"},
+            }
+            contracts.validate_expression(chosen, "test")
+            inner = aggregates(2)
+            chosen[key] = (
+                {"kind": "expression", "expression": inner} if key == "where" else inner
+            )
+            with self.subTest(key=key), self.assertRaises(SystemExit) as failure:
+                contracts.validate_expression(chosen, "test")
+            self.assertIn("aggregates nest deeper than 2", str(failure.exception))
 
     def test_expression_values_need_an_expression_parameter(self) -> None:
         ruleset, definitions = self.documents()

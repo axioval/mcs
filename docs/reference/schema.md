@@ -1133,14 +1133,15 @@ columns, and a path step naming a relation the same ruleset does not declare.
 `Expressions.pkl` states computed values as data: a tree of nodes tagged by
 `kind`, each with an optional non-blank `label`, from scalar `literal`s,
 properties, parameters, table lookups, and derived values, through logic,
-comparison, arithmetic, slope, text, and `aggregate` nodes, to the outcomes of
-other rules. [Compute with expressions](../expressions.md) explains every kind.
+comparison, arithmetic, slope, text, `aggregate`, `argmin`, and `argmax` nodes,
+to the outcomes of other rules. [Compute with expressions](../expressions.md) explains every kind.
 
 - A definition parameter of `kind = "expression"` takes an
   `Expressions.ExpressionValue`, `type: "expression"` with the expression as
   `value`. Only such an expression reads the rule's parameters: a `parameter`
-  names a scalar parameter the rule binds or defaults, a `lookup` a `table`
-  parameter and its columns.
+  names a scalar parameter the rule binds or defaults, a `lookup`,
+  `interpolate`, or `lookup2` a `table` parameter and its columns, an
+  interpolated column numeric.
 - `Expressions.ExpressionSelector`, `kind: "expression"`, selects the objects
   for which its expression holds, wherever a selector goes.
 - A ruleset's `values` map names identifiers to a localized `name`, an
@@ -1149,13 +1150,14 @@ other rules. [Compute with expressions](../expressions.md) explains every kind.
   and no rule outcome, and never one another in a cycle.
 
 Normalized JSON writes each node's fields in the checking application's order,
-its `label` last, omits unset fields and the default `true` of
-`caseSensitive`, `lowInclusive`, and `highInclusive`, orders a lookup's `keys`
+its `label` last, omits unset fields, the default `true` of
+`caseSensitive`, `lowInclusive`, and `highInclusive`, and the default `false`
+of `clamp`, `interpolateRow`, and `interpolateColumn`, orders a lookup's `keys`
 by column ID, and omits empty `values`, so existing packages render
 byte-identically. An expression property names a declared property concept, in
 a declared or reserved set, or a name of a derived set; the binder also refuses
 expressions nesting deeper than 64 levels, holding more than 2,048 nodes, or
-nesting aggregates more than two deep. The engine's golden expression fixtures
+nesting aggregates, `argmin`, and `argmax` more than two deep. The engine's golden expression fixtures
 are kept in `tests/fixtures/expression`; each must render byte for byte and
 round-trip through `.mcs` byte for byte in the transport's canonical form
 (sorted keys, compact separators).

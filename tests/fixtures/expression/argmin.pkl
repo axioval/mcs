@@ -1,0 +1,17 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.ArgminExpression {
+  over = new Expressions.GroupSource {
+    grouping = "routes-of-storey"
+  }
+  by = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-route"
+    property = "ex:length"
+  }
+  value = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-route"
+    property = "ex:width"
+  }
+}

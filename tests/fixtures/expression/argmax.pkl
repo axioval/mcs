@@ -1,0 +1,25 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Selectors.pkl"
+
+expression = new Expressions.ArgmaxExpression {
+  over = new Expressions.PathSource {
+    path {
+      "IfcRelAggregates:forward"
+    }
+  }
+  `where` = new Selectors.EntityTypeSelector {
+    objectType = "ex:roof"
+    includeSubtypes = true
+  }
+  by = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-roof-common"
+    property = "ex:slope"
+  }
+  value = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-roof-common"
+    property = "ex:covering"
+  }
+  label = "covering of the steepest face"
+}

@@ -1200,15 +1200,16 @@ Regelsatz nicht deklariert.
 `Expressions.pkl` beschreibt berechnete Werte als Daten: einen Baum aus Knoten
 mit einer Art `kind` und optional einem nicht leeren `label`, von skalaren
 `literal`-Werten, Eigenschaften, Parametern, Tabellenabfragen und abgeleiteten
-Werten über Logik, Vergleich, Arithmetik, Neigung, Text und `aggregate` bis zu
-den Ergebnissen anderer Regeln. [Mit Ausdrücken rechnen](../expressions.de.md)
+Werten über Logik, Vergleich, Arithmetik, Neigung, Text, `aggregate`, `argmin`
+und `argmax` bis zu den Ergebnissen anderer Regeln. [Mit Ausdrücken rechnen](../expressions.de.md)
 erklärt jede Art.
 
 - Ein Definitionsparameter mit `kind = "expression"` nimmt einen
   `Expressions.ExpressionValue`, also `type: "expression"` mit dem Ausdruck als
   `value`. Nur ein solcher Ausdruck liest die Parameter der Regel: ein
   `parameter` nennt einen skalaren Parameter, den die Regel bindet oder
-  vorgibt, ein `lookup` einen `table`-Parameter und seine Spalten.
+  vorgibt, ein `lookup`, `interpolate` oder `lookup2` einen `table`-Parameter
+  und seine Spalten, eine interpolierte Spalte numerisch.
 - `Expressions.ExpressionSelector` mit `kind: "expression"` wählt die Objekte,
   für die sein Ausdruck gilt, überall, wo ein Selektor stehen kann.
 - Die Zuordnung `values` eines Regelsatzes ordnet Bezeichnern einen
@@ -1218,14 +1219,15 @@ erklärt jede Art.
   und kein Regelergebnis und einander nie im Kreis.
 
 Normalisiertes JSON schreibt die Felder jedes Knotens in der Reihenfolge der
-prüfenden Anwendung, das `label` zuletzt, lässt nicht gesetzte Felder und die
-Vorgabe `true` von `caseSensitive`, `lowInclusive` und `highInclusive` weg,
+prüfenden Anwendung, das `label` zuletzt, lässt nicht gesetzte Felder, die
+Vorgabe `true` von `caseSensitive`, `lowInclusive` und `highInclusive` sowie die
+Vorgabe `false` von `clamp`, `interpolateRow` und `interpolateColumn` weg,
 ordnet die `keys` eines Lookups nach Spalten-ID und lässt leere `values` weg,
 sodass bestehende Pakete bytegleich bleiben. Eine Ausdruckseigenschaft nennt ein
 deklariertes Eigenschaftskonzept in einer deklarierten oder reservierten Menge
 oder einen Namen einer abgeleiteten Menge; der Binder lehnt außerdem Ausdrücke
 ab, die tiefer als 64 Ebenen verschachtelt sind, mehr als 2.048 Knoten enthalten
-oder Aggregate tiefer als zwei Ebenen schachteln. Die goldenen
+oder Aggregate, `argmin` und `argmax` tiefer als zwei Ebenen schachteln. Die goldenen
 Ausdrucksfixtures der prüfenden Anwendung liegen in `tests/fixtures/expression`
 und müssen bytegenau ausgegeben werden und bytegenau in der kanonischen Form
 des Transports (sortierte Schlüssel, kompakte Trennzeichen) durch `.mcs`

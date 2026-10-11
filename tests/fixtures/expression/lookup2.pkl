@@ -1,0 +1,19 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.Lookup2Expression {
+  table = "minimum_cover"
+  rowKeyColumn = "class"
+  rowKey = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-slab-common"
+    property = "ex:exposure-class"
+  }
+  columnKeyColumn = "thickness"
+  columnKey = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "extent_z"
+  }
+  column = "cover"
+  interpolateColumn = true
+}

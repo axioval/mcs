@@ -10,6 +10,28 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- `Expressions.InterpolateExpression` (`interpolate`) and
+  `Expressions.Lookup2Expression` (`lookup2`) mirror the engine's table reads
+  (axioval/engine#347, axioval/engine#348): `interpolate` reads a `table`
+  parameter's `column` at a `key` of its `keyColumn`, interpolated linearly
+  between the bracketing rows, and `lookup2` a two-key table at `rowKey` in
+  `rowKeyColumn` and `columnKey` in `columnKeyColumn`, each matched exactly or
+  interpolated with `interpolateRow` or `interpolateColumn`. `clamp` takes the
+  nearest end row beyond the keys. Normalized JSON writes the fields in the
+  engine's order and omits the default `false` of the three flags; the binder
+  refuses a stated `false`, binds the table and its columns like `lookup`, and
+  requires an interpolated key column, and the read column when any key is
+  interpolated, to be an `integer`, `number` or `quantity` column.
+
+- `Expressions.ArgminExpression` (`argmin`) and `Expressions.ArgmaxExpression`
+  (`argmax`) mirror the engine's choice of the decisive member
+  (axioval/engine#352): the `value` of the member whose `by` is least or
+  greatest among those `over` reaches and `where` selects. The binder checks
+  their source and member filter as an aggregate's, refuses a `where` on
+  measured members, lets `by` and `value` read `axioval:member` over measured
+  members, counts them toward the aggregate nesting limit, and collects their
+  member filters' rule outcomes, groups and relations.
+
 - `Expressions.InUnitExpression` (`inUnit`) mirrors the engine's unit-restate
   node (axioval/engine#277): its `operand` restated in a written, non-blank
   `unit` such as `mm` or `%`, bound by the binder and covered by the shared
@@ -301,6 +323,13 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   and bounded text-only navigation.
 
 ### Changed
+
+- `floor` and `ceil` take an optional `step`, as the engine's do
+  (axioval/engine#349): with it they round down or up to multiples of `step`,
+  which normalized JSON writes after `operand` and omits when unset, so
+  existing packages render byte-identically. The shared expression fixtures
+  are re-copied from the engine at f151027b with `floor-step`, `interpolate`,
+  `lookup2`, `argmin` and `argmax`.
 
 - Expressions mirror the engine's handling of stated-absent values
   (axioval/engine#269): `Expressions.SelectedExpression` (`selected`) states
