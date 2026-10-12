@@ -481,7 +481,10 @@ mit ihren eigenen Beziehungstypen beantwortet: `containment`, `aggregation`,
 `voids`, `fills`, `space-boundary`, `type`, `group` oder `connection`, etwa
 `axioval:relationship.containment:backward` von einem Geschoss zu dem, was es
 enthält. `axioval:derived.adjacent-across;tolerance=<m>;overlap=<m>` verbindet
-eine Wand oder Decke mit den Räumen an ihren beiden Seitenflächen, und
+eine Wand oder Decke mit den Räumen an ihren beiden Seitenflächen,
+`axioval:derived.flow` folgt einem verbundenen Verteilnetz, `forward`
+stromabwärts, `backward` stromaufwärts und `either` zu jedem verbundenen
+Element, etwa `axioval:derived.flow:backward+` für alles stromaufwärts, und
 `axioval:derived.group;by=<gruppierung>` ein Mitglied einer Gruppierung
 desselben Regelsatzes mit seiner abgeleiteten Gruppe (siehe Abschnitt
 Abgeleitete Gruppen), `backward` von einer Gruppe zu ihren Mitgliedern.
@@ -1200,8 +1203,9 @@ Regelsatz nicht deklariert.
 `Expressions.pkl` beschreibt berechnete Werte als Daten: einen Baum aus Knoten
 mit einer Art `kind` und optional einem nicht leeren `label`, von skalaren
 `literal`-Werten, Eigenschaften, Parametern, Tabellenabfragen und abgeleiteten
-Werten über Logik, Vergleich, Arithmetik, Neigung, Text, `aggregate`, `argmin`
-und `argmax` bis zu den Ergebnissen anderer Regeln. [Mit Ausdrücken rechnen](../expressions.de.md)
+Werten über Logik, Vergleich, Arithmetik, Neigung, Text, `aggregate`, `argmin`,
+`argmax` und `pairs` mit `previous` und `next` eines Paars bis zu den
+Ergebnissen anderer Regeln. [Mit Ausdrücken rechnen](../expressions.de.md)
 erklärt jede Art.
 
 - Ein Definitionsparameter mit `kind = "expression"` nimmt einen
@@ -1227,7 +1231,9 @@ sodass bestehende Pakete bytegleich bleiben. Eine Ausdruckseigenschaft nennt ein
 deklariertes Eigenschaftskonzept in einer deklarierten oder reservierten Menge
 oder einen Namen einer abgeleiteten Menge; der Binder lehnt außerdem Ausdrücke
 ab, die tiefer als 64 Ebenen verschachtelt sind, mehr als 2.048 Knoten enthalten
-oder Aggregate, `argmin` und `argmax` tiefer als zwei Ebenen schachteln. Die goldenen
+oder Aggregate, `argmin`, `argmax` und `pairs` tiefer als zwei Ebenen
+schachteln, sowie ein `previous` oder `next` außerhalb des `value` eines
+`pairs`. Die goldenen
 Ausdrucksfixtures der prüfenden Anwendung liegen in `tests/fixtures/expression`
 und müssen bytegenau ausgegeben werden und bytegenau in der kanonischen Form
 des Transports (sortierte Schlüssel, kompakte Trennzeichen) durch `.mcs`

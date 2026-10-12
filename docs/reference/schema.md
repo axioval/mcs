@@ -464,7 +464,10 @@ under its own relationship types: `containment`, `aggregation`, `voids`,
 `fills`, `space-boundary`, `type`, `group`, or `connection`, such as
 `axioval:relationship.containment:backward` from a storey to what it contains.
 `axioval:derived.adjacent-across;tolerance=<m>;overlap=<m>` relates a wall or
-slab to the spaces on either of its faces, and
+slab to the spaces on either of its faces, `axioval:derived.flow` runs along a
+connected distribution network, `forward` downstream, `backward` upstream, and
+`either` to every connected element, such as `axioval:derived.flow:backward+`
+for everything upstream, and
 `axioval:derived.group;by=<grouping>` a member of a grouping of the same
 ruleset to its [derived group](#derived-groups), `backward` from a group to its
 members. `axioval:derived.relation;id=<relation>` runs along a
@@ -1133,8 +1136,8 @@ columns, and a path step naming a relation the same ruleset does not declare.
 `Expressions.pkl` states computed values as data: a tree of nodes tagged by
 `kind`, each with an optional non-blank `label`, from scalar `literal`s,
 properties, parameters, table lookups, and derived values, through logic,
-comparison, arithmetic, slope, text, `aggregate`, `argmin`, and `argmax` nodes,
-to the outcomes of other rules. [Compute with expressions](../expressions.md) explains every kind.
+comparison, arithmetic, slope, text, `aggregate`, `argmin`, `argmax`, and
+`pairs` nodes with the `previous` and `next` of a pair, to the outcomes of other rules. [Compute with expressions](../expressions.md) explains every kind.
 
 - A definition parameter of `kind = "expression"` takes an
   `Expressions.ExpressionValue`, `type: "expression"` with the expression as
@@ -1157,7 +1160,8 @@ by column ID, and omits empty `values`, so existing packages render
 byte-identically. An expression property names a declared property concept, in
 a declared or reserved set, or a name of a derived set; the binder also refuses
 expressions nesting deeper than 64 levels, holding more than 2,048 nodes, or
-nesting aggregates, `argmin`, and `argmax` more than two deep. The engine's golden expression fixtures
+nesting aggregates, `argmin`, `argmax`, and `pairs` more than two deep, and a
+`previous` or `next` outside the `value` of a `pairs`. The engine's golden expression fixtures
 are kept in `tests/fixtures/expression`; each must render byte for byte and
 round-trip through `.mcs` byte for byte in the transport's canonical form
 (sorted keys, compact separators).

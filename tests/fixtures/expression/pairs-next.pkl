@@ -1,0 +1,36 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Selectors.pkl"
+
+expression = new Expressions.PairsExpression {
+  `function` = "max"
+  over = new Expressions.PathSource {
+    path {
+      "IfcRelContainedInSpatialStructure:forward"
+    }
+  }
+  `where` = new Selectors.EntityTypeSelector {
+    objectType = "ex:storey"
+    includeSubtypes = true
+  }
+  by = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-storey-common"
+    property = "ex:elevation"
+  }
+  value = new Expressions.SubtractExpression {
+    left = new Expressions.NextExpression {
+      operand = new Expressions.PropertyExpression {
+        propertySet = "ex:pset-storey-common"
+        property = "ex:elevation"
+      }
+    }
+    right = new Expressions.PreviousExpression {
+      operand = new Expressions.PropertyExpression {
+        propertySet = "ex:pset-storey-common"
+        property = "ex:elevation"
+      }
+    }
+  }
+  label = "tallest storey"
+}

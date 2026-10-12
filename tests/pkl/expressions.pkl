@@ -118,6 +118,45 @@ facts {
     }.over.kind == "measured"
   }
 
+  ["pairs write function, over, where, by and value in order"] {
+    rendered(new Expressions.PairsExpression {
+      label = "rise"
+      value = new Expressions.SubtractExpression {
+        left = new Expressions.NextExpression { operand = measured }
+        right = new Expressions.PreviousExpression { operand = measured; label = "before" }
+      }
+      by = measured
+      `where` = new Selectors.AllSelector {}
+      over = new Expressions.PathSource { path { "axioval:derived.flow:forward+" } }
+      `function` = "max"
+    })
+      == #"{"kind":"pairs","function":"max","over":{"kind":"path","path":["axioval:derived.flow:forward+"]},"where":{"kind":"all"},"by":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"},"value":{"kind":"subtract","left":{"kind":"next","operand":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"}},"right":{"kind":"previous","operand":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"},"label":"before"}},"label":"rise"}"#
+    rendered(new Expressions.PairsExpression {
+      `function` = "count"
+      over = new Expressions.GroupSource { grouping = "storeys" }
+      by = measured
+    })
+      == #"{"kind":"pairs","function":"count","over":{"kind":"group","grouping":"storeys"},"by":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"}}"#
+    test.catch(() -> new Expressions.PairsExpression {
+      `function` = "count"
+      over = new Expressions.GroupSource { grouping = "storeys" }
+      by = measured
+      value = measured
+    }.value).contains("count")
+    test.catch(() -> new Expressions.PairsExpression {
+      `function` = "all"
+      over = new Expressions.GroupSource { grouping = "storeys" }
+      by = measured
+    }.value).contains("count")
+    test.catch(() -> new Expressions.PairsExpression {
+      `function` = "all"
+      over = new Expressions.MeasuredSource { name = "steps" }
+      `where` = new Selectors.AllSelector {}
+      by = measured
+      value = measured
+    }.`where`).contains("MeasuredSource")
+  }
+
   ["empty operand lists and branches are refused"] {
     test.catch(() -> new Expressions.AndExpression {}.operands).contains("isEmpty")
     test.catch(() -> new Expressions.OneOfExpression {

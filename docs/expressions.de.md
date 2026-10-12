@@ -50,7 +50,7 @@ ihn statt seiner ausgeschriebenen Form nennen.
 | Auswahl | `if`, `coalesce` |
 | Arithmetik | `add`, `subtract`, `multiply`, `divide`, `negate`, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `inUnit` |
 | Winkel und Neigungen | `sin`, `cos`, `tan`, `atan2`, `convertSlope` |
-| Mitglieder | `aggregate`, `argmin`, `argmax` |
+| Mitglieder | `aggregate`, `argmin`, `argmax`, `pairs`, `previous`, `next` |
 | andere Regeln | `ruleOutcome`, `selected`, `findingCount`, `deviation` |
 | Text | `concat`, `length`, `lower`, `upper`, `trim` |
 
@@ -102,6 +102,18 @@ ihn statt seiner ausgeschriebenen Form nennen.
   Intervalle, wird jedes Mitglied gewählt, das das Extrem sein kann, und der
   Wert ist der, in dem sie übereinstimmen, sonst ungeprüft, nie einer nach
   Reihenfolge herausgegriffen.
+- `pairs` setzt jedes Mitglied einer geordneten Folge mit dem vorhergehenden
+  in Beziehung: aufeinanderfolgende Steigungen, nach Höhe gestapelte
+  Geschosse. Es erreicht seine Mitglieder mit `over` und filtert sie mit
+  `where` wie ein Aggregat, ordnet sie aufsteigend nach `by`, einer Zahl wie
+  einer Station, einer Höhe oder einer laufenden Nummer, und wendet seine
+  Aggregatfunktion `function` auf `value` an, das einmal je
+  aufeinanderfolgendem Paar mit dem späteren Mitglied im Blick ausgewertet
+  wird. In diesem `value` liest `previous` seinen `operand` vom früheren
+  Mitglied und `next` vom späteren, sodass sich ein Paar in beiden Richtungen
+  schreiben lässt; ein `count` nimmt kein `value` und zählt ein Paar weniger
+  als Mitglieder. Ein Paar, dessen Reihenfolge die Intervalle von `by` offen
+  lassen, bleibt ungeprüft und wird nie nach einer Vermutung geordnet.
 - `ruleOutcome`, `findingCount` und `deviation` lesen, wie eine andere Regel
   desselben Regelsatzes das betrachtete Objekt beurteilt hat, und `selected`,
   ob sie es ausgewählt hat. `ruleOutcome` ist `null` für ein Objekt, das die
@@ -121,6 +133,43 @@ ihn statt seiner ausgeschriebenen Form nennen.
           name = "maximum_slope"
           label = "steepest slope"
         }
+      }
+    }
+    ```
+
+??? example "Aufeinanderfolgende Steigungen mit höchstens 5 mm Unterschied anzeigen"
+    ```pkl
+    ["requirement"] = new Expressions.ExpressionValue {
+      value = new Expressions.PairsExpression {
+        `function` = "all"
+        over = new Expressions.PathSource { path { "IfcRelAggregates:forward" } }
+        by = new Expressions.PropertyExpression {
+          propertySet = "ex:pset-stair-flight-common"
+          property = "ex:riser-sequence"
+        }
+        value = new Expressions.CompareExpression {
+          operator = "lessThanOrEquals"
+          left = new Expressions.AbsExpression {
+            operand = new Expressions.SubtractExpression {
+              left = new Expressions.NextExpression {
+                operand = new Expressions.PropertyExpression {
+                  propertySet = "ex:pset-stair-flight-common"
+                  property = "ex:riser-height"
+                }
+              }
+              right = new Expressions.PreviousExpression {
+                operand = new Expressions.PropertyExpression {
+                  propertySet = "ex:pset-stair-flight-common"
+                  property = "ex:riser-height"
+                }
+              }
+            }
+          }
+          right = new Expressions.LiteralExpression {
+            value = new Values.QuantityValue { value = 5.0; unit = "mm" }
+          }
+        }
+        label = "consecutive risers"
       }
     }
     ```
@@ -283,12 +332,17 @@ Pkl prüft die Form jedes Knotens. Der Binder lehnt danach unter anderem ab:
   Literal, das kein einzelner endlicher skalarer Wert ist, und eine
   ausgeschriebene Vorgabe;
 - einen Ausdruck, der tiefer als 64 Ebenen verschachtelt ist, mehr als 2.048
-  Knoten enthält oder Aggregate, `argmin` und `argmax` tiefer als zwei Ebenen
-  in `value`, `by` oder `where` ineinander schachtelt;
-- ein Aggregat, dessen `value` nicht zu seiner Funktion passt, ein `where` über
-  gemessenen Mitgliedern, eine unbekannte gemessene Mitgliederliste und
-  `axioval:member` außerhalb des `value` eines solchen Aggregats oder des `by`
-  und `value` eines solchen `argmin` oder `argmax`;
+  Knoten enthält oder Aggregate, `argmin`, `argmax` und `pairs` tiefer als
+  zwei Ebenen in `value`, `by` oder `where` ineinander schachtelt;
+- ein Aggregat oder `pairs`, dessen `value` nicht zu seiner Funktion passt, ein
+  `where` über gemessenen Mitgliedern, eine unbekannte gemessene
+  Mitgliederliste und `axioval:member` außerhalb des `value` eines solchen
+  Aggregats oder des `by` und `value` eines solchen `argmin`, `argmax` oder
+  `pairs`;
+- ein `previous` oder `next` irgendwo außer im `value` eines `pairs`: nicht in
+  dessen `by` oder `where`, nicht in einem anderen `previous` oder `next` und
+  nicht in einem Aggregat, `argmin`, `argmax` oder `pairs`, das in diesem
+  `value` verschachtelt ist und seine eigenen Mitglieder liest;
 - eine Eigenschaft, die weder ein deklariertes Konzept noch ein Name einer
   abgeleiteten Menge ist, eine unbekannte Gruppierung, Relation oder
   Klassifikation und einen `derived`-Wert, den der Regelsatz nicht deklariert;

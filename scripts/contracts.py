@@ -266,6 +266,9 @@ EXPRESSION_KINDS = (
     "aggregate",
     "argmin",
     "argmax",
+    "pairs",
+    "previous",
+    "next",
     "ruleOutcome",
     "selected",
     "findingCount",
@@ -303,12 +306,13 @@ EXPRESSION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
     "aggregate": ({"function", "over"}, {"where", "value"}),
     "argmin": ({"over", "by", "value"}, {"where"}),
     "argmax": ({"over", "by", "value"}, {"where"}),
+    "pairs": ({"function", "over", "by"}, {"where", "value"}),
     "ruleOutcome": ({"rule"}, set()),
     "selected": ({"rule"}, set()),
     "findingCount": ({"rule"}, set()),
     "deviation": ({"rule"}, set()),
 }
-for _kind in ("not", "isDefined", "isUndefined", "negate", "abs"):
+for _kind in ("not", "isDefined", "isUndefined", "negate", "abs", "previous", "next"):
     EXPRESSION_FIELDS[_kind] = ({"operand"}, set())
 for _kind in ("floor", "ceil"):
     EXPRESSION_FIELDS[_kind] = ({"operand"}, {"step"})
@@ -375,7 +379,10 @@ AGGREGATE_FUNCTIONS = {
 AGGREGATE_SOURCES = {"path", "group", "selector", "measured"}
 # The expression kinds that range over members as an aggregate does: their
 # source, member filter and nesting are checked alike.
-MEMBER_EXPRESSIONS = {"aggregate", "argmin", "argmax"}
+MEMBER_EXPRESSIONS = {"aggregate", "argmin", "argmax", "pairs"}
+# The expression kinds that read a member of the pair a `pairs` value is
+# evaluated for.
+PAIR_EXPRESSIONS = {"previous", "next"}
 # The table column kinds a key or cell interpolates along: numbers.
 NUMERIC_COLUMN_KINDS = {"integer", "number", "quantity"}
 SLOPE_FORMS = {"ratio", "percent", "angle"}
@@ -2267,17 +2274,24 @@ def derived_property_kind(
     return None
 
 
+def member_kind(kind: str) -> str:
+    """A node ranging over members, named with its article for a message."""
+    return f"a {kind}" if kind == "pairs" else f"an {kind}"
+
+
 def expression_children(node: dict[str, Any]) -> list[dict[str, Any]]:
     """The direct operands of a checked expression node, in written order:
     a lookup's keys by column ID, an `if`'s branches `when` before `then`,
-    `else` last, an aggregate's `value`, and an `argmin`'s or `argmax`'s
-    `by` before its `value`."""
+    `else` last, an aggregate's `value`, and the `by` of an `argmin`,
+    `argmax` or `pairs` before its `value`."""
     kind = node["kind"]
     children: list[dict[str, Any]] = []
     if kind == "lookup":
         children.extend(child for _, child in sorted(node["keys"].items()))
-    elif kind in {"argmin", "argmax"}:
-        children.extend((node["by"], node["value"]))
+    elif kind in {"argmin", "argmax", "pairs"}:
+        children.append(node["by"])
+        if "value" in node:
+            children.append(node["value"])
     elif kind == "if":
         for branch in node["branches"]:
             children.extend((branch["when"], branch["then"]))
@@ -2295,7 +2309,7 @@ def expression_children(node: dict[str, Any]) -> list[dict[str, Any]]:
 def expression_parts(expression: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     """Every node of a checked expression tree, as `("expression", node)`,
     and every selector it embeds directly, the `where` or `over.selector` of
-    an aggregate, `argmin` or `argmax`, as `("selector", selector)`; embedded
+    an aggregate, `argmin`, `argmax` or `pairs`, as `("selector", selector)`; embedded
     selectors are not entered."""
     parts: list[tuple[str, dict[str, Any]]] = []
     pending = [expression]
@@ -2351,7 +2365,7 @@ def expression_value_reads(expression: dict[str, Any], out: set[str]) -> None:
 
 def expression_size(expression: dict[str, Any]) -> tuple[int, int]:
     """How many nodes a checked expression holds, the member filters of its
-    aggregates, `argmin` and `argmax` included, and how deeply those nest
+    aggregates, `argmin`, `argmax` and `pairs` included, and how deeply those nest
     within one another, as the engine counts them."""
     nodes, nesting = 1, 0
     inner = list(expression_children(expression))
@@ -2467,10 +2481,11 @@ def validate_expression(
     contract states it: known kinds and fields, non-empty operand lists and
     branches, names and labels that are not blank, property names a selector
     would accept, finite literal numbers,
-    an aggregate's `value` unless it counts, the depth, size and aggregate
-    nesting limits, and `axioval:member` only inside the `value` of an
-    aggregate, or the `by` and `value` of an `argmin` or `argmax`, over
-    measured members. With them every property binds to a declared concept
+    an aggregate's or `pairs`' `value` unless it counts, the depth, size and
+    aggregate nesting limits, `axioval:member` only inside the `value` of an
+    aggregate, or the `by` and `value` of an `argmin`, `argmax` or `pairs`,
+    over measured members, and `previous` and `next` only within the `value`
+    of a `pairs`, outside any member scope nested there. With them every property binds to a declared concept
     in a declared or reserved set, or to a name of a derived set, every
     embedded selector binds as any selector does, and `parameters`, the
     rule's readable parameter definitions by ID, bind its `parameter`,
@@ -2481,7 +2496,12 @@ def validate_expression(
     """
     bind = properties is not None
 
-    def check(node: Any, node_context: str, depth: int, members: bool) -> None:
+    def check(
+        node: Any, node_context: str, depth: int, members: bool, paired: bool = False
+    ) -> None:
+        """Check `node`; `paired` is whether it lies within the `value` of a
+        `pairs`, and in no member scope nested there, where `previous` and
+        `next` read the pair."""
         if depth > MAX_EXPRESSION_DEPTH:
             fail(
                 node_context,
@@ -2555,6 +2575,26 @@ def validate_expression(
             members = check_aggregate(node, node_context, depth) or members
         elif kind in {"argmin", "argmax"}:
             members = check_source(node, node_context, depth) or members
+        elif kind == "pairs":
+            members = check_aggregate(node, node_context, depth) or members
+        elif kind in PAIR_EXPRESSIONS and not paired:
+            fail(
+                node_context,
+                f"a {kind!r} expression is read only within the value of a "
+                "'pairs' expression, outside any aggregate, argmin, argmax or "
+                "pairs nested there",
+            )
+        if kind in PAIR_EXPRESSIONS:
+            # The operand reads one member of the pair, and no pair itself.
+            check(node["operand"], f"{node_context}.operand", depth + 1, members)
+            return
+        if kind == "pairs":
+            # `by` orders the members; `value` is evaluated per pair, the one
+            # place `previous` and `next` stand.
+            check(node["by"], f"{node_context}.by", depth + 1, members)
+            if "value" in node:
+                check(node["value"], f"{node_context}.value", depth + 1, members, True)
+            return
         if kind == "aggregate":
             # Only the value of an aggregate over measured members reads
             # their fields; its source and member filter read none.
@@ -2573,6 +2613,7 @@ def validate_expression(
                     f"{node_context}.keys[{key!r}]",
                     depth + 1,
                     members,
+                    paired,
                 )
             return
         if kind == "if":
@@ -2583,15 +2624,22 @@ def validate_expression(
                         f"{node_context}.branches[{index}].{key}",
                         depth + 1,
                         members,
+                        paired,
                     )
-            check(node["else"], f"{node_context}.else", depth + 1, members)
+            check(node["else"], f"{node_context}.else", depth + 1, members, paired)
             return
         for key in EXPRESSION_OPERAND_FIELDS:
             if key in node:
-                check(node[key], f"{node_context}.{key}", depth + 1, members)
+                check(node[key], f"{node_context}.{key}", depth + 1, members, paired)
         for key in EXPRESSION_LIST_FIELDS:
             for index, operand in enumerate(node.get(key, [])):
-                check(operand, f"{node_context}.{key}[{index}]", depth + 1, members)
+                check(
+                    operand,
+                    f"{node_context}.{key}[{index}]",
+                    depth + 1,
+                    members,
+                    paired,
+                )
 
     def check_property(node: dict[str, Any], node_context: str, members: bool) -> None:
         property_set = node.get("propertySet")
@@ -2615,8 +2663,8 @@ def validate_expression(
                 fail(
                     node_context,
                     "axioval:member is read only inside the value of an "
-                    "aggregate, or the by and value of an argmin or argmax, "
-                    "over measured members",
+                    "aggregate, or the by and value of an argmin, argmax or "
+                    "pairs, over measured members",
                 )
             return
         # Any other name is checked as a selector checks it: a qualified
@@ -2719,23 +2767,24 @@ def validate_expression(
                 )
 
     def check_aggregate(node: dict[str, Any], node_context: str, depth: int) -> bool:
-        """Check an aggregate's own fields; whether it ranges over measured
-        members."""
+        """Check the own fields of an aggregate or `pairs`; whether it ranges
+        over measured members."""
         function = node["function"]
         if type(function) is not str or function not in AGGREGATE_FUNCTIONS:
             fail(node_context, f"unknown aggregate function {function!r}")
         if (function == "count") == ("value" in node):
             fail(
                 node_context,
-                f"an aggregate {function!r} takes a value unless it counts, "
-                "and a count takes none",
+                f"{member_kind(node['kind'])} {function!r} takes a value unless "
+                "it counts, and a count takes none",
             )
         return check_source(node, node_context, depth)
 
     def check_source(node: dict[str, Any], node_context: str, depth: int) -> bool:
-        """Check the source and member filter of an aggregate, `argmin` or
-        `argmax`; whether it ranges over measured members."""
+        """Check the source and member filter of an aggregate, `argmin`,
+        `argmax` or `pairs`; whether it ranges over measured members."""
         kind = node["kind"]
+        named = member_kind(kind)
         over_context = f"{node_context}.over"
         over = object_value(node["over"], over_context)
         source = over.get("kind")
@@ -2745,7 +2794,7 @@ def validate_expression(
             exact_keys(over, {"kind", "path"}, set(), over_context)
             path = list_value(over["path"], f"{over_context}.path")
             if not path:
-                fail(over_context, f"an {kind} path names no step")
+                fail(over_context, f"{named} path names no step")
             for index, step in enumerate(path):
                 error = path_step_error(step)
                 if error is not None:
@@ -2773,7 +2822,7 @@ def validate_expression(
             if "where" in node:
                 fail(
                     node_context,
-                    f"an {kind} over measured members takes no where; state "
+                    f"{named} over measured members takes no where; state "
                     "the condition in its value",
                 )
         if "where" in node:

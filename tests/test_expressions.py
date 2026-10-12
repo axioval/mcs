@@ -270,11 +270,16 @@ class ExpressionFixtureTests(unittest.TestCase):
 
     def test_fixtures_cover_every_kind_and_scalar_type(self) -> None:
         values = {stem: json.loads(data) for stem, data in fixtures().items()}
-        self.assertEqual(
-            {value["kind"] for value in values.values()},
-            set(contracts.EXPRESSION_KINDS),
-        )
-        self.assertEqual(len(contracts.EXPRESSION_KINDS), 51)
+        # `previous` and `next` stand only within a `pairs`: a kind counts
+        # wherever a fixture holds it, as the engine counts it.
+        covered: set[str] = set()
+        pending = list(values.values())
+        while pending:
+            node = pending.pop()
+            covered.add(node["kind"])
+            pending.extend(contracts.expression_children(node))
+        self.assertEqual(covered, set(contracts.EXPRESSION_KINDS))
+        self.assertEqual(len(contracts.EXPRESSION_KINDS), 54)
         self.assertEqual(
             {
                 value["value"]["type"]
@@ -309,7 +314,7 @@ class ExpressionFixtureTests(unittest.TestCase):
 
     def test_pkl_authors_every_fixture_byte_for_byte(self) -> None:
         stems = sorted(fixtures())
-        self.assertEqual(len(stems), 61)
+        self.assertEqual(len(stems), 64)
         with tempfile.TemporaryDirectory() as output:
             proc = subprocess.run(
                 [
@@ -728,6 +733,129 @@ class ExpressionBindingTests(unittest.TestCase):
                     ruleset, definitions, "which the ruleset does not define"
                 )
 
+    def test_pairs_range_over_ordered_members(self) -> None:
+        member = {
+            "kind": "property",
+            "propertySet": "axioval:member",
+            "property": "rise",
+        }
+        ruleset, definitions = self.documents()
+        node = {
+            "kind": "pairs",
+            "function": "all",
+            "over": {"kind": "measured", "name": "steps"},
+            "by": member,
+            "value": {
+                "kind": "compare",
+                "operator": "lessThanOrEquals",
+                "left": {"kind": "next", "operand": member},
+                "right": {"kind": "previous", "operand": member},
+            },
+        }
+        self.requirement(ruleset)["left"] = node
+        self.bind(ruleset, definitions)
+        node["where"] = {"kind": "all"}
+        self.assert_refused(
+            ruleset, definitions, "a pairs over measured members takes no where"
+        )
+        node["over"] = {"kind": "path", "path": ["IfcRelAggregates:forward"]}
+        self.assert_refused(ruleset, definitions, "axioval:member is read only")
+        node["by"] = {"kind": "null"}
+        node["value"] = {"kind": "previous", "operand": {"kind": "null"}}
+        self.bind(ruleset, definitions)
+        node["function"] = "count"
+        self.assert_refused(
+            ruleset, definitions, "a pairs 'count' takes a value unless"
+        )
+        del node["value"]
+        self.bind(ruleset, definitions)
+        node["over"] = {"kind": "group", "grouping": "flats"}
+        self.assert_refused(ruleset, definitions, "unknown grouping 'flats'")
+        node["over"] = {"kind": "path", "path": ["axioval:derived.flow:backward+"]}
+        node["where"] = {
+            "kind": "expression",
+            "expression": {"kind": "ruleOutcome", "rule": "handrails"},
+        }
+        self.assert_refused(ruleset, definitions, "which the ruleset does not define")
+        # `previous` and `next` read a pair: only within a `pairs` value.
+        ruleset, definitions = self.documents()
+        self.requirement(ruleset)["left"] = {
+            "kind": "next",
+            "operand": {"kind": "null"},
+        }
+        self.assert_refused(
+            ruleset, definitions, "a 'next' expression is read only within the value"
+        )
+
+    def test_previous_and_next_stand_only_within_a_pairs_value(self) -> None:
+        null = {"kind": "null"}
+        path = {"kind": "path", "path": ["IfcRelAggregates:forward"]}
+
+        def pairs(value: dict, **fields: dict) -> dict:
+            return {
+                "kind": "pairs",
+                "function": "max",
+                "over": path,
+                "by": null,
+                "value": value,
+                **fields,
+            }
+
+        previous = {"kind": "previous", "operand": null}
+        accepted = (
+            pairs(previous),
+            pairs(
+                {
+                    "kind": "subtract",
+                    "left": {"kind": "next", "operand": null},
+                    "right": previous,
+                }
+            ),
+            pairs(
+                {
+                    "kind": "if",
+                    "branches": [{"when": previous, "then": previous}],
+                    "else": {"kind": "coalesce", "operands": [previous]},
+                }
+            ),
+            # A `pairs` nested in a value opens its own pairs.
+            pairs(pairs(previous)),
+        )
+        for expression in accepted:
+            with self.subTest(expression=expression):
+                contracts.validate_expression(expression, "test")
+        refused = (
+            previous,
+            {"kind": "not", "operand": {"kind": "next", "operand": null}},
+            pairs(null, by=previous),
+            pairs(null, where={"kind": "expression", "expression": previous}),
+            # The operand reads one member, not a pair.
+            pairs({"kind": "previous", "operand": previous}),
+            # A member scope nested in the value reads its own members.
+            pairs(
+                {
+                    "kind": "aggregate",
+                    "function": "sum",
+                    "over": path,
+                    "value": previous,
+                }
+            ),
+            pairs({"kind": "argmin", "over": path, "by": previous, "value": null}),
+            pairs(pairs(null, by=previous)),
+            {"kind": "aggregate", "function": "max", "over": path, "value": previous},
+        )
+        for expression in refused:
+            with (
+                self.subTest(expression=expression),
+                self.assertRaises(SystemExit) as failure,
+            ):
+                contracts.validate_expression(expression, "test")
+            self.assertRegex(
+                str(failure.exception),
+                r"a '(previous|next)' expression is read only within the value "
+                r"of a 'pairs' expression, outside any aggregate",
+            )
+
     def test_rule_outcomes_bind_and_never_cycle(self) -> None:
         ruleset, definitions = self.documents()
         self.requirement(ruleset)["right"] = {"kind": "deviation", "rule": "ramp-slope"}
@@ -1038,6 +1166,36 @@ class ExpressionBindingTests(unittest.TestCase):
                 },
                 "an argmin path names no step",
             ),
+            (
+                {
+                    "kind": "pairs",
+                    "function": "all",
+                    "over": {"kind": "path", "path": []},
+                    "by": literal,
+                    "value": literal,
+                },
+                "a pairs path names no step",
+            ),
+            (
+                {
+                    "kind": "pairs",
+                    "function": "all",
+                    "over": {"kind": "group", "grouping": "g"},
+                    "value": literal,
+                },
+                "missing=['by']",
+            ),
+            (
+                {
+                    "kind": "pairs",
+                    "function": "median",
+                    "over": {"kind": "group", "grouping": "g"},
+                    "by": literal,
+                    "value": literal,
+                },
+                "unknown aggregate function 'median'",
+            ),
+            ({"kind": "previous"}, "missing=['operand']"),
         )
         for expression, reason in cases:
             with self.subTest(expression=expression):
@@ -1101,6 +1259,23 @@ class ExpressionBindingTests(unittest.TestCase):
             )
             with self.subTest(key=key), self.assertRaises(SystemExit) as failure:
                 contracts.validate_expression(chosen, "test")
+            self.assertIn("aggregates nest deeper than 2", str(failure.exception))
+        # So does `pairs`.
+        for key in ("by", "value", "where"):
+            paired = {
+                "kind": "pairs",
+                "function": "max",
+                "over": {"kind": "path", "path": ["IfcRelAggregates"]},
+                "by": {"kind": "null"},
+                "value": {"kind": "null"},
+            }
+            contracts.validate_expression(paired, "test")
+            inner = aggregates(2)
+            paired[key] = (
+                {"kind": "expression", "expression": inner} if key == "where" else inner
+            )
+            with self.subTest(key=key), self.assertRaises(SystemExit) as failure:
+                contracts.validate_expression(paired, "test")
             self.assertIn("aggregates nest deeper than 2", str(failure.exception))
 
     def test_expression_values_need_an_expression_parameter(self) -> None:

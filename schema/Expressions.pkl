@@ -26,7 +26,7 @@ const maxDepth = 64
 /// filters included; the binder refuses a larger one.
 const maxNodes = 2048
 
-/// How deeply aggregates, `argmin` and `argmax` may nest within one
+/// How deeply aggregates, `argmin`, `argmax` and `pairs` may nest within one
 /// another's `value`, `by` or `where`; the binder refuses deeper nesting.
 const maxAggregateNesting = 2
 
@@ -493,6 +493,41 @@ class ArgmaxExpression extends Expression {
   `where`: Selectors.Selector?(this == null || !(over is MeasuredSource))
   by: Expression
   value: Expression
+}
+
+/// `function` over the consecutive pairs of the members `over` reaches that
+/// `where` selects, ordered by `by`, a number such as a station, an
+/// elevation or a sequence number, ascending: consecutive risers, storeys
+/// stacked by elevation. `value` is evaluated once per pair with the later
+/// member in scope; `PreviousExpression` reads the earlier one and
+/// `NextExpression` the later one. A pair whose order the intervals of `by`
+/// leave undecided is not evaluated, never ordered by a guess. A `count`
+/// takes no `value` and counts one pair fewer than the members.
+class PairsExpression extends Expression {
+  kind: "pairs" = "pairs"
+  `function`: AggregateFunction
+  over: AggregateSource
+  /// The members' filter. Normalized JSON omits it when unset; measured
+  /// members take none.
+  `where`: Selectors.Selector?(this == null || !(over is MeasuredSource))
+  by: Expression
+  /// Required unless it counts, and rejected on a count. Normalized JSON
+  /// omits it when unset.
+  value: Expression?((`function` == "count") == (this == null))
+}
+
+/// `operand` evaluated with the earlier member of the pair in scope. The
+/// binder accepts it only within the `value` of a `PairsExpression`, outside
+/// any aggregate, `argmin`, `argmax` or `pairs` nested there.
+class PreviousExpression extends UnaryExpression {
+  kind: "previous" = "previous"
+}
+
+/// `operand` evaluated with the later member of the pair in scope, the one a
+/// `pairs` value reads anyway, so a pair can be written symmetrically. The
+/// binder accepts it where it accepts `PreviousExpression`.
+class NextExpression extends UnaryExpression {
+  kind: "next" = "next"
 }
 
 /// How the rule `rule` of the same ruleset judged the object in scope: true

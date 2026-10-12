@@ -1408,6 +1408,14 @@ class RelatedSelectorTests(unittest.TestCase):
             ),
             related_selector(
                 [
+                    "axioval:derived.flow",
+                    "axioval:derived.flow:backward+",
+                    "axioval:derived.flow:either+",
+                    "axioval:derived.flow|axioval:relationship.connection:forward",
+                ]
+            ),
+            related_selector(
+                [
                     "axioval:derived.adjacent-space",
                     "axioval:derived.contained-in-space;horizontal=0.25;vertical=0.5",
                     "axioval:derived.overlapping-group-space;ratio=0.9:backward",
@@ -1474,6 +1482,8 @@ class RelatedSelectorTests(unittest.TestCase):
             related_selector(["axioval:derived.adjacent-space;reach=-1"]),
             related_selector(["axioval:derived.adjacent-space:sideways"]),
             related_selector(["axioval:other.adjacent-space"]),
+            related_selector(["axioval:derived.flow:upstream"]),
+            related_selector(["axioval:derived.flow:backward:either+"]),
             related_selector(["IfcRelNests|"]),
             related_selector(["|IfcRelNests"]),
             related_selector(["IfcRelNests||IfcRelAggregates"]),

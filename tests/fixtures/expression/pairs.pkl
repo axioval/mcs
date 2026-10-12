@@ -1,0 +1,47 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Selectors.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.PairsExpression {
+  `function` = "all"
+  over = new Expressions.PathSource {
+    path {
+      "IfcRelAggregates:forward"
+    }
+  }
+  `where` = new Selectors.EntityTypeSelector {
+    objectType = "ex:stair-flight"
+    includeSubtypes = true
+  }
+  by = new Expressions.PropertyExpression {
+    propertySet = "ex:pset-stair-flight-common"
+    property = "ex:riser-sequence"
+  }
+  value = new Expressions.CompareExpression {
+    operator = "lessThanOrEquals"
+    left = new Expressions.AbsExpression {
+      operand = new Expressions.SubtractExpression {
+        left = new Expressions.PropertyExpression {
+          propertySet = "ex:pset-stair-flight-common"
+          property = "ex:riser-height"
+        }
+        right = new Expressions.PreviousExpression {
+          operand = new Expressions.PropertyExpression {
+            propertySet = "ex:pset-stair-flight-common"
+            property = "ex:riser-height"
+          }
+          label = "previous riser"
+        }
+      }
+    }
+    right = new Expressions.LiteralExpression {
+      value = new Values.QuantityValue {
+        value = 5.0
+        unit = "mm"
+      }
+    }
+  }
+  label = "consecutive risers"
+}

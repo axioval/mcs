@@ -1,0 +1,22 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Selectors.pkl"
+
+expression = new Expressions.AggregateExpression {
+  `function` = "sum"
+  over = new Expressions.PathSource {
+    path {
+      "axioval:derived.flow:backward+"
+    }
+  }
+  `where` = new Selectors.EntityTypeSelector {
+    objectType = "ex:sanitary-terminal"
+    includeSubtypes = true
+  }
+  value = new Expressions.PropertyExpression {
+    propertySet = "ex:drainage"
+    property = "ex:fixture-units"
+  }
+  label = "upstream fixture units"
+}

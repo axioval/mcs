@@ -10,6 +10,27 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- `Expressions.PairsExpression` (`pairs`), `Expressions.PreviousExpression`
+  (`previous`) and `Expressions.NextExpression` (`next`) mirror the engine's
+  consecutive members (axioval/engine#350): `pairs` applies an aggregate
+  `function` to `value`, evaluated once per consecutive pair of the members
+  `over` reaches and `where` selects, ordered by `by` ascending, with the later
+  member in scope; `previous` and `next` read their `operand` of the earlier
+  and the later member. Normalized JSON writes `function`, `over`, `where`,
+  `by` and `value` in the engine's order. The binder checks the function,
+  source and member filter as an aggregate's, requires `value` unless it
+  counts, lets `by` and `value` read `axioval:member` over measured members,
+  counts `pairs` toward the aggregate nesting limit, collects its member
+  filter's rule outcomes, groups and relations, and refuses a `previous` or
+  `next` outside the `value` of a `pairs` or within an aggregate, `argmin`,
+  `argmax` or `pairs` nested there.
+
+- The derived relationship `axioval:derived.flow` of the engine's
+  distribution networks (axioval/engine#344) is documented as a path step:
+  `forward` downstream, `backward` upstream and `either` every connected
+  element, with `+` along the chain. The binder already accepted it, since a
+  path step may name any `axioval:derived.<name>`; tests now pin it.
+
 - `Expressions.InterpolateExpression` (`interpolate`) and
   `Expressions.Lookup2Expression` (`lookup2`) mirror the engine's table reads
   (axioval/engine#347, axioval/engine#348): `interpolate` reads a `table`
@@ -323,6 +344,11 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   and bounded text-only navigation.
 
 ### Changed
+
+- The shared expression fixtures are re-copied from the engine at 04c9d69a
+  with `pairs`, `pairs-next` and `aggregate-flow`; a kind counts as covered
+  wherever a fixture holds it, since `previous` and `next` stand only within
+  a `pairs`.
 
 - `floor` and `ceil` take an optional `step`, as the engine's do
   (axioval/engine#349): with it they round down or up to multiples of `step`,

@@ -48,7 +48,7 @@ for it instead of its rendered form.
 | choice | `if`, `coalesce` |
 | arithmetic | `add`, `subtract`, `multiply`, `divide`, `negate`, `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `inUnit` |
 | angles and slopes | `sin`, `cos`, `tan`, `atan2`, `convertSlope` |
-| members | `aggregate`, `argmin`, `argmax` |
+| members | `aggregate`, `argmin`, `argmax`, `pairs`, `previous`, `next` |
 | other rules | `ruleOutcome`, `selected`, `findingCount`, `deviation` |
 | text | `concat`, `length`, `lower`, `upper`, `trim` |
 
@@ -94,6 +94,16 @@ for it instead of its rendered form.
   Where intervals overlap, every member that may be the extreme is chosen, and
   the value is the one they agree on, otherwise not evaluated, never one
   picked by order.
+- `pairs` relates each member of an ordered sequence to the one before it:
+  consecutive risers, storeys stacked by elevation. It ranges `over` members
+  and filters them with `where` as an aggregate does, orders them by `by`
+  ascending, a number such as a station, an elevation, or a sequence number,
+  and applies its aggregate `function` to `value`, evaluated once per
+  consecutive pair with the later member in scope. Within that `value`,
+  `previous` reads its `operand` of the earlier member and `next` of the later
+  one, so a pair can be written either way; a `count` takes no `value` and
+  counts one pair fewer than the members. A pair whose order the intervals of
+  `by` leave undecided is not evaluated, never ordered by a guess.
 - `ruleOutcome`, `findingCount`, and `deviation` read how another rule of the
   same ruleset judged the object in scope, and `selected` whether it selected
   it. `ruleOutcome` is `null` for an object the rule did not select, so guard
@@ -112,6 +122,43 @@ for it instead of its rendered form.
           name = "maximum_slope"
           label = "steepest slope"
         }
+      }
+    }
+    ```
+
+??? example "Show consecutive risers differing by at most 5 mm"
+    ```pkl
+    ["requirement"] = new Expressions.ExpressionValue {
+      value = new Expressions.PairsExpression {
+        `function` = "all"
+        over = new Expressions.PathSource { path { "IfcRelAggregates:forward" } }
+        by = new Expressions.PropertyExpression {
+          propertySet = "ex:pset-stair-flight-common"
+          property = "ex:riser-sequence"
+        }
+        value = new Expressions.CompareExpression {
+          operator = "lessThanOrEquals"
+          left = new Expressions.AbsExpression {
+            operand = new Expressions.SubtractExpression {
+              left = new Expressions.NextExpression {
+                operand = new Expressions.PropertyExpression {
+                  propertySet = "ex:pset-stair-flight-common"
+                  property = "ex:riser-height"
+                }
+              }
+              right = new Expressions.PreviousExpression {
+                operand = new Expressions.PropertyExpression {
+                  propertySet = "ex:pset-stair-flight-common"
+                  property = "ex:riser-height"
+                }
+              }
+            }
+          }
+          right = new Expressions.LiteralExpression {
+            value = new Values.QuantityValue { value = 5.0; unit = "mm" }
+          }
+        }
+        label = "consecutive risers"
       }
     }
     ```
@@ -265,12 +312,16 @@ Pkl checks each node's shape. The binder then refuses, among others:
   `label` or name, a literal that is not one finite scalar value, and a stated
   default flag;
 - an expression nesting deeper than 64 levels, holding more than 2,048 nodes,
-  or nesting aggregates, `argmin`, and `argmax` more than two deep within one
-  another's `value`, `by`, or `where`;
-- an aggregate whose `value` does not match its function, a `where` on
-  measured members, an unknown measured member list, and `axioval:member`
+  or nesting aggregates, `argmin`, `argmax`, and `pairs` more than two deep
+  within one another's `value`, `by`, or `where`;
+- an aggregate or `pairs` whose `value` does not match its function, a `where`
+  on measured members, an unknown measured member list, and `axioval:member`
   outside the `value` of a measured aggregate or the `by` and `value` of a
-  measured `argmin` or `argmax`;
+  measured `argmin`, `argmax`, or `pairs`;
+- a `previous` or `next` anywhere but within the `value` of a `pairs`: not in
+  its `by` or `where`, not in another `previous` or `next`, and not within an
+  aggregate, `argmin`, `argmax`, or `pairs` nested in that `value`, which reads
+  its own members;
 - a property that is no declared concept or derived-set name, an unknown
   grouping, relation, or classification, and a `derived` value the ruleset
   does not declare;
