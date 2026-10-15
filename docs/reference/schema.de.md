@@ -71,6 +71,32 @@ Ordnet eine stabile Qualifizierer-ID externen Containernamen zu. Sie enthält ke
 
 Deklariert eine Fähigkeit und eine typisierte Parameter-Map. `referencedValueKind` ist nur für einen `propertyReference`-Parameter gültig und beschränkt den katalogisierten Typ der referenzierten Eigenschaft.
 
+Ein Parameter mit `fixed = true` gehört zur Vorlage, nicht zu ihren Instanzen: Jede Regelinstanz übernimmt seinen `defaultValue` und darf keinen eigenen Wert angeben. So kann eine Vorlage ihre Logik selbst tragen, etwa eine `expression`-Anforderung, deren Vorgabe die übrigen Parameter der Vorlage liest, während Instanzen nur Werte angeben. Ein festgelegter Parameter verlangt einen `defaultValue`, der ihn unabhängig von `required` bindet. Eine Regelinstanz, die einen festgelegten Parameter angibt, wird beim Binden des Regelwerks abgewiesen; wer ihn ändern will, forkt die Definition. `fixed` ist ein Pkl-Schlüsselwort und wird deshalb in Backticks geschrieben. Normalisiertes JSON lässt es weg, wenn es `false` ist.
+
+??? example "Vorlage mit festgelegter Anforderung anzeigen"
+    ```pkl
+    parameters {
+      ["requirement"] = new Definitions.ParameterDefinition {
+        id = "requirement"
+        name = new Types.LocalizedText { default = "Requirement" }
+        kind = "expression"
+        defaultValue = new Expressions.ExpressionValue {
+          value = new Expressions.CompareExpression {
+            operator = "greaterThanOrEquals"
+            left = new Expressions.PropertyExpression { property = "axioval:example.width" }
+            right = new Expressions.ParameterExpression { name = "minimum" }
+          }
+        }
+        `fixed` = true
+      }
+      ["minimum"] = new Definitions.ParameterDefinition {
+        id = "minimum"
+        name = new Types.LocalizedText { default = "Minimum" }
+        kind = "number"
+      }
+    }
+    ```
+
 ### Tabellenparameter
 
 Ein `table`-Parameter trägt Zeilen aus Mustern und Grenzwerten in einer einzigen

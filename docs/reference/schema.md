@@ -79,6 +79,40 @@ Declares a capability and typed parameter map. `referencedValueKind` is valid
 only on a `propertyReference` parameter and constrains the referenced property's
 catalogued type.
 
+A parameter with `fixed = true` is part of the template, not of its instances:
+every rule instance takes its `defaultValue` and may not state its own. A
+template can carry its logic this way, such as an `expression` requirement
+whose default reads the template's other parameters, while instances state only
+values. A fixed parameter requires a `defaultValue`, which binds it whatever
+`required` says. A rule instance that states a fixed parameter is refused when
+the ruleset is bound; changing it means forking the definition. `fixed` is a
+Pkl keyword, so authors write it in backticks. Normalized JSON omits it when
+`false`.
+
+??? example "Show a template that fixes its requirement"
+    ```pkl
+    parameters {
+      ["requirement"] = new Definitions.ParameterDefinition {
+        id = "requirement"
+        name = new Types.LocalizedText { default = "Requirement" }
+        kind = "expression"
+        defaultValue = new Expressions.ExpressionValue {
+          value = new Expressions.CompareExpression {
+            operator = "greaterThanOrEquals"
+            left = new Expressions.PropertyExpression { property = "axioval:example.width" }
+            right = new Expressions.ParameterExpression { name = "minimum" }
+          }
+        }
+        `fixed` = true
+      }
+      ["minimum"] = new Definitions.ParameterDefinition {
+        id = "minimum"
+        name = new Types.LocalizedText { default = "Minimum" }
+        kind = "number"
+      }
+    }
+    ```
+
 ### Table parameters
 
 A `table` parameter carries rows of patterns and limits in one rule, such as a

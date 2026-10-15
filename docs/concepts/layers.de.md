@@ -66,6 +66,8 @@ Eine `RuleDefinition` deklariert:
 
 `referencedValueKind` schließt eine subtile Typlücke: Diese boolesche Vorlage kann nicht an eine Zeichenketten-Eigenschaft gebunden werden.
 
+Eine Vorlage kann außerdem einen Parameter mit `fixed = true` festlegen. Jede Instanz übernimmt dann seinen `defaultValue` und darf keinen eigenen angeben, sodass Pakete auf derselben Vorlage dasselbe prüfen. Wer einen festgelegten Parameter ändern will, forkt die Definition; siehe die [Schemareferenz](../reference/schema.de.md#ruledefinition).
+
 ## 3. Instanz
 
 Eine `RuleInstance` bindet eine bekannte Definition an konkrete Werte. Ihre

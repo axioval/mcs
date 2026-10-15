@@ -1,0 +1,50 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Expressions.pkl"
+
+package {
+  id = "axioval:example.fixed-parameter"
+  version = "0.1.0"
+  name { default = "Fixed parameter" }
+  description { default = "A template that fixes its logic and leaves a value to instances." }
+}
+properties {
+  ["axioval:example.width"] {
+    id = "axioval:example.width"
+    name { default = "Width" }
+    valueKind = "number"
+    externalNames {
+      new {
+        typeSystem = "ifc:4x3"
+        name = "Width"
+      }
+    }
+  }
+}
+definitions {
+  ["axioval:example.minimum-width"] {
+    id = "axioval:example.minimum-width"
+    name { default = "Minimum width" }
+    capability = "axioval:capability.expression"
+    parameters {
+      ["requirement"] {
+        id = "requirement"
+        name { default = "Requirement" }
+        kind = "expression"
+        defaultValue = new Expressions.ExpressionValue {
+          value = new Expressions.CompareExpression {
+            operator = "greaterThanOrEquals"
+            left = new Expressions.PropertyExpression { property = "axioval:example.width" }
+            right = new Expressions.ParameterExpression { name = "minimum" }
+          }
+        }
+        `fixed` = true
+      }
+      ["minimum"] {
+        id = "minimum"
+        name { default = "Minimum" }
+        kind = "number"
+      }
+    }
+  }
+}

@@ -584,6 +584,92 @@ class BindingTests(unittest.TestCase):
             validate.bind_ruleset(ruleset, [definitions], "test")
 
 
+class FixedParameterTests(unittest.TestCase):
+    DEFINITION = "axioval:example.minimum-width"
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.fixed = validate.evaluate(
+            validate.ROOT / "tests/fixtures/fixed-parameter.pkl"
+        )
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def parameters(self, fixed: dict) -> dict:
+        return fixed["definitions"][self.DEFINITION]["parameters"]
+
+    def documents(self) -> tuple[dict, list[dict]]:
+        fixed = copy.deepcopy(self.fixed)
+        ruleset = copy.deepcopy(self.ruleset)
+        ruleset["definitionPackages"].append(fixed["package"]["id"])
+        rule = ruleset["root"]["rules"][0]
+        rule.pop("explanatoryImages", None)
+        rule["definitionId"] = self.DEFINITION
+        rule["parameters"] = {"minimum": {"type": "number", "value": 0.9}}
+        return ruleset, [copy.deepcopy(self.definitions), fixed]
+
+    def test_pkl_omits_an_unfixed_parameter_flag(self) -> None:
+        validate.validate_definition_document(self.fixed, "fixture")
+        parameters = self.parameters(self.fixed)
+        self.assertIs(parameters["requirement"]["fixed"], True)
+        self.assertNotIn("fixed", parameters["minimum"])
+        for parameter in self.definitions["definitions"][
+            "axioval:example.property-exists"
+        ]["parameters"].values():
+            self.assertNotIn("fixed", parameter)
+
+    def test_instances_inherit_a_fixed_default(self) -> None:
+        # `requirement` keeps `required = true`; its fixed default binds it.
+        ruleset, definitions = self.documents()
+        self.assertIs(self.parameters(definitions[1])["requirement"]["required"], True)
+        validate.bind_ruleset(ruleset, definitions, "test")
+
+    def test_rejects_a_fixed_parameter_without_default(self) -> None:
+        for flag in (True, False, None, "true"):
+            fixed = copy.deepcopy(self.fixed)
+            parameter = self.parameters(fixed)["requirement"]
+            parameter["fixed"] = flag
+            if flag is True:
+                del parameter["defaultValue"]
+            with self.subTest(flag=flag), self.assertRaises(SystemExit):
+                validate.validate_definition_document(fixed, "test")
+        ruleset, definitions = self.documents()
+        del self.parameters(definitions[1])["requirement"]["defaultValue"]
+        with self.assertRaises(SystemExit) as failure:
+            validate.bind_ruleset(ruleset, definitions, "test")
+        self.assertIn("requires a defaultValue", str(failure.exception))
+
+    def test_rejects_an_instance_stating_a_fixed_parameter(self) -> None:
+        ruleset, definitions = self.documents()
+        stated = self.parameters(definitions[1])["requirement"]["defaultValue"]
+        ruleset["root"]["rules"][0]["parameters"]["requirement"] = copy.deepcopy(
+            stated
+        )
+        with self.assertRaises(SystemExit) as failure:
+            validate.bind_ruleset(ruleset, definitions, "test")
+        self.assertIn("['requirement'] are fixed", str(failure.exception))
+        self.assertIn(self.DEFINITION, str(failure.exception))
+
+    def test_pkl_refuses_a_fixed_parameter_without_default(self) -> None:
+        source = (
+            validate.ROOT / "tests/fixtures/fixed-parameter.pkl"
+        ).read_text()
+        start = source.index("        defaultValue = ")
+        end = source.index("        `fixed` = true")
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests/fixtures") as tmp:
+            module = Path(tmp) / "fixed-without-default.pkl"
+            module.write_text(
+                (source[:start] + source[end:]).replace(
+                    '"../../schema/', '"../../../schema/'
+                )
+            )
+            with self.assertRaises(SystemExit) as failure:
+                validate.evaluate(module)
+        self.assertIn("Pkl evaluation failed", str(failure.exception))
+        self.assertIn("implies", str(failure.exception))
+
+
 class StaticManifestTests(unittest.TestCase):
     def test_schema_and_validator_required_fields_stay_in_sync(self) -> None:
         schema = json.loads(

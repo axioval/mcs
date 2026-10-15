@@ -67,6 +67,12 @@ A `RuleDefinition` declares:
 `referencedValueKind` closes a subtle type hole: this boolean template cannot be
 bound to a string property.
 
+A template may also fix a parameter with `fixed = true`. Every instance then
+takes the parameter's `defaultValue` and may not state its own, so packages
+built on the same template check the same thing. Changing a fixed parameter
+means forking the definition; see the
+[schema reference](../reference/schema.md#ruledefinition).
+
 ## 3. Instance
 
 A `RuleInstance` binds a known definition to concrete values. Its applicability

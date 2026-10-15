@@ -1,0 +1,41 @@
+/// Proves the definition schema refuses a fixed parameter without a default
+/// and renders `fixed` only when it is set.
+module axioval.tests.definitions
+
+amends "pkl:test"
+
+import "pkl:test" as test
+
+import "../../schema/Definitions.pkl"
+import "../../schema/Values.pkl"
+
+local function rendered(value: Any): String =
+  new JsonRenderer {
+    indent = ""
+    converters {
+      [Definitions.ParameterDefinition] = (it) -> Definitions.normalizedParameterDefinition(it)
+    }
+  }.renderValue(value).replaceAll("\n", "")
+
+local function parameter(fixed_: Boolean, default_: Values.ParameterValue?) =
+  new Definitions.ParameterDefinition {
+    id = "minimum"
+    name { default = "Minimum" }
+    kind = "number"
+    defaultValue = default_
+    `fixed` = fixed_
+  }
+
+local three = new Values.NumberValue { value = 3 }
+
+facts {
+  ["a false fixed is omitted, a true one written"] {
+    rendered(parameter(false, null))
+      == #"{"id":"minimum","name":{"default":"Minimum","translations":{}},"kind":"number","required":true,"allowedValues":[],"citations":[]}"#
+    rendered(parameter(true, three))
+      == #"{"id":"minimum","name":{"default":"Minimum","translations":{}},"kind":"number","required":true,"defaultValue":{"type":"number","value":3},"fixed":true,"allowedValues":[],"citations":[]}"#
+  }
+  ["a fixed parameter requires a default"] {
+    test.catch(() -> parameter(true, null).`fixed`).contains("implies")
+  }
+}

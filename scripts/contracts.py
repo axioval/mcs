@@ -1664,11 +1664,19 @@ def validate_parameter_definition(
             "referencedValueKind",
             "citations",
             "columns",
+            "fixed",
         },
         context,
     )
     if type(value["id"]) is not str or not IDENTIFIER.fullmatch(value["id"]):
         fail(context, "invalid parameter id")
+    # Normalized JSON omits a false `fixed`. A fixed parameter binds every
+    # instance to its default, so it must have one.
+    if "fixed" in value:
+        if value["fixed"] is not True:
+            fail(context, "fixed is true or omitted")
+        if "defaultValue" not in value:
+            fail(context, "a fixed parameter requires a defaultValue")
     localized_text(value["name"], f"{context}.name")
     if "description" in value:
         localized_text(value["description"], f"{context}.description")
@@ -4527,9 +4535,22 @@ def bind_ruleset(
             bindings = object_value(rule["parameters"], f"{rule_context}.parameters")
             parameters = definition["parameters"]
             unknown = bindings.keys() - parameters.keys()
+            # A fixed parameter takes its definition's default. An instance
+            # that states its own would replace the template's logic, which
+            # only a new definition may do.
+            fixed = {
+                key for key, parameter in parameters.items() if parameter.get("fixed")
+            }
+            if fixed & bindings.keys():
+                fail(
+                    rule_context,
+                    f"parameters {sorted(fixed & bindings.keys())} are fixed by "
+                    f"definition {definition_id!r}; instances may not state them, "
+                    "and changing them means forking the definition",
+                )
             missing = {
                 key for key, parameter in parameters.items() if parameter["required"]
-            } - bindings.keys()
+            } - fixed - bindings.keys()
             if unknown or missing:
                 fail(
                     rule_context,

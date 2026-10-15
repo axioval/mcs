@@ -10,6 +10,18 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- `Definitions.ParameterDefinition.fixed` lets a rule definition fix a
+  parameter its instances may not override (#11): every instance takes the
+  parameter's `defaultValue`, so a template can carry its logic, such as an
+  `expression` requirement reading the template's other parameters, while
+  instances state only values. Changing a fixed parameter means forking the
+  definition. A fixed parameter requires a `defaultValue`, which Pkl and the
+  binder both enforce, and its default binds it whatever `required` says. The
+  binder refuses a rule instance that states a fixed parameter of its
+  definition. `fixed` is a Pkl keyword, so authors write it in backticks.
+  Normalized JSON omits it when `false`, so existing packages bind unchanged
+  and render byte-identical JSON. The engine has yet to mirror the field.
+
 - `Expressions.PairsExpression` (`pairs`), `Expressions.PreviousExpression`
   (`previous`) and `Expressions.NextExpression` (`next`) mirror the engine's
   consecutive members (axioval/engine#350): `pairs` applies an aggregate

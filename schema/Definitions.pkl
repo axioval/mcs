@@ -75,6 +75,11 @@ class ParameterDefinition {
   referencedValueKind: PropertyValueKind?
   required: Boolean = true
   defaultValue: Values.ParameterValue?
+  /// The template fixes this parameter: instances take `defaultValue` and may
+  /// not state their own. Changing it means forking the definition. A fixed
+  /// parameter requires a `defaultValue`, which binds it whatever `required`
+  /// says. Normalized JSON omits it when `false`.
+  `fixed`: Boolean(implies(defaultValue != null)) = false
   allowedValues: Listing<Values.ParameterValue> = new {}
   unitDimension: String?
   citations: Listing<Citations.Citation> = new {}
@@ -82,6 +87,15 @@ class ParameterDefinition {
   /// and only valid on, `kind = "table"`; omitted from normalized JSON otherwise.
   columns: Listing<TableColumn>(!isEmpty, isDistinctBy((it) -> it.id))?
 }
+
+/// Render a parameter definition without a false `fixed`, so packages that
+/// fix nothing keep byte-identical normalized JSON.
+const function normalizedParameterDefinition(
+  parameter: ParameterDefinition
+): Map<String, Any> =
+  parameter.toMap().filter((key, value) ->
+    value != null && !(key == "fixed" && value == false)
+  )
 
 /// Declares a rule template. `capability` is the stable semantic operation that
 /// an application must implement; it is not executable code supplied by the
@@ -119,11 +133,13 @@ definitions: Mapping<String, RuleDefinition>(
 
 output {
   renderer {
-    // Omit defaulted property-, property-pattern-, and source-selector flags,
+    // Omit a false parameter `fixed`, defaulted property-, property-pattern-,
+    // and source-selector flags,
     // related-selector quantifiers, unset classification codes, and unset or
     // defaulted expression fields from normalized JSON.
     converters {
       [Expressions.Expression] = (it) -> Expressions.normalizedExpression(it)
+      [ParameterDefinition] = (it) -> normalizedParameterDefinition(it)
       [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
       [Selectors.PropertyPatternSelector] = (it) ->
         Selectors.normalizedPropertyPatternSelector(it)
