@@ -443,6 +443,78 @@ class ValueDefinition {
   expression: Expressions.Expression
 }
 
+/// The columns tracing each entry of a results catalogue to the external
+/// calculation that computed it: a sound insulation index per wall, a
+/// building's primary energy demand, a member's utilisation ratio. The
+/// checking application never computes these; it takes them as values the
+/// calculation states.
+///
+/// Each names a declared column other than the key, and no column is named
+/// twice: `method`, `report` and `revision` `string` columns, `date` a `date`
+/// or `dateTime` column. An entry counts only where it states all four and
+/// its `revision` names the revision of the checked model (the
+/// `sha256:<hex>` digest of the model file, or a revision the host states
+/// for it). An entry computed on another revision is stale, and one stating
+/// no provenance untraceable: either leaves the object not evaluated, never
+/// given a value of another model.
+class CalculationResults {
+  /// The `string` column naming the calculation method, such as a standard
+  /// and its edition.
+  method: Types.Identifier
+  /// The `string` column naming the report the calculation tool issued.
+  report: Types.Identifier
+  /// The `date` or `dateTime` column stating when it was computed.
+  date: Types.Identifier
+  /// The `string` column naming the model revision it was computed on.
+  revision: Types.Identifier
+}
+
+/// The columns stating the range of each entry of a catalogue stated per
+/// range of a position, such as the stations an alignment's design speed
+/// holds between. Each names a declared `number` or `quantity` column other
+/// than the key, both of one kind and unit. The entries of one key state
+/// ranges `[from, to)` that do not overlap, `from` below `to`; the host's
+/// file is refused otherwise.
+class CatalogueRanges {
+  /// The column stating where an entry's range starts (held).
+  from: Types.Identifier
+  /// The column stating where it ends (not held).
+  to: Types.Identifier(this != from)
+}
+
+/// Whether the columns `results` names fit the catalogue's `columns`: each
+/// declared, none the `key`, none named twice, `method`, `report` and
+/// `revision` `string` columns and `date` a `date` or `dateTime` column.
+const function fitsResults(
+  results: CalculationResults,
+  columns: List<Values.TableFileColumn>,
+  key: String
+): Boolean =
+  let (named = List(results.method, results.report, results.date, results.revision))
+  let (kindOf = (id: String) -> columns.findOrNull((it) -> it.id == id)?.kind)
+    named.isDistinct
+      && !named.contains(key)
+      && kindOf.apply(results.method) == "string"
+      && kindOf.apply(results.report) == "string"
+      && kindOf.apply(results.revision) == "string"
+      && Set("date", "dateTime").contains(kindOf.apply(results.date))
+
+/// Whether the columns `ranges` names fit the catalogue's `columns`: both
+/// declared, neither the `key`, and both `number` or both `quantity` of one
+/// unit as stated.
+const function fitsRanges(
+  ranges: CatalogueRanges,
+  columns: List<Values.TableFileColumn>,
+  key: String
+): Boolean =
+  let (start = columns.findOrNull((it) -> it.id == ranges.from))
+  let (end = columns.findOrNull((it) -> it.id == ranges.to))
+    start != null && end != null
+      && ranges.from != key && ranges.to != key
+      && Set("number", "quantity").contains(start.kind)
+      && start.kind == end.kind
+      && start.unit == end.unit
+
 /// A catalogue of material or product data that models leave out or name only
 /// by reference, such as each material's thermal conductivity, taken as values
 /// the catalogue states.
@@ -476,9 +548,20 @@ class CatalogueDefinition {
     isDistinctBy((it) -> it.header ?? it.id),
     every((it) -> it.kind != "reference" && it.kind != "textPattern")
   )
+  /// Declares the entries results of an external calculation, each traced to
+  /// its method, report, date and the model revision it was computed on.
+  /// Normalized JSON omits it when unset: a catalogue of material or product
+  /// data.
+  results: CalculationResults?(this == null || fitsResults(this, columns.toList(), key))
+  /// Declares the entries stated per range of a position, such as a design
+  /// speed per station range of an alignment: a key then names several
+  /// entries, each holding its range, and a `CatalogueExpression` takes the
+  /// value `at` a position. Normalized JSON omits it when unset: one entry per
+  /// key.
+  ranges: CatalogueRanges?(this == null || fitsRanges(this, columns.toList(), key))
 }
 
-/// Render a catalogue without an unset description.
+/// Render a catalogue without an unset description, results or ranges.
 const function normalizedCatalogue(catalogue: CatalogueDefinition): Map<String, Any> =
   catalogue.toMap().filter((_, value) -> value != null)
 

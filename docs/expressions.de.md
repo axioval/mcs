@@ -44,7 +44,7 @@ ihn statt seiner ausgeschriebenen Form nennen.
 
 | Gruppe | Arten |
 | --- | --- |
-| Werte | `literal`, `null`, `property`, `parameter`, `derived`, `lookup`, `interpolate`, `lookup2`, `catalogue` |
+| Werte | `literal`, `null`, `property`, `parameter`, `derived`, `lookup`, `interpolate`, `lookup2`, `catalogue`, `zone` |
 | Wahrheit | `not`, `and`, `or`, `implies`, `xor`, `isDefined`, `isUndefined` |
 | Vergleich | `compare`, `between`, `oneOf`, `noneOf` |
 | Auswahl | `if`, `coalesce` |
@@ -70,7 +70,8 @@ ihn statt seiner ausgeschriebenen Form nennen.
   [Tabellen](#tabellen).
 - Ein `catalogue` entnimmt einen Wert einem Katalog, den der Host neben dem
   Modell liefert, etwa die Wärmeleitfähigkeit eines Baustoffs; siehe
-  [Kataloge](#kataloge).
+  [Kataloge](#kataloge). Ein `zone` entnimmt einen Wert, den eine neben dem
+  Modell gelieferte Kontextzone angibt; siehe [Kontextzonen](#kontextzonen).
 - `compare` nimmt einen Operator `operator`: `equals`, `notEquals`,
   `lessThan`, `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals`,
   `like`, `matches` oder `contains`. `caseSensitive: false` ignoriert die
@@ -285,9 +286,108 @@ ungeprüft und geben ihm nie einen Vorgabewert.
     }
     ```
 
-Der Binder verlangt, dass der Katalog deklariert ist und `column` eine seiner
-Spalten außer der Schlüsselspalte ist, die die Einträge benennt. Dass `key`
-ein Text ist, prüft die prüfende Anwendung.
+Ein Katalog kann die Ergebnisse einer externen Berechnung enthalten, etwa ein
+Schalldämmmaß je Wand nach der `GlobalId` der Wand. Seine Ergebnisangaben
+`results` nennen die Spalten, die jeden Eintrag auf die Berechnung
+zurückführen: `method`, `report` und `revision` als `string`-Spalten und `date`
+als `date`- oder `dateTime`-Spalte. Ein Eintrag zählt nur, wenn er alle vier
+angibt und seine Revision die des geprüften Modells nennt (die Prüfsumme
+`sha256:<hex>` der Modelldatei oder eine Revision, die der Host für sie
+angibt). Ein veralteter oder nicht rückverfolgbarer Eintrag lässt das Objekt
+ungeprüft und gibt ihm nie einen Wert eines anderen Modells.
+
+Ein Katalog kann seine Einträge je Bereich einer Position angeben, etwa eine
+Entwurfsgeschwindigkeit je Stationsbereich einer Achse. Seine Bereiche
+`ranges` nennen die Spalten `from` und `to`, beide `number` oder beide
+`quantity` derselben Einheit; jeder Eintrag gilt im Bereich `[from, to)`, und
+die Bereiche eines Schlüssels dürfen sich nicht überlappen. Ein
+`catalogue`-Knoten entnimmt seinen Wert dann `at` einer Position, etwa der
+Station eines Objekts, dem Bereich, der sie enthält.
+
+??? example "Schalldämmmaß einer Wand aus einem Berechnungsbericht anzeigen"
+    ```pkl
+    catalogues {
+      ["sound-insulation"] {
+        id = "sound-insulation"
+        name { default = "Schalldämmung" }
+        key = "global_id"
+        columns {
+          new { id = "global_id"; header = "GlobalId"; kind = "string" }
+          new { id = "rw"; header = "R'w"; kind = "number" }
+          new { id = "method"; kind = "string" }
+          new { id = "report"; kind = "string" }
+          new { id = "computed"; kind = "dateTime" }
+          new { id = "revision"; kind = "string" }
+        }
+        results {
+          method = "method"
+          report = "report"
+          date = "computed"
+          revision = "revision"
+        }
+      }
+    }
+    ```
+
+??? example "Entwurfsgeschwindigkeit an der Station eines Objekts anzeigen"
+    ```pkl
+    catalogues {
+      ["design-speeds"] {
+        id = "design-speeds"
+        name { default = "Entwurfsgeschwindigkeiten" }
+        key = "axis"
+        columns {
+          new { id = "axis"; kind = "string" }
+          new { id = "from"; kind = "quantity"; unit = "m" }
+          new { id = "to"; kind = "quantity"; unit = "m" }
+          new { id = "speed"; kind = "quantity"; unit = "km/h" }
+        }
+        ranges { from = "from"; to = "to" }
+      }
+    }
+    ```
+
+    ```pkl
+    new Expressions.CatalogueExpression {
+      catalogue = "design-speeds"
+      key = new Expressions.LiteralExpression {
+        value = new Values.StringValue { value = "axis-1" }
+      }
+      column = "speed"
+      at = new Expressions.PropertyExpression {
+        propertySet = "axioval:measured"
+        property = "station;alignment=IfcAlignment"
+      }
+      label = "design speed"
+    }
+    ```
+
+Der Binder verlangt, dass der Katalog deklariert ist, `column` eine seiner
+Spalten außer der Schlüsselspalte ist, die die Einträge benennt, und `at`
+genau dann angegeben ist, wenn der Katalog Bereiche angibt. Dass `key` ein
+Text und `at` eine Zahl in der Einheit der Bereiche ist, prüft die prüfende
+Anwendung.
+
+## Kontextzonen
+
+Ein `zone`-Knoten entnimmt einen Wert den Kontextzonen, die der Host neben dem
+Modell liefert, etwa einer Schneelastzonenkarte: der Zone mit der ID `zone`
+oder der Zone der Art `standsIn`, in der das Objekt steht, genau eines von
+beiden. `value` nennt den Schlüssel, den die Zone angibt, so übernommen, wie er
+angegeben ist, als Text, Zahl oder Größe, und als Angabe der Zone belegt; ein
+Schlüssel, den die Zone nicht angibt, ist `null`. Ohne `value` ist der Knoten
+die ID der Zone. Eine Zone, in der das Objekt stehen kann, aber sicher nicht
+steht, oder mehrere, in denen es stehen kann, lassen das Objekt ungeprüft und
+werden nie gewählt.
+
+??? example "Schneelastzone anzeigen, in der ein Objekt steht"
+    ```pkl
+    new Expressions.ZoneExpression {
+      standsIn = "snow-load-zone"
+      value = "load_zone"
+      label = "snow load zone"
+    }
+    ```
 
 ## Abgeleitete Werte
 
@@ -405,7 +505,10 @@ Pkl prüft die Form jedes Knotens. Der Binder lehnt danach unter anderem ab:
   aus der interpoliert wird;
 - ein `catalogue`, das einen Katalog nennt, den der Regelsatz nicht
   deklariert, eine Spalte, die der Katalog nicht deklariert, oder seine
-  Schlüsselspalte;
+  Schlüsselspalte, oder das `at` für einen Katalog ohne Bereiche angibt oder
+  für einen mit Bereichen keines;
+- ein `zone`, das beide oder keines von `zone` und `standsIn` nennt, eines
+  davon leer oder ein leeres `value`;
 - ein Regelergebnis einer Regel außerhalb des Regelsatzes, eine Regel, die ihr
   eigenes Ergebnis liest, Regeln, die einander im Kreis lesen, und jedes
   Regelergebnis in einem abgeleiteten Wert, einer Klassifikation, Gruppierung

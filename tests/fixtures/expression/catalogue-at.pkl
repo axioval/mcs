@@ -1,0 +1,19 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+import "../../../schema/Values.pkl"
+
+expression = new Expressions.CatalogueExpression {
+  catalogue = "design-speeds"
+  key = new Expressions.LiteralExpression {
+    value = new Values.StringValue {
+      value = "axis-1"
+    }
+  }
+  column = "speed"
+  at = new Expressions.PropertyExpression {
+    propertySet = "axioval:measured"
+    property = "station;alignment=IfcAlignment"
+  }
+  label = "design speed"
+}

@@ -209,11 +209,36 @@ class Lookup2Expression extends Expression {
 /// so is a `null` key; a key no entry has, and a catalogue the host did not
 /// supply, are not evaluated. The binder requires `catalogue` to be declared
 /// and `column` to be one of its columns other than its key.
+///
+/// A catalogue stating its entries per range, such as a design speed per
+/// station range of an alignment, is taken `at` a position along them, such
+/// as an object's station: the value of the key's range holding it. The
+/// binder requires `at` exactly for such a catalogue.
 class CatalogueExpression extends Expression {
   kind: "catalogue" = "catalogue"
   catalogue: Types.CatalogueId
   key: Expression
   column: Types.Identifier
+  /// The position within the catalogue's ranges, a number. Normalized JSON
+  /// omits it when unset.
+  at: Expression?
+}
+
+/// A value a context zone supplied beside the model states, such as the snow
+/// load zone of a zone map: of the zone named by its ID (`zone`), or of the
+/// zone of kind `standsIn` the object stands in, exactly one of them. `value`
+/// names the key the zone states, taken as stated (text, a number or a
+/// quantity) and cited as the zone's statement; a key the zone does not state
+/// is `null`. Without `value`, the zone's ID. A zone the object may stand in
+/// but surely does not, or several it may, is not evaluated, never chosen.
+class ZoneExpression extends Expression {
+  kind: "zone" = "zone"
+  /// Normalized JSON omits it when unset.
+  zone: String(!isBlank)?
+  /// Normalized JSON omits it when unset.
+  standsIn: String(!isBlank)?((this == null) != (zone == null))
+  /// Normalized JSON omits it when unset.
+  value: String(!isBlank)?
 }
 
 class NotExpression extends UnaryExpression {

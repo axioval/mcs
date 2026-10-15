@@ -41,6 +41,33 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   definitions packages it has installed. `examples/template-library` is a
   definitions package, packed twice, compared and verified by `check.sh`.
 
+- A catalogue may declare `results` and `ranges`, and `catalogue` takes an
+  optional `at`, as the engine's do (axioval/engine#323,
+  axioval/engine#324). `CalculationResults` names the `method`, `report`
+  and `revision` `string` columns and the `date` `date` or `dateTime`
+  column tracing each entry to an external calculation; `CatalogueRanges`
+  names the `from` and `to` columns of entries stated per range `[from,
+  to)`, both `number` or both `quantity` of one unit, and a `catalogue`
+  node then takes its value `at` a position. Normalized JSON writes them
+  after `columns`, and `at` after `column`, in the engine's order and omits
+  them when unset. Pkl and the binder refuse a named column that is not
+  declared, is the key or has another kind, a column named twice and range
+  columns of different kinds or units as stated; the binder also refuses
+  `at` on a catalogue without ranges and its absence on one with them.
+
+- `Expressions.ZoneExpression` (`zone`) mirrors the engine's context zones
+  (axioval/engine#324): the `value` a zone supplied beside the model states,
+  of the zone named `zone` or of the zone of kind `standsIn` the object
+  stands in, or without `value` the zone's ID. Normalized JSON writes
+  `zone`, `standsIn` and `value` in the engine's order; Pkl and the binder
+  refuse both or neither of `zone` and `standsIn` and a blank one or a blank
+  `value`. The engine's kinds are now 56.
+
+- The measured name `station;alignment=<kinds>[;path=<steps>]`, the station
+  of an object's reference point along an alignment, which the engine's
+  `catalogue-at` fixture reads its position with. The binder requires
+  `alignment` and checks `path` as `bottom_above_level`'s.
+
 - A ruleset may declare `catalogues` of material or product data, by ID, and
   `Expressions.CatalogueExpression` (`catalogue`) takes a value from one, as
   the engine's catalogues do (axioval/engine#322). A `CatalogueDefinition`
@@ -393,6 +420,9 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   and bounded text-only navigation.
 
 ### Changed
+
+- The shared expression fixtures are re-copied from the engine at 0e1a0f61
+  with `catalogue-at` and `zone`.
 
 - The shared expression fixtures are re-copied from the engine at 3cb7c47c
   with `catalogue`.

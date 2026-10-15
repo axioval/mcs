@@ -110,6 +110,32 @@ facts {
       key = new Expressions.NullExpression {}
       column = "Lambda"
     }.column).contains("matches")
+    rendered(new Expressions.CatalogueExpression {
+      at = measured
+      column = "speed"
+      key = new Expressions.NullExpression {}
+      catalogue = "design-speeds"
+    })
+      == #"{"kind":"catalogue","catalogue":"design-speeds","key":{"kind":"null"},"column":"speed","at":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"}}"#
+  }
+
+  ["zones write zone or standsIn, then value"] {
+    rendered(new Expressions.ZoneExpression {
+      label = "snow load zone"
+      value = "load_zone"
+      standsIn = "snow-load-zone"
+    })
+      == #"{"kind":"zone","standsIn":"snow-load-zone","value":"load_zone","label":"snow load zone"}"#
+    rendered(new Expressions.ZoneExpression { zone = "z1" })
+      == #"{"kind":"zone","zone":"z1"}"#
+    test.catch(() -> new Expressions.ZoneExpression { zone = "z1"; standsIn = "snow" }.standsIn)
+      .contains("zone == null")
+    test.catch(() -> new Expressions.ZoneExpression { value = "load" }.standsIn)
+      .contains("zone == null")
+    test.catch(() -> new Expressions.ZoneExpression { zone = " " }.zone).contains("isBlank")
+    test.catch(() -> new Expressions.ZoneExpression { standsIn = "" }.standsIn).contains("isBlank")
+    test.catch(() -> new Expressions.ZoneExpression { zone = "z1"; value = " " }.value)
+      .contains("isBlank")
   }
 
   ["argmin and argmax write over, where, by and value in order"] {

@@ -249,6 +249,18 @@ catalogues {{
       new {{ id = "lambda"; header = "λ"; kind = "quantity"; unit = "W/(m·K)" }}
     }}
   }}
+  ["design-speeds"] {{
+    id = "design-speeds"
+    name {{ default = "Design speeds" }}
+    key = "axis"
+    columns {{
+      new {{ id = "axis"; kind = "string" }}
+      new {{ id = "from"; kind = "quantity"; unit = "m" }}
+      new {{ id = "to"; kind = "quantity"; unit = "m" }}
+      new {{ id = "speed"; kind = "quantity"; unit = "km/h" }}
+    }}
+    ranges {{ from = "from"; to = "to" }}
+  }}
 }}
 root {{
   id = "root"
@@ -290,7 +302,7 @@ class ExpressionFixtureTests(unittest.TestCase):
             covered.add(node["kind"])
             pending.extend(contracts.expression_children(node))
         self.assertEqual(covered, set(contracts.EXPRESSION_KINDS))
-        self.assertEqual(len(contracts.EXPRESSION_KINDS), 55)
+        self.assertEqual(len(contracts.EXPRESSION_KINDS), 56)
         self.assertEqual(
             {
                 value["value"]["type"]
@@ -325,7 +337,7 @@ class ExpressionFixtureTests(unittest.TestCase):
 
     def test_pkl_authors_every_fixture_byte_for_byte(self) -> None:
         stems = sorted(fixtures())
-        self.assertEqual(len(stems), 65)
+        self.assertEqual(len(stems), 67)
         with tempfile.TemporaryDirectory() as output:
             proc = subprocess.run(
                 [
@@ -1245,6 +1257,42 @@ class ExpressionBindingTests(unittest.TestCase):
                 },
                 "names a blank label",
             ),
+            (
+                {
+                    "kind": "catalogue",
+                    "catalogue": "design-speeds",
+                    "key": literal,
+                    "column": "speed",
+                    "at": {"kind": "next", "operand": literal},
+                },
+                "a 'next' expression is read only within the value",
+            ),
+            (
+                {
+                    "kind": "catalogue",
+                    "catalogue": "design-speeds",
+                    "key": literal,
+                    "column": "speed",
+                    "at": "station",
+                },
+                "expected object",
+            ),
+            ({"kind": "zone"}, "names exactly one of zone and standsIn"),
+            ({"kind": "zone", "value": "load"}, "names exactly one of zone and standsIn"),
+            (
+                {"kind": "zone", "zone": "z1", "standsIn": "snow"},
+                "names exactly one of zone and standsIn",
+            ),
+            *(
+                ({"kind": "zone", key: blank}, f"names a blank {key}")
+                for key in ("zone", "standsIn")
+                for blank in ("", " ", 1, None)
+            ),
+            *(
+                ({"kind": "zone", "zone": "z1", "value": blank}, "names a blank value")
+                for blank in ("", "\t", 1, None)
+            ),
+            ({"kind": "zone", "zone": "z1", "of": "subject"}, "unknown=['of']"),
         )
         for expression, reason in cases:
             with self.subTest(expression=expression):

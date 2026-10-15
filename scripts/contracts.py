@@ -143,6 +143,16 @@ RELATION_ID = GROUPING_ID
 CATALOGUE_ID = re.compile(r"[^:;|/#=\s]+")
 # The table file column kinds a catalogue's file cannot hold as values.
 CATALOGUE_REFUSED_KINDS = {"reference", "textPattern"}
+# The columns tracing a results catalogue's entries to the calculation that
+# computed them, in the engine's order, and the kinds each may be declared.
+CALCULATION_RESULT_COLUMNS = {
+    "method": ("string",),
+    "report": ("string",),
+    "date": ("date", "dateTime"),
+    "revision": ("string",),
+}
+# The column kinds a catalogue's ranges state positions in.
+CATALOGUE_RANGE_KINDS = {"number", "quantity"}
 # The relationship a relation the same ruleset declares runs along,
 # `axioval:derived.relation;id=<relation>`; `backward` runs from a to-object
 # to its from-objects.
@@ -201,6 +211,8 @@ MEASURED_NAMES = {
 }
 MEASURED_BOTTOM_ABOVE_LEVEL = "bottom_above_level"
 MEASURED_BOUNDARY_AREA = "boundary_area"
+# The station of an object's reference point along an alignment.
+MEASURED_STATION = "station"
 # A decimal number as the engine parses one.
 DECIMAL = re.compile(r"[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?")
 # The whitespace the engine trims around names, keys, and values.
@@ -238,6 +250,7 @@ EXPRESSION_KINDS = (
     "interpolate",
     "lookup2",
     "catalogue",
+    "zone",
     "not",
     "and",
     "or",
@@ -299,7 +312,8 @@ EXPRESSION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
         {"table", "rowKeyColumn", "rowKey", "columnKeyColumn", "columnKey", "column"},
         {"interpolateRow", "interpolateColumn", "clamp"},
     ),
-    "catalogue": ({"catalogue", "key", "column"}, set()),
+    "catalogue": ({"catalogue", "key", "column"}, {"at"}),
+    "zone": (set(), {"zone", "standsIn", "value"}),
     "implies": ({"antecedent", "consequent"}, set()),
     "compare": ({"operator", "left", "right"}, {"caseSensitive"}),
     "between": ({"operand", "low", "high"}, {"lowInclusive", "highInclusive"}),
@@ -332,6 +346,7 @@ for _kind in ("xor", "add", "subtract", "multiply", "divide"):
 # Fields holding one operand expression, and fields holding a list of them.
 EXPRESSION_OPERAND_FIELDS = (
     "key",
+    "at",
     "rowKey",
     "columnKey",
     "operand",
@@ -2115,8 +2130,9 @@ def measured_name_error(name: str) -> str | None:
     Mirrors the engine's parser: a name, ignoring ASCII case and surrounding
     whitespace, then `;`-separated `key=value` parameters. Only
     `bottom_above_level` (`path`, required: `,`-separated related-selector
-    steps) and `boundary_area` (`kind`, required, and `plane`, a length of at
-    least zero) take parameters.
+    steps), `boundary_area` (`kind`, required, and `plane`, a length of at
+    least zero) and `station` (`alignment`, required: source kinds, and
+    `path`, steps as `bottom_above_level`'s) take parameters.
     """
     base, *parts = name.split(";")
     base = ascii_lower(base.strip(TRIMMED))
@@ -2137,6 +2153,15 @@ def measured_name_error(name: str) -> str | None:
             error = path_step_error(step.strip(TRIMMED), MEASURED_PATH_RELATIONSHIP)
             if error is not None:
                 return error
+    elif base == MEASURED_STATION:
+        if not parameters.pop("alignment", ""):
+            return "'station' needs 'alignment'"
+        path = parameters.pop("path", None)
+        if path is not None:
+            for step in path.split(","):
+                error = path_step_error(step.strip(TRIMMED), MEASURED_PATH_RELATIONSHIP)
+                if error is not None:
+                    return error
     elif base == MEASURED_BOUNDARY_AREA:
         if not parameters.pop("kind", ""):
             return "'boundary_area' needs 'kind'"
@@ -2150,7 +2175,7 @@ def measured_name_error(name: str) -> str | None:
     elif base not in MEASURED_NAMES:
         return (
             f"{base!r} is not a measured name "
-            f"{sorted(MEASURED_NAMES | {MEASURED_BOTTOM_ABOVE_LEVEL, MEASURED_BOUNDARY_AREA})}"
+            f"{sorted(MEASURED_NAMES | {MEASURED_BOTTOM_ABOVE_LEVEL, MEASURED_BOUNDARY_AREA, MEASURED_STATION})}"
         )
     if parameters:
         return f"{base!r} takes no parameter {next(iter(parameters))!r}"
@@ -2589,6 +2614,15 @@ def validate_expression(
                 node["column"]
             ):
                 fail(node_context, "a 'catalogue' expression names no valid column")
+        elif kind == "zone":
+            if ("zone" in node) == ("standsIn" in node):
+                fail(
+                    node_context,
+                    "a 'zone' expression names exactly one of zone and standsIn",
+                )
+            for key in ("zone", "standsIn", "value"):
+                if key in node and is_blank(node[key]):
+                    fail(node_context, f"a 'zone' expression names a blank {key}")
         elif kind in RULE_READING_EXPRESSIONS:
             # Whether `rule` names a rule of the same ruleset is checked once
             # the whole ruleset is known.
@@ -4279,8 +4313,10 @@ def validate_catalogues(value: Any, context: str) -> dict[str, dict[str, Any]]:
     locator. It has a localized `name`, an optional `description`, and the
     `columns` its file holds, declared as a table file's are, each with an
     identifier id and holding a value: no `reference` or `textPattern`
-    column. Its `key` names a declared `string` column. The host supplies the
-    entries at check time; the package states none.
+    column. Its `key` names a declared `string` column. Optional `results`
+    trace each entry to an external calculation and optional `ranges` state
+    entries per range of a position, each naming its own columns. The host
+    supplies the entries at check time; the package states none.
     """
     catalogues = object_value(value, context)
     if not catalogues:
@@ -4289,7 +4325,10 @@ def validate_catalogues(value: Any, context: str) -> dict[str, dict[str, Any]]:
         entry_context = f"{context}[{key!r}]"
         catalogue = object_value(catalogue, entry_context)
         exact_keys(
-            catalogue, {"id", "name", "key", "columns"}, {"description"}, entry_context
+            catalogue,
+            {"id", "name", "key", "columns"},
+            {"description", "results", "ranges"},
+            entry_context,
         )
         if type(catalogue["id"]) is not str or key != catalogue["id"]:
             fail(entry_context, "catalogue map key and id must match")
@@ -4326,7 +4365,95 @@ def validate_catalogues(value: Any, context: str) -> dict[str, dict[str, Any]]:
                 f"its key column {key_column!r} is declared "
                 f"{kinds[key_column]}, not string",
             )
+        if "results" in catalogue:
+            catalogue_results(catalogue, kinds, f"{entry_context}.results")
+        if "ranges" in catalogue:
+            catalogue_ranges(catalogue, columns, f"{entry_context}.ranges")
     return catalogues
+
+
+def catalogue_role_column(
+    catalogue: dict[str, Any],
+    kinds: dict[str, str],
+    owner: str,
+    role: str,
+    column: Any,
+    context: str,
+) -> str:
+    """The kind of the declared column `column` a catalogue's `results` or
+    `ranges` (`owner`) name as `role`, other than its key."""
+    if type(column) is not str or column not in kinds:
+        fail(context, f"its {owner}' {role} column {column!r} is not declared")
+    if column == catalogue["key"]:
+        fail(
+            context,
+            f"its {owner}' {role} column {column!r} is its key, which names the "
+            "entries",
+        )
+    return kinds[column]
+
+
+def catalogue_results(
+    catalogue: dict[str, Any], kinds: dict[str, str], context: str
+) -> None:
+    """Check the `results` of a catalogue of external calculation results,
+    as the engine does: `method`, `report` and `revision` each name a
+    declared `string` column, `date` a `date` or `dateTime` column, none the
+    key and no column twice."""
+    results = object_value(catalogue["results"], context)
+    exact_keys(results, set(CALCULATION_RESULT_COLUMNS), set(), context)
+    named: dict[str, str] = {}
+    for role, wanted in CALCULATION_RESULT_COLUMNS.items():
+        column = results[role]
+        kind = catalogue_role_column(catalogue, kinds, "results", role, column, context)
+        if kind not in wanted:
+            fail(
+                context,
+                f"its results' {role} column {column!r} is declared {kind}, not "
+                + " or ".join(wanted),
+            )
+        if column in named:
+            fail(
+                context,
+                f"its results name the column {column!r} as both "
+                f"{named[column]} and {role}",
+            )
+        named[column] = role
+
+
+def catalogue_ranges(
+    catalogue: dict[str, Any], columns: list[dict[str, Any]], context: str
+) -> None:
+    """Check the `ranges` of a catalogue stated per range, as the engine
+    does: `from` and `to` name two distinct declared columns other than the
+    key, both `number` or both `quantity` of one unit. The binder compares
+    the units as stated."""
+    ranges = object_value(catalogue["ranges"], context)
+    exact_keys(ranges, {"from", "to"}, set(), context)
+    declared = {column["id"]: column for column in columns}
+    kinds = {column_id: column["kind"] for column_id, column in declared.items()}
+    for role in ("from", "to"):
+        kind = catalogue_role_column(
+            catalogue, kinds, "ranges", role, ranges[role], context
+        )
+        if kind not in CATALOGUE_RANGE_KINDS:
+            fail(
+                context,
+                f"its ranges' {role} column {ranges[role]!r} is declared {kind}, "
+                "not number or quantity",
+            )
+    start, end = declared[ranges["from"]], declared[ranges["to"]]
+    if start["id"] == end["id"]:
+        fail(
+            context,
+            f"its ranges name the column {start['id']!r} as both from and to",
+        )
+    if (start["kind"], start.get("unit")) != (end["kind"], end.get("unit")):
+        fail(
+            context,
+            f"its ranges' columns {start['id']!r} and {end['id']!r} state "
+            "positions of different kinds or units",
+        )
 
 
 def bind_catalogue_reads(
@@ -4336,7 +4463,8 @@ def bind_catalogue_reads(
 ) -> None:
     """Bind the `catalogue` nodes of checked expressions against the
     ruleset's catalogues: each names a declared catalogue and one of its
-    columns other than its key, which names the entries."""
+    columns other than its key, which names the entries, and states `at`
+    exactly when the catalogue states its entries per range."""
     for expression in expressions:
         nodes: list[dict[str, Any]] = []
         expression_catalogue_reads(expression, nodes)
@@ -4353,6 +4481,18 @@ def bind_catalogue_reads(
                     context,
                     f"catalogue {node['catalogue']!r} has no value column "
                     f"{node['column']!r}",
+                )
+            if "ranges" in catalogue and "at" not in node:
+                fail(
+                    context,
+                    f"catalogue {node['catalogue']!r} states its entries per "
+                    "range, so it is read at a position",
+                )
+            if "ranges" not in catalogue and "at" in node:
+                fail(
+                    context,
+                    f"catalogue {node['catalogue']!r} states one entry per key, "
+                    "not ranges, so it is read without at",
                 )
 
 

@@ -42,7 +42,7 @@ for it instead of its rendered form.
 
 | Group | Kinds |
 | --- | --- |
-| values | `literal`, `null`, `property`, `parameter`, `derived`, `lookup`, `interpolate`, `lookup2`, `catalogue` |
+| values | `literal`, `null`, `property`, `parameter`, `derived`, `lookup`, `interpolate`, `lookup2`, `catalogue`, `zone` |
 | truth | `not`, `and`, `or`, `implies`, `xor`, `isDefined`, `isUndefined` |
 | comparison | `compare`, `between`, `oneOf`, `noneOf` |
 | choice | `if`, `coalesce` |
@@ -66,7 +66,8 @@ for it instead of its rendered form.
   between a table's rows; see [Tables](#tables).
 - A `catalogue` takes a value from a catalogue the host supplies beside the
   model, such as a material's thermal conductivity; see
-  [Catalogues](#catalogues).
+  [Catalogues](#catalogues). A `zone` takes a value a context zone supplied
+  beside the model states; see [Context zones](#context-zones).
 - `compare` takes an `operator`: `equals`, `notEquals`, `lessThan`,
   `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals`, `like`, `matches`,
   or `contains`. `caseSensitive: false` folds case. `between` is inclusive
@@ -268,9 +269,104 @@ not evaluated, never given a default.
     }
     ```
 
-The binder requires the catalogue to be declared and `column` to be one of its
-columns other than its key column, which names the entries. The checking
-application checks that `key` is a text.
+A catalogue may hold the results of an external calculation, such as a sound
+insulation index per wall keyed by the wall's `GlobalId`. Its `results` name
+the columns tracing each entry to the calculation: `method`, `report`, and
+`revision` `string` columns and `date` a `date` or `dateTime` column. An entry
+counts only where it states all four and its revision names the checked model's
+(the `sha256:<hex>` digest of the model file, or a revision the host states for
+it). A stale or untraceable entry leaves the object not evaluated, never given
+a value of another model.
+
+A catalogue may state its entries per range of a position, such as a design
+speed per station range of an alignment. Its `ranges` name the `from` and `to`
+columns, both `number` or both `quantity` of one unit; each entry holds the
+range `[from, to)`, and the ranges of one key must not overlap. A `catalogue`
+node then takes its value `at` a position, such as an object's station, from
+the range holding it.
+
+??? example "Show a wall's sound insulation index from a calculation report"
+    ```pkl
+    catalogues {
+      ["sound-insulation"] {
+        id = "sound-insulation"
+        name { default = "Sound insulation" }
+        key = "global_id"
+        columns {
+          new { id = "global_id"; header = "GlobalId"; kind = "string" }
+          new { id = "rw"; header = "R'w"; kind = "number" }
+          new { id = "method"; kind = "string" }
+          new { id = "report"; kind = "string" }
+          new { id = "computed"; kind = "dateTime" }
+          new { id = "revision"; kind = "string" }
+        }
+        results {
+          method = "method"
+          report = "report"
+          date = "computed"
+          revision = "revision"
+        }
+      }
+    }
+    ```
+
+??? example "Show the design speed at an object's station"
+    ```pkl
+    catalogues {
+      ["design-speeds"] {
+        id = "design-speeds"
+        name { default = "Design speeds" }
+        key = "axis"
+        columns {
+          new { id = "axis"; kind = "string" }
+          new { id = "from"; kind = "quantity"; unit = "m" }
+          new { id = "to"; kind = "quantity"; unit = "m" }
+          new { id = "speed"; kind = "quantity"; unit = "km/h" }
+        }
+        ranges { from = "from"; to = "to" }
+      }
+    }
+    ```
+
+    ```pkl
+    new Expressions.CatalogueExpression {
+      catalogue = "design-speeds"
+      key = new Expressions.LiteralExpression {
+        value = new Values.StringValue { value = "axis-1" }
+      }
+      column = "speed"
+      at = new Expressions.PropertyExpression {
+        propertySet = "axioval:measured"
+        property = "station;alignment=IfcAlignment"
+      }
+      label = "design speed"
+    }
+    ```
+
+The binder requires the catalogue to be declared, `column` to be one of its
+columns other than its key column, which names the entries, and `at` exactly
+when the catalogue states ranges. The checking application checks that `key`
+is a text and `at` a number in the ranges' unit.
+
+## Context zones
+
+A `zone` node takes a value from the context zones the host supplies beside
+the model, such as a snow load zone map: of the zone named by its ID, `zone`,
+or of the zone of the kind `standsIn` the object stands in, exactly one of
+them. `value` names the key the zone states, taken as stated, a text, a
+number, or a quantity, and cited as the zone's statement; a key the zone does
+not state is `null`. Without `value`, the node is the zone's ID. A zone the
+object may stand in but surely does not, or several it may stand in, leave
+the object not evaluated, never chosen.
+
+??? example "Show the snow load zone an object stands in"
+    ```pkl
+    new Expressions.ZoneExpression {
+      standsIn = "snow-load-zone"
+      value = "load_zone"
+      label = "snow load zone"
+    }
+    ```
 
 ## Derived values
 
@@ -381,7 +477,10 @@ Pkl checks each node's shape. The binder then refuses, among others:
   table column it lacks, a parameter that is no single value, or a
   non-numeric column it interpolates along or reads interpolated;
 - a `catalogue` naming a catalogue the ruleset does not declare, a column
-  the catalogue does not declare, or its key column;
+  the catalogue does not declare, or its key column, or stating `at` for a
+  catalogue without ranges or none for one with ranges;
+- a `zone` naming both or neither of `zone` and `standsIn`, or a blank one or
+  a blank `value`;
 - a rule outcome naming a rule outside the ruleset, a rule reading its own
   outcome, rules reading one another in a cycle, and any rule outcome in a
   derived value, classification, grouping, or relation; and

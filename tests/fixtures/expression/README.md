@@ -4,7 +4,7 @@ Each `*.json` file is a byte-for-byte copy of the engine's golden expression
 fixture of the same name, one per expression node kind and one per literal
 scalar kind, from `crates/contracts/ir/tests/fixtures/expression` of
 [axioval/engine](https://github.com/axioval/engine) at commit
-`3cb7c47c45e29167670e0125469591920ff232e2`. Do not edit them here: update
+`0e1a0f6158372daa361307c10c71a7127e42ca23`. Do not edit them here: update
 them from the engine and record the new commit.
 
 Each `*.pkl` module authors the fixture of the same name with the MCS schema;

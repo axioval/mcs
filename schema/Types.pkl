@@ -64,11 +64,14 @@ typealias CatalogueId = String(matches(Regex(#"[^:;|/#=\s]+"#)))
 /// `bottom_above_level;path=<steps>`, the bottom above the one level the
 /// `,`-separated related-selector steps reach, and
 /// `boundary_area;kind=<kind>[;plane=<metres>]`, a space's boundary area
-/// against elements of one source kind. Pkl checks the name before the
-/// parameters; the binder checks the parameters.
+/// against elements of one source kind, and
+/// `station;alignment=<kinds>[;path=<steps>]`, the station of the object's
+/// reference point along the one alignment of those source kinds. Pkl checks
+/// the name before the parameters; the binder checks the parameters.
 const measuredNames: Set<String> = Set(
   "extent_x", "extent_y", "extent_z", "bottom", "top", "area", "volume",
-  "x", "y", "z", "level_height", "bottom_above_level", "boundary_area"
+  "x", "y", "z", "level_height", "bottom_above_level", "boundary_area",
+  "station"
 )
 
 /// Whether `name` can name a property in `propertySet`: a property in a

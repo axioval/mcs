@@ -4167,6 +4167,8 @@ class MeasuredValueTests(unittest.TestCase):
         "bottom_above_level;path=IfcRelAggregates|axioval:derived.intersects:either",
         "boundary_area;kind=IfcWall",
         "boundary_area;kind=IfcWall;plane=0.05",
+        "station;alignment=IfcAlignment",
+        "station;alignment=IfcAlignment,IfcLinearPositioningElement;path=IfcRelPositions:backward",
     )
 
     @classmethod
@@ -4248,6 +4250,13 @@ class MeasuredValueTests(unittest.TestCase):
             "boundary_area;kind=IfcWall;plane=",
             "boundary_area;kind=IfcWall;kind=IfcSlab",
             "boundary_area;kind=IfcWall;depth=1",
+            "station",
+            "station;alignment=",
+            "station;path=IfcRelPositions",
+            "station;alignment=IfcAlignment;path=",
+            "station;alignment=IfcAlignment;path=IfcRelPositions:up",
+            "station;alignment=IfcAlignment;alignment=IfcAlignment",
+            "station;alignment=IfcAlignment;kind=IfcWall",
         ):
             self.assert_rejected(applicability=measured(name))
             self.assert_rejected(
@@ -5254,23 +5263,80 @@ def catalogue(catalogue_id: str = "materials", **fields) -> dict:
     return definition
 
 
-def catalogue_node(column: str = "lambda", catalogue_id: str = "materials") -> dict:
+def catalogue_node(
+    column: str = "lambda", catalogue_id: str = "materials", **fields
+) -> dict:
     return {
         "kind": "catalogue",
         "catalogue": catalogue_id,
         "key": {"kind": "property", "property": REFERENCE},
         "column": column,
+        **fields,
     }
 
 
-def catalogue_read(column: str = "lambda", catalogue_id: str = "materials") -> dict:
+def catalogue_read(
+    column: str = "lambda", catalogue_id: str = "materials", **fields
+) -> dict:
     return {
         "kind": "expression",
         "expression": {
             "kind": "isDefined",
-            "operand": catalogue_node(column, catalogue_id),
+            "operand": catalogue_node(column, catalogue_id, **fields),
         },
     }
+
+
+STATION = {
+    "kind": "property",
+    "propertySet": MEASURED_SET,
+    "property": "station;alignment=IfcAlignment",
+}
+
+
+def results_catalogue(**results) -> dict:
+    """A catalogue of external calculation results keyed by `GlobalId`."""
+    return catalogue(
+        "sound-insulation",
+        key="global_id",
+        columns=[
+            {"id": "global_id", "kind": "string"},
+            {"id": "rw", "kind": "number"},
+            {"id": "method", "kind": "string"},
+            {"id": "report", "kind": "string"},
+            {"id": "computed", "kind": "dateTime"},
+            {"id": "day", "kind": "date"},
+            {"id": "revision", "kind": "string"},
+            {"id": "count", "kind": "integer"},
+        ],
+        results={
+            "method": "method",
+            "report": "report",
+            "date": "computed",
+            "revision": "revision",
+            **results,
+        },
+    )
+
+
+def ranges_catalogue(columns: list | None = None, **ranges) -> dict:
+    """A catalogue of design speeds stated per station range."""
+    return catalogue(
+        "design-speeds",
+        key="axis",
+        columns=columns
+        or [
+            {"id": "axis", "kind": "string"},
+            {"id": "from", "kind": "quantity", "unit": "m"},
+            {"id": "to", "kind": "quantity", "unit": "m"},
+            {"id": "speed", "kind": "quantity", "unit": "km/h"},
+            {"id": "start", "kind": "number"},
+            {"id": "end", "kind": "number"},
+            {"id": "start_km", "kind": "quantity", "unit": "km"},
+            {"id": "lane", "kind": "integer"},
+        ],
+        ranges={"from": "from", "to": "to", **ranges},
+    )
 
 
 def derived_value(expression: dict) -> dict:
@@ -5419,6 +5485,70 @@ class CatalogueTests(unittest.TestCase):
             values=derived_value(catalogue_node(catalogue_id="woods")),
         )
 
+    def test_accepts_results_and_ranges(self) -> None:
+        declared = {
+            "sound-insulation": results_catalogue(),
+            "dated": results_catalogue(date="day"),
+            "design-speeds": ranges_catalogue(),
+            "plain": ranges_catalogue(**{"from": "start", "to": "end"}),
+        }
+        declared["dated"]["id"] = "dated"
+        declared["plain"]["id"] = "plain"
+        self.bind(declared)
+        self.bind(declared, applicability=catalogue_read("rw", "sound-insulation"))
+        for catalogue_id in ("design-speeds", "plain"):
+            self.bind(
+                declared,
+                applicability=catalogue_read("speed", catalogue_id, at=STATION),
+            )
+
+    def test_rejects_malformed_results_and_ranges(self) -> None:
+        for declared, reason in (
+            (results_catalogue(method="missing"), "results' method column 'missing' is not declared"),
+            (results_catalogue(method="global_id"), "results' method column 'global_id' is its key"),
+            (results_catalogue(report="rw"), "results' report column 'rw' is declared number, not string"),
+            (results_catalogue(revision="computed"), "declared dateTime, not string"),
+            (results_catalogue(date="report"), "results' date column 'report' is declared string, not date or dateTime"),
+            (results_catalogue(report="method"), "results name the column 'method' as both method and report"),
+            (results_catalogue(revision="method"), "as both method and revision"),
+            ({**results_catalogue(), "results": {"method": "method"}}, "missing=['date', 'report', 'revision']"),
+            ({**results_catalogue(), "results": {**results_catalogue()["results"], "tool": "method"}}, "unknown=['tool']"),
+            ({**results_catalogue(), "results": "method"}, "expected object"),
+            (ranges_catalogue(**{"from": "missing"}), "ranges' from column 'missing' is not declared"),
+            (ranges_catalogue(to="axis"), "ranges' to column 'axis' is its key"),
+            (ranges_catalogue(to="lane"), "ranges' to column 'lane' is declared integer, not number or quantity"),
+            (ranges_catalogue(to="from"), "ranges name the column 'from' as both from and to"),
+            (ranges_catalogue(to="end"), "columns 'from' and 'end' state positions of different kinds or units"),
+            (ranges_catalogue(to="start_km"), "different kinds or units"),
+            ({**ranges_catalogue(), "ranges": {"from": "from"}}, "missing=['to']"),
+            ({**ranges_catalogue(), "ranges": {"from": "from", "to": "to", "step": "to"}}, "unknown=['step']"),
+        ):
+            self.assert_rejected({declared["id"]: declared}, reason)
+
+    def test_reads_a_catalogue_by_ranges_exactly_at_a_position(self) -> None:
+        declared = {"materials": catalogue(), "design-speeds": ranges_catalogue()}
+        self.assert_rejected(
+            declared,
+            "states its entries per range, so it is read at a position",
+            applicability=catalogue_read("speed", "design-speeds"),
+        )
+        self.assert_rejected(
+            declared,
+            "states one entry per key, not ranges, so it is read without at",
+            applicability=catalogue_read(at=STATION),
+        )
+        self.assert_rejected(
+            declared,
+            "states its entries per range",
+            values=derived_value(catalogue_node("speed", "design-speeds")),
+        )
+        # `at` is an expression, checked as any other.
+        self.assert_rejected(
+            declared,
+            "unknown expression kind 'station'",
+            applicability=catalogue_read("speed", "design-speeds", at={"kind": "station"}),
+        )
+
     def test_pkl_renders_catalogues_and_omits_them_when_empty(self) -> None:
         rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
 
@@ -5493,6 +5623,91 @@ class CatalogueTests(unittest.TestCase):
             ):
                 with self.subTest(broken=broken), self.assertRaises(SystemExit):
                     path.write_text(module(broken), encoding="utf-8")
+                    validate.evaluate(path)
+
+    def test_pkl_renders_results_and_ranges(self) -> None:
+        rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
+
+        def module(results: str, ranges: str) -> str:
+            return (
+                f'amends "{rules}"\n\n'
+                'package { id = "axioval:example.catalogues"; version = "0.1.0"; '
+                'name { default = "Catalogues" } }\n'
+                'definitionPackages { "axioval:example.definitions" }\n'
+                'root { id = "root"; name { default = "Root" } }\n'
+                "catalogues {\n"
+                '  ["sound-insulation"] {\n'
+                '    id = "sound-insulation"\n'
+                '    name { default = "sound-insulation" }\n'
+                '    key = "global_id"\n'
+                "    columns {\n"
+                '      new { id = "global_id"; kind = "string" }\n'
+                '      new { id = "rw"; kind = "number" }\n'
+                '      new { id = "method"; kind = "string" }\n'
+                '      new { id = "report"; kind = "string" }\n'
+                '      new { id = "computed"; kind = "dateTime" }\n'
+                '      new { id = "revision"; kind = "string" }\n'
+                "    }\n"
+                f"    results {{ {results} }}\n"
+                "  }\n"
+                '  ["design-speeds"] {\n'
+                '    id = "design-speeds"\n'
+                '    name { default = "design-speeds" }\n'
+                '    key = "axis"\n'
+                "    columns {\n"
+                '      new { id = "axis"; kind = "string" }\n'
+                '      new { id = "from"; kind = "quantity"; unit = "m" }\n'
+                '      new { id = "to"; kind = "quantity"; unit = "m" }\n'
+                '      new { id = "start"; kind = "number" }\n'
+                '      new { id = "speed"; kind = "quantity"; unit = "km/h" }\n'
+                "    }\n"
+                f"    ranges {{ {ranges} }}\n"
+                "  }\n"
+                "}\n"
+            )
+
+        results = (
+            'revision = "revision"; date = "computed"; report = "report"; '
+            'method = "method"'
+        )
+        ranges = 'to = "to"; from = "from"'
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "catalogues.pkl"
+            path.write_text(module(results, ranges), encoding="utf-8")
+            evaluated = validate.evaluate(path)
+            sound = evaluated["catalogues"]["sound-insulation"]
+            speeds = evaluated["catalogues"]["design-speeds"]
+            self.assertEqual(
+                list(sound), ["id", "name", "key", "columns", "results"]
+            )
+            self.assertEqual(
+                list(sound["results"]), ["method", "report", "date", "revision"]
+            )
+            self.assertEqual(list(speeds), ["id", "name", "key", "columns", "ranges"])
+            self.assertEqual(speeds["ranges"], {"from": "from", "to": "to"})
+            self.assertEqual(list(speeds["ranges"]), ["from", "to"])
+            validate.bind_ruleset(evaluated, [copy.deepcopy(self.definitions)], "test")
+            for broken_results, broken_ranges in (
+                (results.replace('method = "method"', 'method = "missing"'), ranges),
+                (results.replace('method = "method"', 'method = "global_id"'), ranges),
+                (results.replace('method = "method"', 'method = "rw"'), ranges),
+                (results.replace('method = "method"', 'method = "report"'), ranges),
+                (results.replace('date = "computed"', 'date = "report"'), ranges),
+                (results.replace('revision = "revision"; ', ""), ranges),
+                (results, ranges.replace('to = "to"', 'to = "missing"')),
+                (results, ranges.replace('to = "to"', 'to = "axis"')),
+                (results, ranges.replace('to = "to"', 'to = "from"')),
+                (results, ranges.replace('to = "to"', 'to = "start"')),
+                (results, ranges.replace('to = "to"', 'to = "speed"')),
+                (results, ranges.replace('from = "from"', 'from = "axis"')),
+            ):
+                with (
+                    self.subTest(results=broken_results, ranges=broken_ranges),
+                    self.assertRaises(SystemExit),
+                ):
+                    path.write_text(
+                        module(broken_results, broken_ranges), encoding="utf-8"
+                    )
                     validate.evaluate(path)
 
 if __name__ == "__main__":

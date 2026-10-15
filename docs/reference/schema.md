@@ -1191,6 +1191,22 @@ a `key` that names no declared `string` column, and a `catalogue` expression
 naming a catalogue the same ruleset does not declare, a column the catalogue
 does not declare, or its key column.
 
+Two optional fields refine a catalogue, each naming declared columns other
+than the key, and normalized JSON omits each when unset:
+
+| Field | Fields | Declares |
+| --- | --- | --- |
+| `results` | `method`, `report`, `date`, `revision` | the entries results of an external calculation, each traced to its method, report, date, and the model revision it was computed on: `string` columns, `date` a `date` or `dateTime` column, no column named twice |
+| `ranges` | `from`, `to` | the entries stated per range `[from, to)` of a position, such as a station: two distinct `number` columns, or `quantity` columns of one unit |
+
+An entry of a results catalogue counts only where it states all four and its
+revision names the checked model's; an entry of a catalogue with `ranges` is
+taken `at` a position, and the ranges of one key must not overlap. The binder
+rejects a field naming an undeclared column, the key column, or a column of
+another kind, a column named twice, range columns of different kinds or of
+units stated differently, and a `catalogue` expression stating `at` for a
+catalogue without `ranges` or none for one with them.
+
 ??? example "Show a catalogue of materials"
     ```pkl
     catalogues {
@@ -1211,7 +1227,7 @@ does not declare, or its key column.
 
 `Expressions.pkl` states computed values as data: a tree of nodes tagged by
 `kind`, each with an optional non-blank `label`, from scalar `literal`s,
-properties, parameters, table lookups, catalogue values, and derived values, through logic,
+properties, parameters, table lookups, catalogue and zone values, and derived values, through logic,
 comparison, arithmetic, slope, text, `aggregate`, `argmin`, `argmax`, and
 `pairs` nodes with the `previous` and `next` of a pair, to the outcomes of other rules. [Compute with expressions](../expressions.md) explains every kind.
 
@@ -1279,13 +1295,17 @@ measures from an object's body rather than reads from a source:
 | `level_height` | a storey's height to the next storey, a length, as the source states it |
 | `bottom_above_level;path=<steps>` | the bottom above the one level the path reaches, a length |
 | `boundary_area;kind=<kind>[;plane=<metres>]` | a space's boundary area against elements of the source kind `kind` or a subtype |
+| `station;alignment=<kinds>[;path=<steps>]` | the station of the object's reference point along the one alignment of the source kinds `alignment`, a length |
 
-Two names take parameters after the name, `;`-separated `key=value` pairs that
-are part of the property name. `bottom_above_level` requires `path`, the
+Three names take parameters after the name, `;`-separated `key=value` pairs
+that are part of the property name. `bottom_above_level` requires `path`, the
 `,`-separated steps a related selector writes,
 `Relationship[|Relationship...][:forward|backward|either][+]`, such as
 `IfcRelContainedInSpatialStructure:backward`. `boundary_area` requires `kind`
-and takes an optional `plane`, a number of metres of at least zero.
+and takes an optional `plane`, a number of metres of at least zero. `station`
+requires `alignment`, the `,`-separated source kinds of the alignment, and
+takes an optional `path`, the steps from the object to its alignment, written
+as `bottom_above_level`'s.
 
 Selectors, property references, and category levels name them in that set,
 matched ignoring ASCII case and surrounding whitespace; they bind to no concept.

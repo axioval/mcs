@@ -1254,6 +1254,25 @@ deklarierte `string`-Spalte nennt, und einen `catalogue`-Ausdruck, der einen
 Katalog nennt, den derselbe Regelsatz nicht deklariert, eine Spalte, die der
 Katalog nicht deklariert, oder seine Schlüsselspalte.
 
+Zwei optionale Felder verfeinern einen Katalog, jedes nennt deklarierte
+Spalten außer dem Schlüssel, und normalisiertes JSON lässt jedes weg, wenn es
+nicht gesetzt ist:
+
+| Feld | Felder | Deklariert |
+| --- | --- | --- |
+| `results` | `method`, `report`, `date`, `revision` | die Einträge als Ergebnisse einer externen Berechnung, jeder zurückgeführt auf Verfahren, Bericht, Datum und die Modellrevision, an der er berechnet wurde: `string`-Spalten, `date` eine `date`- oder `dateTime`-Spalte, keine Spalte zweimal genannt |
+| `ranges` | `from`, `to` | die Einträge je Bereich `[from, to)` einer Position, etwa einer Station: zwei verschiedene `number`-Spalten oder `quantity`-Spalten derselben Einheit |
+
+Ein Eintrag eines Ergebniskatalogs zählt nur, wenn er alle vier angibt und
+seine Revision die des geprüften Modells nennt; einem Eintrag eines Katalogs
+mit `ranges` wird der Wert `at` einer Position entnommen, und die Bereiche
+eines Schlüssels dürfen sich nicht überlappen. Der Binder lehnt ein Feld ab,
+das eine nicht deklarierte Spalte, die Schlüsselspalte oder eine Spalte einer
+anderen Art nennt, eine zweimal genannte Spalte, Bereichsspalten verschiedener
+Arten oder verschieden angegebener Einheiten und einen `catalogue`-Ausdruck,
+der `at` für einen Katalog ohne `ranges` angibt oder für einen mit ihnen
+keines.
+
 ??? example "Einen Katalog von Baustoffen anzeigen"
     ```pkl
     catalogues {
@@ -1274,8 +1293,8 @@ Katalog nicht deklariert, oder seine Schlüsselspalte.
 
 `Expressions.pkl` beschreibt berechnete Werte als Daten: einen Baum aus Knoten
 mit einer Art `kind` und optional einem nicht leeren `label`, von skalaren
-`literal`-Werten, Eigenschaften, Parametern, Tabellenabfragen, Katalogwerten
-und abgeleiteten Werten über Logik, Vergleich, Arithmetik, Neigung, Text, `aggregate`, `argmin`,
+`literal`-Werten, Eigenschaften, Parametern, Tabellenabfragen, Katalog- und
+Zonenwerten und abgeleiteten Werten über Logik, Vergleich, Arithmetik, Neigung, Text, `aggregate`, `argmin`,
 `argmax` und `pairs` mit `previous` und `next` eines Paars bis zu den
 Ergebnissen anderer Regeln. [Mit Ausdrücken rechnen](../expressions.de.md)
 erklärt jede Art.
@@ -1349,14 +1368,18 @@ Anwendung am Körper eines Objekts misst, statt sie aus einer Quelle zu lesen:
 | `level_height` | die Höhe eines Geschosses bis zum nächsten Geschoss, eine Länge, wie die Quelle sie angibt |
 | `bottom_above_level;path=<steps>` | die Unterkante über der einen Ebene, die der Pfad erreicht, eine Länge |
 | `boundary_area;kind=<kind>[;plane=<metres>]` | die Begrenzungsfläche eines Raums gegen Elemente der Quellenart `kind` oder eines Untertyps |
+| `station;alignment=<kinds>[;path=<steps>]` | die Station des Bezugspunkts des Objekts entlang der einen Achse der Quellenarten `alignment`, eine Länge |
 
-Zwei Namen nehmen nach dem Namen Parameter, durch `;` getrennte
+Drei Namen nehmen nach dem Namen Parameter, durch `;` getrennte
 `key=value`-Paare, die Teil des Eigenschaftsnamens sind. `bottom_above_level`
 benötigt `path`, die durch `,` getrennten Schritte, wie ein Selektor für
 verbundene Objekte sie schreibt,
 `Relationship[|Relationship...][:forward|backward|either][+]`,
 etwa `IfcRelContainedInSpatialStructure:backward`. `boundary_area` benötigt
 `kind` und nimmt optional `plane`, eine Zahl von Metern von mindestens null.
+`station` benötigt `alignment`, die durch `,` getrennten Quellenarten der
+Achse, und nimmt optional `path`, die Schritte vom Objekt zu seiner Achse,
+geschrieben wie bei `bottom_above_level`.
 
 Selektoren, Eigenschaftsreferenzen und Kategorieebenen nennen sie in dieser
 Gruppe, abgeglichen ohne Rücksicht auf ASCII-Groß- und Kleinschreibung und
