@@ -10,8 +10,33 @@
     "id",
     "version",
     "schemaVersion",
-    "entrypoint",
     "definitionEntrypoints"
+  ],
+  "oneOf": [
+    {
+      "description": "A rule set together with the definition modules it binds.",
+      "properties": {
+        "kind": {
+          "const": "ruleset"
+        }
+      },
+      "required": [
+        "entrypoint"
+      ]
+    },
+    {
+      "description": "A library of definitions, such as rule templates, without a rule set.",
+      "properties": {
+        "kind": {
+          "const": "definitions"
+        }
+      },
+      "not": {
+        "required": [
+          "entrypoint"
+        ]
+      }
+    }
   ],
   "properties": {
     "$schema": {
@@ -21,7 +46,10 @@
       "const": "0.1.0"
     },
     "kind": {
-      "const": "ruleset"
+      "enum": [
+        "ruleset",
+        "definitions"
+      ]
     },
     "id": {
       "type": "string",
@@ -35,6 +63,7 @@
       "const": "0.1.0"
     },
     "entrypoint": {
+      "description": "The rule-set module of a ruleset package; a definitions package has none.",
       "type": "string",
       "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+\\.pkl$"
     },

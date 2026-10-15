@@ -1,7 +1,7 @@
 # MCS-Containerformat
 
 MCS Version 0.1.0 ist der deterministische Transportcontainer für ein
-Axioval-Regelwerk. Er enthält überprüfbaren Pkl-Quelltext für Autoren und das
+Axioval-Regelwerk oder Definitionspaket. Er enthält überprüfbaren Pkl-Quelltext für Autoren und das
 deklarative normalisierte JSON, das Anwendungen zur Modellprüfung verwenden. Er
 ist kein Format für ausführbare Plugins.
 
@@ -35,6 +35,22 @@ Pkl-Version, Paketidentität, Zuordnung normalisierter Quellmodule und ein
 SHA-256/Größe/Rolle-Inventar für jede Nutzlast. Die Topologie bleibt relativ zum
 Repository unter `source/`; Importe werden nicht umgeschrieben. Standardmodule
 `pkl:` werden nicht archiviert.
+
+## Paketarten
+
+Die Art steht im archivierten `axioval.json`; die Metadaten bleiben für beide
+Arten gleich aufgebaut, und Regelwerkarchive werden genau wie bisher geschrieben.
+
+- Ein Archiv eines `ruleset`-Pakets enthält genau ein `normalized/ruleset.json`
+  und ein `normalized/definitions/*.json` je Definitionsmodul.
+- Ein Archiv eines `definitions`-Pakets enthält nur
+  `normalized/definitions/*.json` und **kein** `normalized/ruleset.json`.
+  `verify` wertet nur die Definitionsmodule erneut aus und bindet sie
+  miteinander.
+
+Schon `inspect` lehnt ein Definitionsarchiv mit Regelwerk, ein Regelwerkarchiv
+ohne Regelwerk und Metadaten ab, deren Paketidentität nicht der des
+archivierten Manifests entspricht.
 
 ## Annahmegrenze
 

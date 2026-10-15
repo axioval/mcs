@@ -71,6 +71,25 @@ Ist eine Anforderung eine Rechnung, etwa eine Neigung aus Steigungshöhe und Lau
 
 Registry-Implementierungen untersuchen diese Datei vollständig, bevor sie Pkl aufrufen. Absolute Pfade, Traversal, Nicht-Pkl-Einstiegspunkte, unbekannte Felder und fehlende Definitionsmodule werden abgelehnt.
 
+### Eine Vorlagenbibliothek veröffentlichen
+
+Eine Bibliothek von Regelvorlagen ist auch ohne Regelwerk nützlich: Eine Person veröffentlicht Vorlagen, andere schreiben Regelwerke, die sie instanziieren. Veröffentlichen Sie sie als Definitionspaket mit `kind: "definitions"`, ihren Modulen in `definitionEntrypoints` und ohne `entrypoint`:
+
+??? example "Definitionsmanifest anzeigen"
+    ```json
+    {
+      "$schema": "schema/registry-manifest.schema.json",
+      "manifestVersion": "0.1.0",
+      "kind": "definitions",
+      "id": "https://example.org/axioval/my-templates",
+      "version": "0.1.0",
+      "schemaVersion": "0.1.0",
+      "definitionEntrypoints": ["definitions.pkl"]
+    }
+    ```
+
+`id` und `version` des Manifests sind die Paketidentität eines seiner Definitionsdokumente. Ein Regelwerk, das die Vorlagen instanziiert, nennt diese ID in `definitionPackages`; ein Host löst sie aus den installierten Definitionspaketen auf. `examples/template-library` zeigt ein vollständiges Paket.
+
 ## 7. Validieren und versionieren
 
 Führen Sie lokal und in CI dieselbe Sperre aus:

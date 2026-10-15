@@ -82,6 +82,8 @@ externe Regelwerk-Repositories. Dieses Schema-Repository enthält sie nur unter
 
 `axioval.json` identifiziert das Paket und jeden Definitions-Einstiegspunkt statisch. Erst nachdem alle Einstiegspunkte im Repository bleiben und jedes Kandidaten-JSON semantisch gebunden wurde, wird die Ausgabe zum normalisierten Austauschformat.
 
+Ein Paket der Art `ruleset` liefert ein Regelwerk; ein Paket der Art `definitions` veröffentlicht nur Definitionen, etwa eine Bibliothek von Regelvorlagen. Ein Regelwerk nennt die Definitionspakete, die es bindet, per ID, und ein Host löst sie aus den installierten Definitionspaketen auf.
+
 <div class="diagram-frame" markdown>
 
 ![Ein Paket wird untersucht, sicher geöffnet, vollständig geprüft und an ein kompatibles Werkzeug übergeben](../assets/images/trust-path.de.svg)

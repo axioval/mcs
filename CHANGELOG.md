@@ -22,6 +22,25 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   Normalized JSON omits it when `false`, so existing packages bind unchanged
   and render byte-identical JSON. The engine has yet to mirror the field.
 
+- Definitions packages (#12): a registry manifest with `kind: "definitions"`
+  publishes a library of definitions, such as rule templates, without a rule
+  set. It names its modules in `definitionEntrypoints` and has no
+  `entrypoint`; the JSON Schema keeps `kind: "ruleset"` exactly as strict as
+  before through one `oneOf` branch per kind. The binder binds the documents
+  of a definitions package together, as a rule set would load them, and
+  requires the manifest identity to be the package identity of exactly one of
+  them. Its `.mcs` archive carries `normalized/definitions/*.json` and no
+  `normalized/ruleset.json`; `verify` re-evaluates and binds the definitions
+  only. Readers take the kind from the archived manifest and refuse a
+  definitions archive that carries a rule set, a rule-set archive without
+  one, and metadata whose package identity is not the archived manifest's.
+  Rule-set archives are written exactly as before: from the same sources
+  the writer produces the same bytes, and archives packed earlier still
+  verify. A rule set keeps naming the
+  definition packages it binds by ID, which a host resolves from the
+  definitions packages it has installed. `examples/template-library` is a
+  definitions package, packed twice, compared and verified by `check.sh`.
+
 - `Expressions.PairsExpression` (`pairs`), `Expressions.PreviousExpression`
   (`previous`) and `Expressions.NextExpression` (`next`) mirror the engine's
   consecutive members (axioval/engine#350): `pairs` applies an aggregate

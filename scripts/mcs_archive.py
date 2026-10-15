@@ -43,6 +43,7 @@ MIMETYPE = b"application/vnd.axioval.mcs+zip"
 FORMAT = "axioval.mcs"
 VERSION = "0.1.0"
 METADATA = "META-INF/mcs.json"
+RULESET_MEMBER = "normalized/ruleset.json"
 TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 MAX_ENTRIES = 512
 # Existing explanatory-image contract permits exactly 10,000,000 bytes.
@@ -432,7 +433,10 @@ def pack(
     manifest = _strict_json(manifest_file.read_bytes(), str(manifest_file))
     try:
         manifest = validate.validate_manifest(manifest, manifest_file)
-        ruleset_module = validate.local_module(package, manifest["entrypoint"])
+        entrypoint = validate.ruleset_entrypoint(manifest)
+        ruleset_module = (
+            None if entrypoint is None else validate.local_module(package, entrypoint)
+        )
         definition_modules = [
             validate.local_module(package, item)
             for item in manifest["definitionEntrypoints"]
@@ -444,8 +448,9 @@ def pack(
     declared_aliases = _validate_dependency_lock(root, dependencies)
     if dependencies:
         _fresh_resolve_dependency_lock(root)
+    entry_modules = [ruleset_module] if ruleset_module is not None else []
     closure = _pkl_closure(
-        root, [ruleset_module, *definition_modules], declared_aliases
+        root, [*entry_modules, *definition_modules], declared_aliases
     )
     # The manifest schema is a source dependency even when its declared path changes.
     schema_value = manifest.get("$schema")
@@ -454,9 +459,11 @@ def pack(
     schema_file = _inside(root, package / schema_value, "manifest schema")
     if schema_file.suffix != ".json":
         _fail("manifest schema target must be JSON")
-    ruleset = validate.evaluate(ruleset_module, root)
+    ruleset = (
+        None if ruleset_module is None else validate.evaluate(ruleset_module, root)
+    )
     definitions = [validate.evaluate(module, root) for module in definition_modules]
-    if (
+    if ruleset is not None and (
         ruleset.get("schemaVersion") != manifest["schemaVersion"]
         or ruleset.get("package", {}).get("id") != manifest["id"]
         or ruleset.get("package", {}).get("version") != manifest["version"]
@@ -469,15 +476,26 @@ def pack(
             validate_definition_document(
                 value, str(module.relative_to(root)), asset_root=package
             )
-        bind_ruleset(
-            ruleset,
-            definitions,
-            str(ruleset_module.relative_to(root)),
-            asset_root=package,
-        )
+        if ruleset_module is None:
+            # A definitions package carries no rule set; its documents bind
+            # on their own and one of them carries the manifest identity.
+            validate.bind_definitions_package(
+                manifest,
+                definitions,
+                str(manifest_file.relative_to(root)),
+                asset_root=package,
+            )
+        else:
+            bind_ruleset(
+                ruleset,
+                definitions,
+                str(ruleset_module.relative_to(root)),
+                asset_root=package,
+            )
     except SystemExit as exc:
         _fail(str(exc))
-    assets = _asset_paths([ruleset, *definitions], package, root)
+    normalized_values = [ruleset] if ruleset is not None else []
+    assets = _asset_paths([*normalized_values, *definitions], package, root)
     source_files = (
         closure
         | {manifest_file, schema_file}
@@ -487,9 +505,10 @@ def pack(
     members: dict[str, tuple[bytes, str]] = {}
     for file in source_files:
         members[_source_name(root, file)] = (file.read_bytes(), "source")
-    ruleset_name = "normalized/ruleset.json"
-    members[ruleset_name] = (_json_bytes(ruleset), "ruleset")
-    mappings: dict[str, str] = {manifest["entrypoint"]: ruleset_name}
+    mappings: dict[str, str] = {}
+    if ruleset is not None:
+        members[RULESET_MEMBER] = (_json_bytes(ruleset), "ruleset")
+        mappings[manifest["entrypoint"]] = RULESET_MEMBER
     for module, value in zip(definition_modules, definitions, strict=True):
         name = (
             "normalized/definitions/"
@@ -876,6 +895,21 @@ def _read_verified(path: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
         )
     ):
         _fail("invalid source package topology")
+    # The archived manifest is static data; its kind decides whether the
+    # archive must carry exactly one normalized rule set or none at all.
+    try:
+        archived_manifest = validate.validate_manifest(
+            _strict_json(data[manifest], manifest), PurePosixPath(manifest)
+        )
+    except SystemExit as exc:
+        _fail(str(exc))
+    if metadata["package"] != {
+        "id": archived_manifest["id"],
+        "version": archived_manifest["version"],
+        "schemaVersion": archived_manifest["schemaVersion"],
+    }:
+        _fail("metadata package identity disagrees with the archived manifest")
+    expected_ruleset_mappings = 1 if archived_manifest["kind"] == "ruleset" else 0
     mapping = metadata["normalized"]
     normalized_names = {name for name in declared if name.startswith("normalized/")}
     mapped_names: set[str] = set()
@@ -899,15 +933,21 @@ def _read_verified(path: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
         mapped_names.add(normalized)
         role = declared[normalized]["role"]
         if role == "ruleset":
-            if normalized != "normalized/ruleset.json":
+            if normalized != RULESET_MEMBER:
                 _fail("invalid normalized ruleset path")
             ruleset_mappings += 1
         elif role != "definition":
             _fail("normalized mapping points to a non-normalized role")
     if list(mapping) != sorted(mapping):
         _fail("normalized mapping must be sorted by source module")
-    if mapped_names != normalized_names or ruleset_mappings != 1:
+    if mapped_names != normalized_names:
         _fail("incomplete normalized mapping")
+    if ruleset_mappings != expected_ruleset_mappings:
+        _fail(
+            "a ruleset package must carry exactly one normalized rule set"
+            if expected_ruleset_mappings
+            else "a definitions package must not carry a normalized rule set"
+        )
     return metadata, data
 
 
@@ -936,13 +976,19 @@ def verify(path: Path) -> dict[str, Any]:
         try:
             manifest = validate.validate_manifest(manifest, manifest_path)
             package_root = root / metadata["packageRoot"]
-            ruleset_module = validate.local_module(package_root, manifest["entrypoint"])
+            entrypoint = validate.ruleset_entrypoint(manifest)
+            ruleset_module = (
+                None
+                if entrypoint is None
+                else validate.local_module(package_root, entrypoint)
+            )
+            entry_modules = [ruleset_module] if ruleset_module is not None else []
             defs = [
                 validate.local_module(package_root, x)
                 for x in manifest["definitionEntrypoints"]
             ]
             declared_modules = {
-                manifest["entrypoint"],
+                *([entrypoint] if entrypoint is not None else []),
                 *manifest["definitionEntrypoints"],
             }
             if set(metadata["normalized"]) != declared_modules:
@@ -959,21 +1005,32 @@ def verify(path: Path) -> dict[str, Any]:
                 manifest_path.parent / schema_reference,
                 "manifest schema",
             )
-            ruleset = validate.evaluate(ruleset_module, source_root)
+            ruleset = (
+                None
+                if ruleset_module is None
+                else validate.evaluate(ruleset_module, source_root)
+            )
             definition_values = [validate.evaluate(x, source_root) for x in defs]
-            if (
-                ruleset.get("package", {}).get("id") != metadata["package"]["id"]
-                or ruleset.get("package", {}).get("version")
-                != metadata["package"]["version"]
-                or ruleset.get("schemaVersion") != metadata["package"]["schemaVersion"]
-            ):
-                _fail("evaluated package identity disagrees with metadata")
             mapping = metadata["normalized"]
-            if mapping.get(manifest["entrypoint"]) != "normalized/ruleset.json":
-                _fail("invalid normalized ruleset mapping")
-            if _json_bytes(ruleset) != data["normalized/ruleset.json"]:
-                _fail("normalized ruleset does not exactly match evaluated source")
+            if ruleset is None:
+                if RULESET_MEMBER in data:
+                    _fail("a definitions package must not carry a normalized rule set")
+            else:
+                if (
+                    ruleset.get("package", {}).get("id") != metadata["package"]["id"]
+                    or ruleset.get("package", {}).get("version")
+                    != metadata["package"]["version"]
+                    or ruleset.get("schemaVersion")
+                    != metadata["package"]["schemaVersion"]
+                ):
+                    _fail("evaluated package identity disagrees with metadata")
+                if mapping.get(entrypoint) != RULESET_MEMBER:
+                    _fail("invalid normalized ruleset mapping")
+                if _json_bytes(ruleset) != data[RULESET_MEMBER]:
+                    _fail("normalized ruleset does not exactly match evaluated source")
             for module, value in zip(defs, definition_values, strict=True):
+                if value.get("schemaVersion") != metadata["package"]["schemaVersion"]:
+                    _fail(f"definition schema version disagrees: {module.name}")
                 mapped = mapping.get(module.relative_to(package_root).as_posix())
                 if (
                     not isinstance(mapped, str)
@@ -988,17 +1045,26 @@ def verify(path: Path) -> dict[str, Any]:
                     str(module.relative_to(source_root)),
                     asset_root=package_root,
                 )
-            bind_ruleset(
-                ruleset,
-                definition_values,
-                str(ruleset_module.relative_to(source_root)),
-                asset_root=package_root,
-            )
+            if ruleset_module is None:
+                validate.bind_definitions_package(
+                    manifest,
+                    definition_values,
+                    str(manifest_path.relative_to(source_root)),
+                    asset_root=package_root,
+                )
+            else:
+                bind_ruleset(
+                    ruleset,
+                    definition_values,
+                    str(ruleset_module.relative_to(source_root)),
+                    asset_root=package_root,
+                )
+            normalized_values = [ruleset] if ruleset is not None else []
             expected_source_files = (
-                _pkl_closure(source_root, [ruleset_module, *defs], declared_aliases)
+                _pkl_closure(source_root, [*entry_modules, *defs], declared_aliases)
                 | {manifest_path, schema_file}
                 | _asset_paths(
-                    [ruleset, *definition_values], package_root, source_root
+                    [*normalized_values, *definition_values], package_root, source_root
                 )
                 | _support_files(
                     source_root, package_root, require_lock=bool(dependencies)

@@ -543,6 +543,122 @@ class MCSArchiveTests(unittest.TestCase):
         )
         mcs_archive.verify(archive)
 
+    def replace_declared_payload(
+        self, items: list[tuple[str, bytes]], name: str, data: bytes
+    ) -> list[tuple[str, bytes]]:
+        result = []
+        for item_name, item_data in items:
+            if item_name == mcs_archive.METADATA:
+                metadata = json.loads(item_data)
+                for entry in metadata["inventory"]:
+                    if entry["path"] == name:
+                        entry["size"] = len(data)
+                        entry["sha256"] = hashlib.sha256(data).hexdigest()
+                item_data = mcs_archive._json_bytes(metadata)
+            elif item_name == name:
+                item_data = data
+            result.append((item_name, item_data))
+        return result
+
+    def test_definitions_package_round_trip_without_rule_set(self) -> None:
+        directory, first = self.pack("template-library")
+        second = directory / "again.mcs"
+        mcs_archive.pack(ROOT / "examples/template-library", second, ROOT)
+        self.assertEqual(first.read_bytes(), second.read_bytes())
+        metadata = mcs_archive.verify(first)
+        self.assertEqual(
+            metadata["package"],
+            {
+                "id": "axioval:example.template-library",
+                "version": "0.1.0",
+                "schemaVersion": "0.1.0",
+            },
+        )
+        self.assertEqual(list(metadata["normalized"]), ["definitions.pkl"])
+        names = {entry["path"] for entry in metadata["inventory"]}
+        self.assertNotIn(mcs_archive.RULESET_MEMBER, names)
+        self.assertNotIn("source/schema/RuleSets.pkl", names)
+        self.assertEqual(
+            {entry["role"] for entry in metadata["inventory"]},
+            {"source", "definition"},
+        )
+        self.assertEqual(mcs_archive.inspect(first), metadata)
+
+    def test_definitions_package_carrying_a_rule_set_is_refused(self) -> None:
+        _, archive = self.pack("template-library")
+        ruleset = (ROOT / "examples/minimal/expected/ruleset.json").read_bytes()
+        module = b'amends "../../schema/RuleSets.pkl"\n'
+
+        def smuggle(items):
+            items = self.add_declared_payload(
+                items, mcs_archive.RULESET_MEMBER, ruleset, "ruleset"
+            )
+            items = self.add_declared_payload(
+                items, "source/examples/template-library/ruleset.pkl", module, "source"
+            )
+            for index, (name, data) in enumerate(items):
+                if name == mcs_archive.METADATA:
+                    metadata = json.loads(data)
+                    metadata["normalized"]["ruleset.pkl"] = mcs_archive.RULESET_MEMBER
+                    items[index] = (name, mcs_archive._json_bytes(metadata))
+            # Keep members in inventory order, as the writer does.
+            fixed = {"mimetype", mcs_archive.METADATA}
+            head = [item for item in items if item[0] in fixed]
+            return head + sorted(item for item in items if item[0] not in fixed)
+
+        self.rewrite(archive, smuggle)
+        with self.assertRaisesRegex(mcs_archive.MCSError, "must not carry"):
+            mcs_archive.inspect(archive)
+
+    def test_rule_set_package_without_its_rule_set_is_refused(self) -> None:
+        _, archive = self.pack()
+
+        def drop_ruleset(items):
+            result = []
+            for name, data in items:
+                if name == mcs_archive.RULESET_MEMBER:
+                    continue
+                if name == mcs_archive.METADATA:
+                    metadata = json.loads(data)
+                    metadata["inventory"] = [
+                        entry
+                        for entry in metadata["inventory"]
+                        if entry["path"] != mcs_archive.RULESET_MEMBER
+                    ]
+                    del metadata["normalized"]["ruleset.pkl"]
+                    data = mcs_archive._json_bytes(metadata)
+                result.append((name, data))
+            return result
+
+        self.rewrite(archive, drop_ruleset)
+        with self.assertRaisesRegex(mcs_archive.MCSError, "exactly one"):
+            mcs_archive.inspect(archive)
+
+    def test_archived_manifest_kind_and_identity_must_match(self) -> None:
+        manifest_name = "source/examples/minimal/axioval.json"
+        manifest = json.loads((ROOT / "examples/minimal/axioval.json").read_text())
+        relabelled = dict(manifest, kind="definitions")
+        del relabelled["entrypoint"]
+        _, archive = self.pack()
+        self.rewrite(
+            archive,
+            lambda items: self.replace_declared_payload(
+                items, manifest_name, json.dumps(relabelled).encode()
+            ),
+        )
+        with self.assertRaisesRegex(mcs_archive.MCSError, "must not carry"):
+            mcs_archive.inspect(archive)
+        _, archive = self.pack()
+        renamed = dict(manifest, id="axioval:example.renamed")
+        self.rewrite(
+            archive,
+            lambda items: self.replace_declared_payload(
+                items, manifest_name, json.dumps(renamed).encode()
+            ),
+        )
+        with self.assertRaisesRegex(mcs_archive.MCSError, "archived manifest"):
+            mcs_archive.inspect(archive)
+
     def test_wrong_extension_and_overwrite_are_refused(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "wrong.zip"

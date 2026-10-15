@@ -88,6 +88,11 @@ contains them only under `examples/`.
 Only after all entrypoints are repository-confined and all candidate JSON is
 semantically bound does the output become normalized interchange.
 
+A `ruleset` package delivers a rule set; a `definitions` package publishes
+definitions only, such as a library of rule templates. A rule set names the
+definition packages it binds by ID, and a host resolves them from the
+definitions packages it has installed.
+
 <div class="diagram-frame" markdown>
 
 ![A package is inspected, opened safely, checked completely, and handed to a compatible tool](../assets/images/trust-path.svg)

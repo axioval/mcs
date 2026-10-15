@@ -20,11 +20,20 @@ gibt einem Paket keine Sonderrechte.
     ```text
     axioval.json      # statisches Erkennungsmanifest
     PklProject        # festgelegte Pkl-Projektgrenze
-    <entry>.pkl       # von axioval.json benanntes Regelwerkmodul
+    <entry>.pkl       # von axioval.json benanntes Regelwerkmodul (nur ruleset)
     <definition>.pkl  # eine oder mehrere von axioval.json benannte Definitionsmodule
     ```
 
 Das Manifest **muss** gegen `schema/registry-manifest.schema.json` validieren. Einstiegspunkte sind repository-relative Pkl-Pfade. Absolute Pfade, `..`-Traversal, unbekannte Felder, fehlende Module und Nicht-Pkl-Einstiegspunkte sind verboten.
+
+## Paketarten
+
+Das Feld `kind` des Manifests sagt, was ein Paket veröffentlicht:
+
+- `ruleset` nennt sein Regelwerk in `entrypoint` und die mitgelieferten Definitionsmodule in `definitionEntrypoints`. Beide Felder sind Pflicht.
+- `definitions` veröffentlicht eine Bibliothek von Definitionen, etwa Regelvorlagen, ohne Regelwerk. Es nennt seine Module in `definitionEntrypoints` und **darf kein** `entrypoint` haben. Seine Dokumente müssen sich so zusammen binden lassen, wie ein Regelwerk sie laden würde: Paket-, Vorlagen- und Begriffs-IDs sind über alle Dokumente eindeutig. `id` und `version` des Manifests müssen die Paketidentität genau eines seiner Definitionsdokumente sein.
+
+Ein Regelwerk nennt jedes Definitionspaket, das es bindet, per ID in `definitionPackages`. Ein Host löst diese IDs aus den installierten Definitionspaketen oder aus den Definitionsmodulen auf, die das Regelwerkpaket mitliefert, und bindet das Regelwerk gegen genau die deklarierten Pakete. Eine ID, die er nicht auflösen kann, schlägt geschlossen fehl; das Regelwerk lädt nie selbst Definitionen nach.
 
 ## Geordnete Vertrauensgrenze
 
@@ -42,7 +51,8 @@ Die Reihenfolge ist Teil des Sicherheitsvertrags:
 6. jedes Kandidaten-Definitionsdokument validieren;
 7. deklarierte Pakete, Quellenkataloge, Zitate, Objekttypen, Eigenschaften,
    Property-Set-Qualifizierer, Vorlagen, Anwendbarkeitsgruppen, Anforderungen,
-   Selektoren, typisierte Parameterwerte und erklärende Bilddateien binden;
+   Selektoren, typisierte Parameterwerte und erklärende Bilddateien binden; ein
+   Definitionspaket bindet stattdessen seine Definitionsdokumente miteinander;
 8. doppelte, fehlende, unbekannte, widersprüchliche, fehlerhafte oder nicht unterstützte Deklarationen ablehnen; und
 9. semantisch validierte Ausgaben mit geprüften normalisierten Snapshots vergleichen.
 

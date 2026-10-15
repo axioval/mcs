@@ -11,6 +11,7 @@ if __package__:
     from .contracts import (
         QUALIFIED_ID,
         SEMVER,
+        bind_definition_documents,
         bind_ruleset,
         validate_definition_document,
     )
@@ -18,21 +19,24 @@ else:
     from contracts import (
         QUALIFIED_ID,
         SEMVER,
+        bind_definition_documents,
         bind_ruleset,
         validate_definition_document,
     )
 
 ROOT = Path(__file__).resolve().parents[1]
+# Fields every package kind requires. A rule-set package also requires its
+# `entrypoint`; a definitions package must not have one.
 REQUIRED = {
     "manifestVersion",
     "kind",
     "id",
     "version",
     "schemaVersion",
-    "entrypoint",
     "definitionEntrypoints",
 }
-ALLOWED = REQUIRED | {"$schema", "description", "license"}
+KINDS = {"ruleset", "definitions"}
+ALLOWED = REQUIRED | {"entrypoint", "$schema", "description", "license"}
 PKL_ENTRYPOINT = re.compile(r"^(?!/)(?!.*(?:^|/)\.\.(?:/|$)).+\.pkl$")
 # Pkl checks metadata, the stable GitHub release URL, and its signed redirect even
 # when package bytes are cached. Keep that transport access scoped to the two
@@ -133,11 +137,16 @@ def check_snapshot(module: Path, value: dict) -> None:
 def validate_manifest(manifest: object, path: Path) -> dict:
     if type(manifest) is not dict:
         fail(f"{path}: manifest must be an object")
-    missing = REQUIRED - manifest.keys()
-    unknown = manifest.keys() - ALLOWED
+    # Anything but a definitions package is held to the rule-set contract, so
+    # a missing or unknown kind still reports the rule-set fields.
+    definitions_only = manifest.get("kind") == "definitions"
+    required = REQUIRED if definitions_only else REQUIRED | {"entrypoint"}
+    allowed = ALLOWED - {"entrypoint"} if definitions_only else ALLOWED
+    missing = required - manifest.keys()
+    unknown = manifest.keys() - allowed
     if missing or unknown:
         fail(f"{path}: missing={sorted(missing)}, unknown={sorted(unknown)}")
-    scalar_fields = REQUIRED - {"definitionEntrypoints"}
+    scalar_fields = required - {"definitionEntrypoints"}
     if any(type(manifest[field]) is not str for field in scalar_fields):
         fail(f"{path}: manifest scalar fields must be strings")
     entries = manifest["definitionEntrypoints"]
@@ -148,14 +157,14 @@ def validate_manifest(manifest: object, path: Path) -> dict:
         or len(entries) != len(set(entries))
     ):
         fail(f"{path}: definitionEntrypoints must be non-empty unique strings")
-    if not PKL_ENTRYPOINT.fullmatch(manifest["entrypoint"]) or any(
-        not PKL_ENTRYPOINT.fullmatch(entry) for entry in entries
-    ):
+    if (
+        not definitions_only and not PKL_ENTRYPOINT.fullmatch(manifest["entrypoint"])
+    ) or any(not PKL_ENTRYPOINT.fullmatch(entry) for entry in entries):
         fail(f"{path}: entrypoints must be safe repository-relative .pkl paths")
     if (
         manifest["manifestVersion"] != "0.1.0"
         or manifest["schemaVersion"] != "0.1.0"
-        or manifest["kind"] != "ruleset"
+        or manifest["kind"] not in KINDS
         or not QUALIFIED_ID.fullmatch(manifest["id"])
         or not SEMVER.fullmatch(manifest["version"])
     ):
@@ -168,6 +177,37 @@ def validate_manifest(manifest: object, path: Path) -> dict:
         ):
             fail(f"{path}: {field} must be a non-empty string")
     return manifest
+
+
+def ruleset_entrypoint(manifest: dict) -> str | None:
+    """Return a validated manifest's rule-set entrypoint, or None for definitions."""
+    return manifest["entrypoint"] if manifest["kind"] == "ruleset" else None
+
+
+def bind_definitions_package(
+    manifest: dict,
+    definition_values: list[dict],
+    context: str,
+    *,
+    asset_root: Path | None = None,
+) -> None:
+    """Bind a definitions package, which has no rule set, on its own.
+
+    Its documents must bind together as a rule set would load them, and the
+    manifest identity must be the package identity of exactly one of them.
+    """
+    bind_definition_documents(definition_values, context, asset_root=asset_root)
+    matches = [
+        value
+        for value in definition_values
+        if value["package"]["id"] == manifest["id"]
+        and value["package"]["version"] == manifest["version"]
+    ]
+    if len(matches) != 1:
+        fail(
+            f"{context}: manifest identity {manifest['id']}@{manifest['version']} "
+            "is not the package identity of one definition document"
+        )
 
 
 def main() -> None:
@@ -186,7 +226,12 @@ def main() -> None:
         manifest = validate_manifest(
             json.loads(manifest_path.read_text()), manifest_path
         )
-        module = local_module(manifest_path.parent, manifest["entrypoint"])
+        entrypoint = ruleset_entrypoint(manifest)
+        module = (
+            None
+            if entrypoint is None
+            else local_module(manifest_path.parent, entrypoint)
+        )
         definition_modules = [
             local_module(manifest_path.parent, entry)
             for entry in manifest["definitionEntrypoints"]
@@ -196,9 +241,9 @@ def main() -> None:
         )
 
     for manifest_path, manifest, module, definition_modules in validated_manifests:
-        value = evaluate(module)
-        package = value.get("package", {})
-        if (
+        value = None if module is None else evaluate(module)
+        package = {} if value is None else value.get("package", {})
+        if value is not None and (
             value.get("schemaVersion") != manifest["schemaVersion"]
             or package.get("id") != manifest["id"]
             or package.get("version") != manifest["version"]
@@ -216,6 +261,14 @@ def main() -> None:
             )
             definition_values.append(definitions)
             check_snapshot(definition, definitions)
+        if module is None:
+            bind_definitions_package(
+                manifest,
+                definition_values,
+                str(manifest_path.relative_to(ROOT)),
+                asset_root=manifest_path.parent,
+            )
+            continue
         bind_ruleset(
             value,
             definition_values,

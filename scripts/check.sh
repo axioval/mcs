@@ -28,3 +28,10 @@ python3 scripts/mcs.py pack examples/minimal "$mcs_tmp/two.mcs" --repository-roo
 cmp "$mcs_tmp/one.mcs" "$mcs_tmp/two.mcs"
 sha256sum "$mcs_tmp/one.mcs" "$mcs_tmp/two.mcs"
 python3 scripts/mcs.py verify "$mcs_tmp/one.mcs"
+
+# A definitions package carries its definitions and no rule set.
+python3 scripts/mcs.py pack examples/template-library "$mcs_tmp/library-one.mcs" --repository-root "$repo_root"
+python3 scripts/mcs.py pack examples/template-library "$mcs_tmp/library-two.mcs" --repository-root "$repo_root"
+cmp "$mcs_tmp/library-one.mcs" "$mcs_tmp/library-two.mcs"
+sha256sum "$mcs_tmp/library-one.mcs" "$mcs_tmp/library-two.mcs"
+python3 scripts/mcs.py verify "$mcs_tmp/library-one.mcs"

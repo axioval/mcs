@@ -20,7 +20,7 @@ permissions or trust.
     ```text
     axioval.json      # static discovery manifest
     PklProject        # pinned Pkl project boundary
-    <entry>.pkl       # ruleset module named by axioval.json
+    <entry>.pkl       # ruleset module named by axioval.json (ruleset only)
     <definition>.pkl  # definition modules named by axioval.json
     ```
 
@@ -28,6 +28,25 @@ The manifest **must** validate against
 `schema/registry-manifest.schema.json`. Entrypoints are repository-relative Pkl
 paths. Absolute paths, `..` traversal, unknown fields, missing modules, and
 non-Pkl entrypoints are forbidden.
+
+## Package kinds
+
+The manifest's `kind` says what a package publishes:
+
+- `ruleset` names its rule set in `entrypoint` and the definition modules it
+  carries in `definitionEntrypoints`. Both are required.
+- `definitions` publishes a library of definitions, such as rule templates,
+  without a rule set. It names its modules in `definitionEntrypoints` and
+  **must not** have an `entrypoint`. Its documents must bind together as a
+  rule set would load them: package, template and concept IDs are unique
+  across them. The manifest's `id` and `version` must be the package identity
+  of exactly one of its definition documents.
+
+A rule set names every definition package it binds by ID in
+`definitionPackages`. A host resolves those IDs from the definitions packages
+it has installed, or from the definition modules the rule-set package carries,
+and binds the rule set against exactly the declared packages. An ID it cannot
+resolve fails closed; the rule set never fetches definitions on its own.
 
 ## Ordered trust boundary
 
@@ -45,7 +64,8 @@ The order is part of the security contract:
 6. validate every candidate definition document;
 7. bind declared packages, source catalogs, citations, object types, properties,
    property-set qualifiers, templates, applicability groups, requirements,
-   selectors, typed parameter values, and explanatory image assets;
+   selectors, typed parameter values, and explanatory image assets; a
+   definitions package binds its definition documents together instead;
 8. reject duplicate, missing, unknown, conflicting, malformed, or unsupported
    declarations; and
 9. compare semantically validated output with checked normalized snapshots.

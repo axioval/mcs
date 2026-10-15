@@ -1,0 +1,81 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Definitions.pkl"
+import "../../schema/Types.pkl"
+
+package = new Types.PackageMetadata {
+  id = "axioval:example.template-library"
+  name = new Types.LocalizedText {
+    default = "Example template library"
+    translations { ["de"] = "Beispiel-Vorlagenbibliothek" }
+  }
+  version = "0.1.0"
+  description = new Types.LocalizedText {
+    default = "Non-production rule templates published without a rule set."
+    translations { ["de"] = "Nicht produktive Regelvorlagen, veröffentlicht ohne Regelsatz." }
+  }
+  repository = "https://github.com/axioval/mcs"
+}
+
+definitions {
+  ["axioval:example.template.property-exists"] = new Definitions.RuleDefinition {
+    id = "axioval:example.template.property-exists"
+    name = new Types.LocalizedText {
+      default = "Required property"
+      translations { ["de"] = "Pflichtmerkmal" }
+    }
+    description = new Types.LocalizedText {
+      default = "Checks that a property exists on the selected objects."
+      translations { ["de"] = "Prüft, ob ein Merkmal an den ausgewählten Objekten vorhanden ist." }
+    }
+    capability = "axioval:capability.property-exists"
+    parameters {
+      ["property"] = new Definitions.ParameterDefinition {
+        id = "property"
+        name = new Types.LocalizedText {
+          default = "Property"
+          translations { ["de"] = "Merkmal" }
+        }
+        kind = "propertyReference"
+      }
+    }
+    tags {
+      "property"
+    }
+  }
+  ["axioval:example.template.boolean-property-equals"] = new Definitions.RuleDefinition {
+    id = "axioval:example.template.boolean-property-equals"
+    name = new Types.LocalizedText {
+      default = "Boolean property equals"
+      translations { ["de"] = "Boolesches Merkmal hat Wert" }
+    }
+    description = new Types.LocalizedText {
+      default = "Checks that a boolean property has the expected value."
+      translations { ["de"] = "Prüft, ob ein boolesches Merkmal den erwarteten Wert hat." }
+    }
+    capability = "axioval:capability.property-value-equals"
+    parameters {
+      ["property"] = new Definitions.ParameterDefinition {
+        id = "property"
+        name = new Types.LocalizedText {
+          default = "Property"
+          translations { ["de"] = "Merkmal" }
+        }
+        kind = "propertyReference"
+        referencedValueKind = "boolean"
+      }
+      ["expected"] = new Definitions.ParameterDefinition {
+        id = "expected"
+        name = new Types.LocalizedText {
+          default = "Expected value"
+          translations { ["de"] = "Erwarteter Wert" }
+        }
+        kind = "boolean"
+      }
+    }
+    tags {
+      "property"
+      "boolean"
+    }
+  }
+}

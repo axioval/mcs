@@ -1,7 +1,7 @@
 # MCS container format
 
-MCS version 0.1.0 is the deterministic transport container for an Axioval ruleset.
-It carries reviewable Pkl authoring source and the declarative normalized JSON
+MCS version 0.1.0 is the deterministic transport container for an Axioval ruleset
+or definitions package. It carries reviewable Pkl authoring source and the declarative normalized JSON
 that model-checking applications consume. It is not an executable plugin format.
 
 ## Commands
@@ -34,6 +34,21 @@ version, package identity, normalized source-module mapping, and a SHA-256/size/
 role inventory for every payload. Source topology remains repository-relative
 under `source/`; imports are never rewritten. Standard `pkl:` modules are not
 archived.
+
+## Package kinds
+
+The kind is the archived `axioval.json`'s; metadata keeps the same shape for
+both kinds, and rule-set archives are written exactly as before.
+
+- A `ruleset` package archive carries exactly one `normalized/ruleset.json` and
+  one `normalized/definitions/*.json` per definition module.
+- A `definitions` package archive carries only `normalized/definitions/*.json`
+  and **no** `normalized/ruleset.json`. `verify` re-evaluates the definition
+  modules only and binds them together.
+
+`inspect` already refuses a definitions archive that carries a rule set, a
+rule-set archive without one, and metadata whose package identity is not the
+archived manifest's.
 
 ## Acceptance boundary
 

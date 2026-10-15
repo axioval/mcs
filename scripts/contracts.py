@@ -4235,31 +4235,24 @@ def validate_values(
     return set(values)
 
 
-def bind_ruleset(
-    value: Any,
+def bind_definition_documents(
     definition_documents: list[dict[str, Any]],
     context: str,
     *,
     asset_root: Path | None = None,
-) -> None:
-    value = object_value(value, context)
-    exact_keys(
-        value,
-        {"schemaVersion", "package", "sources", "definitionPackages", "root"},
-        {"classifications", "groupings", "relations", "values"},
-        context,
-    )
-    package_metadata(value["package"], f"{context}.package")
-    sources = validate_sources(value["sources"], f"{context}.sources")
-    declared_list = string_list(
-        value["definitionPackages"], f"{context}.definitionPackages"
-    )
-    if (
-        not declared_list
-        or any(not QUALIFIED_ID.fullmatch(package_id) for package_id in declared_list)
-        or len(set(declared_list)) != len(declared_list)
-    ):
-        fail(context, "definitionPackages must be non-empty, qualified, and unique")
+) -> tuple[
+    set[str],
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+]:
+    """Validate definition documents and bind them into one component space.
+
+    Package IDs, rule-definition IDs and concept IDs must be unique across the
+    documents, and no ID may name components of two kinds.  A rule set binds
+    against the result; a definitions package is bound by this step alone.
+    """
     definitions: dict[str, dict[str, Any]] = {}
     object_types: dict[str, dict[str, Any]] = {}
     properties: dict[str, dict[str, Any]] = {}
@@ -4312,6 +4305,41 @@ def bind_ruleset(
                     f"component id {component_id!r} is both {component_kinds[component_id]} and {kind}",
                 )
             component_kinds[component_id] = kind
+    return loaded_packages, definitions, object_types, properties, property_sets
+
+
+def bind_ruleset(
+    value: Any,
+    definition_documents: list[dict[str, Any]],
+    context: str,
+    *,
+    asset_root: Path | None = None,
+) -> None:
+    value = object_value(value, context)
+    exact_keys(
+        value,
+        {"schemaVersion", "package", "sources", "definitionPackages", "root"},
+        {"classifications", "groupings", "relations", "values"},
+        context,
+    )
+    package_metadata(value["package"], f"{context}.package")
+    sources = validate_sources(value["sources"], f"{context}.sources")
+    declared_list = string_list(
+        value["definitionPackages"], f"{context}.definitionPackages"
+    )
+    if (
+        not declared_list
+        or any(not QUALIFIED_ID.fullmatch(package_id) for package_id in declared_list)
+        or len(set(declared_list)) != len(declared_list)
+    ):
+        fail(context, "definitionPackages must be non-empty, qualified, and unique")
+    (
+        loaded_packages,
+        definitions,
+        object_types,
+        properties,
+        property_sets,
+    ) = bind_definition_documents(definition_documents, context, asset_root=asset_root)
     # The groupings' IDs, which classification rows may not read and every
     # other selector binds against; the groupings themselves are checked once
     # the classifications their selectors may read are.

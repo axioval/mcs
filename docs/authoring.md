@@ -91,6 +91,31 @@ Registry implementations inspect this file completely before invoking Pkl.
 Absolute paths, traversal, non-Pkl entrypoints, unknown fields, and missing
 definition modules are rejected.
 
+### Publish a template library
+
+A library of rule templates is useful without a rule set: one author publishes
+templates, and others write rule sets that instantiate them. Publish it as a
+definitions package, with `kind: "definitions"`, its modules in
+`definitionEntrypoints`, and no `entrypoint`:
+
+??? example "Show a definitions manifest"
+    ```json
+    {
+      "$schema": "schema/registry-manifest.schema.json",
+      "manifestVersion": "0.1.0",
+      "kind": "definitions",
+      "id": "https://example.org/axioval/my-templates",
+      "version": "0.1.0",
+      "schemaVersion": "0.1.0",
+      "definitionEntrypoints": ["definitions.pkl"]
+    }
+    ```
+
+The manifest's `id` and `version` are the package identity of one of its
+definition documents. A rule set that instantiates the templates names that ID
+in its `definitionPackages`; a host resolves it from the definitions packages
+it has installed. `examples/template-library` shows a complete package.
+
 ## 7. Validate and version
 
 Run the same gate locally and in CI:

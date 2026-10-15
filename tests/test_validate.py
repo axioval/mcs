@@ -718,6 +718,91 @@ class StaticManifestTests(unittest.TestCase):
                 validate.validate_manifest(candidate, Path("axioval.json"))
 
 
+class DefinitionsPackageTests(unittest.TestCase):
+    def manifest(self) -> dict:
+        return json.loads(
+            (validate.ROOT / "examples/template-library/axioval.json").read_text()
+        )
+
+    def documents(self) -> list[dict]:
+        return [
+            json.loads(
+                (
+                    validate.ROOT
+                    / "examples/template-library/expected/definitions.json"
+                ).read_text()
+            )
+        ]
+
+    def test_schema_keeps_rule_sets_strict_and_definitions_without_entrypoint(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (validate.ROOT / "schema/registry-manifest.schema.json").read_text()
+        )
+        self.assertEqual(
+            set(schema["properties"]["kind"]["enum"]), validate.KINDS
+        )
+        self.assertNotIn("entrypoint", schema["required"])
+        branches = {
+            branch["properties"]["kind"]["const"]: branch for branch in schema["oneOf"]
+        }
+        self.assertEqual(set(branches), validate.KINDS)
+        self.assertEqual(branches["ruleset"]["required"], ["entrypoint"])
+        self.assertEqual(
+            branches["definitions"]["not"], {"required": ["entrypoint"]}
+        )
+
+    def test_accepts_definitions_manifest_without_entrypoint(self) -> None:
+        manifest = self.manifest()
+        self.assertEqual(
+            validate.validate_manifest(manifest, Path("axioval.json")), manifest
+        )
+        self.assertIsNone(validate.ruleset_entrypoint(manifest))
+        ruleset = json.loads(
+            (validate.ROOT / "examples/minimal/axioval.json").read_text()
+        )
+        self.assertEqual(validate.ruleset_entrypoint(ruleset), "ruleset.pkl")
+
+    def test_rejects_entrypoint_on_definitions_and_its_absence_on_rule_sets(
+        self,
+    ) -> None:
+        with_entrypoint = dict(self.manifest(), entrypoint="ruleset.pkl")
+        ruleset = json.loads(
+            (validate.ROOT / "examples/minimal/axioval.json").read_text()
+        )
+        del ruleset["entrypoint"]
+        unknown_kind = dict(self.manifest(), kind="library")
+        for candidate in (with_entrypoint, ruleset, unknown_kind):
+            with self.subTest(candidate=candidate), self.assertRaises(SystemExit):
+                validate.validate_manifest(candidate, Path("axioval.json"))
+
+    def test_binds_definitions_package_on_its_own(self) -> None:
+        validate.bind_definitions_package(self.manifest(), self.documents(), "test")
+
+    def test_rejects_identity_that_names_no_definition_document(self) -> None:
+        for field, value in (
+            ("id", "axioval:example.other-library"),
+            ("version", "0.2.0"),
+        ):
+            manifest = dict(self.manifest(), **{field: value})
+            with self.subTest(field=field), self.assertRaises(SystemExit):
+                validate.bind_definitions_package(manifest, self.documents(), "test")
+
+    def test_rejects_documents_that_do_not_bind_together(self) -> None:
+        documents = self.documents()
+        duplicate = copy.deepcopy(documents[0])
+        with self.assertRaises(SystemExit):
+            validate.bind_definitions_package(
+                self.manifest(), [*documents, duplicate], "test"
+            )
+        duplicate["package"]["id"] = "axioval:example.second-library"
+        with self.assertRaises(SystemExit):
+            validate.bind_definitions_package(
+                self.manifest(), [*documents, duplicate], "test"
+            )
+
+
 class SelectorTests(unittest.TestCase):
     def test_rejects_exists_with_value_and_comparison_without_value(self) -> None:
         from scripts.contracts import validate_selector

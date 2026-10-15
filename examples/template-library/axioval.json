@@ -1,0 +1,10 @@
+{
+  "$schema": "../../schema/registry-manifest.schema.json",
+  "manifestVersion": "0.1.0",
+  "kind": "definitions",
+  "id": "axioval:example.template-library",
+  "version": "0.1.0",
+  "schemaVersion": "0.1.0",
+  "definitionEntrypoints": ["definitions.pkl"],
+  "description": "Non-production template library published without a rule set."
+}
