@@ -41,6 +41,24 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   definitions packages it has installed. `examples/template-library` is a
   definitions package, packed twice, compared and verified by `check.sh`.
 
+- A ruleset may declare `catalogues` of material or product data, by ID, and
+  `Expressions.CatalogueExpression` (`catalogue`) takes a value from one, as
+  the engine's catalogues do (axioval/engine#322). A `CatalogueDefinition`
+  states a localized `name`, an optional `description`, the `columns` its
+  file holds, declared as a table file's, and its `key`, the `string` column
+  naming the entries; the host supplies the entries at check time as a CSV
+  file or an `.xlsx` sheet, so the package states none. A `catalogue` node
+  reads the `column` value of the entry whose key equals `key` exactly.
+  Normalized JSON writes `catalogue`, `key` and `column` in the engine's
+  order and omits empty `catalogues` and an unset `description`, so existing
+  packages render byte-identically. Pkl and the binder refuse a catalogue ID
+  that is blank or holds `:`, `;`, `|`, `/`, `#`, `=` or whitespace, a key
+  that names no declared `string` column, and `reference`, `textPattern` and
+  `selector` columns, which hold no value; the binder also refuses a map key
+  other than the ID, columns a table file could not declare, column ids that
+  are no identifiers, and a `catalogue` node naming an undeclared catalogue,
+  an undeclared column or the key column, wherever the node stands.
+
 - `Expressions.PairsExpression` (`pairs`), `Expressions.PreviousExpression`
   (`previous`) and `Expressions.NextExpression` (`next`) mirror the engine's
   consecutive members (axioval/engine#350): `pairs` applies an aggregate
@@ -375,6 +393,9 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   and bounded text-only navigation.
 
 ### Changed
+
+- The shared expression fixtures are re-copied from the engine at 3cb7c47c
+  with `catalogue`.
 
 - The shared expression fixtures are re-copied from the engine at 04c9d69a
   with `pairs`, `pairs-next` and `aggregate-flow`; a kind counts as covered

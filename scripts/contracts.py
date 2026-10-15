@@ -138,6 +138,11 @@ DERIVED_GROUP_RELATIONSHIP = re.compile(r"axioval:derived\.group;by=([^:;|/\s]+)
 # A ruleset relation's ID, free of the same characters as a grouping's, since
 # it is part of the identity of every pair it relates.
 RELATION_ID = GROUPING_ID
+# A ruleset catalogue's ID, also free of `#` and `=`, since every value read
+# from the catalogue cites it in a locator.
+CATALOGUE_ID = re.compile(r"[^:;|/#=\s]+")
+# The table file column kinds a catalogue's file cannot hold as values.
+CATALOGUE_REFUSED_KINDS = {"reference", "textPattern"}
 # The relationship a relation the same ruleset declares runs along,
 # `axioval:derived.relation;id=<relation>`; `backward` runs from a to-object
 # to its from-objects.
@@ -232,6 +237,7 @@ EXPRESSION_KINDS = (
     "lookup",
     "interpolate",
     "lookup2",
+    "catalogue",
     "not",
     "and",
     "or",
@@ -293,6 +299,7 @@ EXPRESSION_FIELDS: dict[str, tuple[set[str], set[str]]] = {
         {"table", "rowKeyColumn", "rowKey", "columnKeyColumn", "columnKey", "column"},
         {"interpolateRow", "interpolateColumn", "clamp"},
     ),
+    "catalogue": ({"catalogue", "key", "column"}, set()),
     "implies": ({"antecedent", "consequent"}, set()),
     "compare": ({"operator", "left", "right"}, {"caseSensitive"}),
     "between": ({"operand", "low", "high"}, {"lowInclusive", "highInclusive"}),
@@ -2371,6 +2378,19 @@ def expression_value_reads(expression: dict[str, Any], out: set[str]) -> None:
             out.add(part["property"])
 
 
+def expression_catalogue_reads(
+    expression: dict[str, Any], out: list[dict[str, Any]]
+) -> None:
+    """Collect the `catalogue` nodes of a checked expression, those of the
+    expressions its embedded selectors hold included."""
+    for role, part in expression_parts(expression):
+        if role == "selector":
+            for inner in selector_expressions(part):
+                expression_catalogue_reads(inner, out)
+        elif part["kind"] == "catalogue":
+            out.append(part)
+
+
 def expression_size(expression: dict[str, Any]) -> tuple[int, int]:
     """How many nodes a checked expression holds, the member filters of its
     aggregates, `argmin`, `argmax` and `pairs` included, and how deeply those nest
@@ -2498,8 +2518,8 @@ def validate_expression(
     embedded selector binds as any selector does, and `parameters`, the
     rule's readable parameter definitions by ID, bind its `parameter`,
     `lookup`, `interpolate` and `lookup2` nodes, an interpolated key column
-    and cell column numeric; without `parameters` it reads none. Derived values and
-    rule outcomes are bound once the whole ruleset is known. `depth` is the
+    and cell column numeric; without `parameters` it reads none. Derived values,
+    catalogues and rule outcomes are bound once the whole ruleset is known. `depth` is the
     level of its root, below an aggregate whose member filter holds it.
     """
     bind = properties is not None
@@ -2553,6 +2573,22 @@ def validate_expression(
             check_lookup(node, node_context)
         elif kind in {"interpolate", "lookup2"}:
             check_table_read(node, node_context)
+        elif kind == "catalogue":
+            # Whether `catalogue` is declared and `column` one of its value
+            # columns is checked once the whole ruleset is known.
+            if type(node["catalogue"]) is not str or not CATALOGUE_ID.fullmatch(
+                node["catalogue"]
+            ):
+                fail(
+                    node_context,
+                    "a 'catalogue' expression names no valid catalogue: an id "
+                    "must not be blank or hold ':', ';', '|', '/', '#', '=' or "
+                    "whitespace",
+                )
+            if type(node["column"]) is not str or not IDENTIFIER.fullmatch(
+                node["column"]
+            ):
+                fail(node_context, "a 'catalogue' expression names no valid column")
         elif kind in RULE_READING_EXPRESSIONS:
             # Whether `rule` names a rule of the same ruleset is checked once
             # the whole ruleset is known.
@@ -4235,6 +4271,91 @@ def validate_values(
     return set(values)
 
 
+def validate_catalogues(value: Any, context: str) -> dict[str, dict[str, Any]]:
+    """Check a ruleset's `catalogues` and return them by ID.
+
+    Each is keyed by its ID, which is not blank and holds no `:`, `;`, `|`,
+    `/`, `#`, `=` or whitespace, since every value read from it cites it in a
+    locator. It has a localized `name`, an optional `description`, and the
+    `columns` its file holds, declared as a table file's are, each with an
+    identifier id and holding a value: no `reference` or `textPattern`
+    column. Its `key` names a declared `string` column. The host supplies the
+    entries at check time; the package states none.
+    """
+    catalogues = object_value(value, context)
+    if not catalogues:
+        fail(context, "catalogues is omitted when empty")
+    for key, catalogue in catalogues.items():
+        entry_context = f"{context}[{key!r}]"
+        catalogue = object_value(catalogue, entry_context)
+        exact_keys(
+            catalogue, {"id", "name", "key", "columns"}, {"description"}, entry_context
+        )
+        if type(catalogue["id"]) is not str or key != catalogue["id"]:
+            fail(entry_context, "catalogue map key and id must match")
+        if not CATALOGUE_ID.fullmatch(key):
+            fail(
+                entry_context,
+                "a catalogue id must not be blank or hold ':', ';', '|', '/', "
+                "'#', '=' or whitespace",
+            )
+        localized_text(catalogue["name"], f"{entry_context}.name")
+        if "description" in catalogue:
+            localized_text(catalogue["description"], f"{entry_context}.description")
+        columns = list_value(catalogue["columns"], f"{entry_context}.columns")
+        if not columns:
+            fail(entry_context, "no columns are declared")
+        table_file_columns(columns, entry_context)
+        for index, column in enumerate(columns):
+            column_context = f"{entry_context}.columns[{index}]"
+            if not IDENTIFIER.fullmatch(column["id"]):
+                fail(column_context, f"column id {column['id']!r} is no identifier")
+            if column["kind"] in CATALOGUE_REFUSED_KINDS:
+                fail(
+                    column_context,
+                    f"column {column['id']!r} is declared {column['kind']}, "
+                    "which states no value",
+                )
+        kinds = {column["id"]: column["kind"] for column in columns}
+        key_column = catalogue["key"]
+        if type(key_column) is not str or key_column not in kinds:
+            fail(entry_context, f"its key column {key_column!r} is not declared")
+        if kinds[key_column] != "string":
+            fail(
+                entry_context,
+                f"its key column {key_column!r} is declared "
+                f"{kinds[key_column]}, not string",
+            )
+    return catalogues
+
+
+def bind_catalogue_reads(
+    expressions: list[dict[str, Any]],
+    catalogues: dict[str, dict[str, Any]],
+    context: str,
+) -> None:
+    """Bind the `catalogue` nodes of checked expressions against the
+    ruleset's catalogues: each names a declared catalogue and one of its
+    columns other than its key, which names the entries."""
+    for expression in expressions:
+        nodes: list[dict[str, Any]] = []
+        expression_catalogue_reads(expression, nodes)
+        for node in nodes:
+            catalogue = catalogues.get(node["catalogue"])
+            if catalogue is None:
+                fail(
+                    context,
+                    f"the ruleset declares no catalogue {node['catalogue']!r}",
+                )
+            columns = {column["id"] for column in catalogue["columns"]}
+            if node["column"] == catalogue["key"] or node["column"] not in columns:
+                fail(
+                    context,
+                    f"catalogue {node['catalogue']!r} has no value column "
+                    f"{node['column']!r}",
+                )
+
+
 def bind_definition_documents(
     definition_documents: list[dict[str, Any]],
     context: str,
@@ -4319,7 +4440,7 @@ def bind_ruleset(
     exact_keys(
         value,
         {"schemaVersion", "package", "sources", "definitionPackages", "root"},
-        {"classifications", "groupings", "relations", "values"},
+        {"classifications", "groupings", "relations", "values", "catalogues"},
         context,
     )
     package_metadata(value["package"], f"{context}.package")
@@ -4384,6 +4505,11 @@ def bind_ruleset(
             groupings,
             asset_root,
         )
+    # The catalogues the host supplies, which `catalogue` expressions read;
+    # those reads are bound once every expression of the ruleset is known.
+    catalogues: dict[str, dict[str, Any]] = {}
+    if "catalogues" in value:
+        catalogues = validate_catalogues(value["catalogues"], f"{context}.catalogues")
     # The values the ruleset derives, which `derived` expressions and the
     # reserved set `axioval:value` name.
     values: set[str] = set()
@@ -4747,7 +4873,7 @@ def bind_ruleset(
 
     walk(value["root"], f"{context}.root", ())
     # Every expression the ruleset and its definitions hold reads only the
-    # values the ruleset derives.
+    # values the ruleset derives and the catalogues it declares.
     for document_context, document in (
         (context, value),
         *(
@@ -4760,6 +4886,14 @@ def bind_ruleset(
             expression_value_reads(expression, read)
             for name in sorted(read - values):
                 fail(document_context, f"the ruleset derives no value {name!r}")
+        bind_catalogue_reads(
+            document_expressions(document), catalogues, document_context
+        )
+    # A derived value's expression stands in no selector or parameter value.
+    for name, definition in value.get("values", {}).items():
+        bind_catalogue_reads(
+            [definition["expression"]], catalogues, f"{context}.values[{name!r}]"
+        )
     for rule_id, read in reads.items():
         unknown = sorted(read - reads.keys())
         if unknown:

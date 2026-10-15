@@ -1,0 +1,13 @@
+amends "Fixture.pkl"
+
+import "../../../schema/Expressions.pkl"
+
+expression = new Expressions.CatalogueExpression {
+  catalogue = "materials"
+  key = new Expressions.PropertyExpression {
+    propertySet = "ex:material"
+    property = "ex:name"
+  }
+  column = "lambda"
+  label = "thermal conductivity"
+}

@@ -5238,5 +5238,262 @@ class RelationTests(unittest.TestCase):
                     validate.evaluate(path)
 
 
+
+def catalogue(catalogue_id: str = "materials", **fields) -> dict:
+    definition = {
+        "id": catalogue_id,
+        "name": {"default": catalogue_id, "translations": {}},
+        "key": "name",
+        "columns": [
+            {"id": "name", "header": "Material", "kind": "string"},
+            {"id": "lambda", "kind": "quantity", "unit": "W/(m*K)"},
+            {"id": "combustible", "kind": "boolean"},
+        ],
+    }
+    definition.update(fields)
+    return definition
+
+
+def catalogue_node(column: str = "lambda", catalogue_id: str = "materials") -> dict:
+    return {
+        "kind": "catalogue",
+        "catalogue": catalogue_id,
+        "key": {"kind": "property", "property": REFERENCE},
+        "column": column,
+    }
+
+
+def catalogue_read(column: str = "lambda", catalogue_id: str = "materials") -> dict:
+    return {
+        "kind": "expression",
+        "expression": {
+            "kind": "isDefined",
+            "operand": catalogue_node(column, catalogue_id),
+        },
+    }
+
+
+def derived_value(expression: dict) -> dict:
+    return {
+        "conductivity": {
+            "name": {"default": "Conductivity", "translations": {}},
+            "expression": expression,
+        }
+    }
+
+
+class CatalogueTests(unittest.TestCase):
+    """Catalogues of material or product data a ruleset declares, whose
+    entries the host supplies at check time and `catalogue` expressions
+    take values from."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        expected = validate.ROOT / "examples/minimal/expected"
+        cls.definitions = json.loads((expected / "definitions.json").read_text())
+        cls.ruleset = json.loads((expected / "ruleset.json").read_text())
+
+    def bind(self, catalogues=None, **ruleset_fields) -> None:
+        ruleset = copy.deepcopy(self.ruleset)
+        rule = ruleset["root"]["rules"][0]
+        rule.pop("explanatoryImages", None)
+        rule.pop("requirements", None)
+        if "applicability" in ruleset_fields:
+            rule["applicability"] = copy.deepcopy(ruleset_fields.pop("applicability"))
+        if catalogues is not None:
+            ruleset["catalogues"] = copy.deepcopy(catalogues)
+        ruleset.update(copy.deepcopy(ruleset_fields))
+        validate.bind_ruleset(ruleset, [copy.deepcopy(self.definitions)], "test")
+
+    def assert_rejected(self, catalogues=None, reason: str = "", **ruleset_fields) -> None:
+        with (
+            self.subTest(catalogues=catalogues, fields=ruleset_fields),
+            self.assertRaises(SystemExit) as failure,
+        ):
+            self.bind(catalogues, **ruleset_fields)
+        self.assertIn(reason, str(failure.exception))
+
+    def test_accepts_catalogues_and_reads_of_their_value_columns(self) -> None:
+        declared = {
+            "materials": catalogue(
+                description={"default": "Materials", "translations": {}}
+            ),
+            "epd.2024-v1": catalogue("epd.2024-v1"),
+        }
+        self.bind(declared)
+        for column in ("lambda", "combustible"):
+            self.bind(declared, applicability=catalogue_read(column))
+        self.bind(declared, applicability=catalogue_read(catalogue_id="epd.2024-v1"))
+        # A derived value may take values from a catalogue, as may a member
+        # filter.
+        self.bind(declared, values=derived_value(catalogue_node()))
+        self.bind(
+            declared,
+            applicability={
+                "kind": "expression",
+                "expression": {
+                    "kind": "aggregate",
+                    "function": "count",
+                    "over": {"kind": "path", "path": ["IfcRelAggregates"]},
+                    "where": catalogue_read(),
+                },
+            },
+        )
+
+    def test_rejects_malformed_catalogues(self) -> None:
+        columns = catalogue()["columns"]
+        for catalogues, reason in (
+            ({}, "omitted when empty"),
+            ([catalogue()], "expected object"),
+            ({"materials": catalogue("woods")}, "map key and id must match"),
+            *(
+                ({f"a{c}b": catalogue(f"a{c}b")}, "must not be blank")
+                for c in (*":;|/#=", " ", "\t")
+            ),
+            ({"": catalogue("")}, "must not be blank"),
+            ({"materials": {**catalogue(), "entries": []}}, "unknown=['entries']"),
+            *(
+                (
+                    {"materials": {k: v for k, v in catalogue().items() if k != key}},
+                    f"missing=['{key}']",
+                )
+                for key in ("id", "name", "key", "columns")
+            ),
+            ({"materials": catalogue(columns=[])}, "no columns are declared"),
+            ({"materials": catalogue(key="density")}, "key column 'density' is not declared"),
+            ({"materials": catalogue(key="lambda")}, "declared quantity, not string"),
+            ({"materials": catalogue(key="combustible")}, "declared boolean, not string"),
+            (
+                {"materials": catalogue(columns=[*columns, {"id": "source", "kind": "reference"}])},
+                "declared reference, which states no value",
+            ),
+            (
+                {"materials": catalogue(columns=[*columns, {"id": "pattern", "kind": "textPattern"}])},
+                "declared textPattern, which states no value",
+            ),
+            (
+                {"materials": catalogue(columns=[*columns, {"id": "rule", "kind": "selector"}])},
+                "a selector column",
+            ),
+            (
+                {"materials": catalogue(columns=[*columns, {"id": "name", "kind": "string"}])},
+                "declared twice",
+            ),
+            (
+                {"materials": catalogue(columns=[*columns, {"id": "other", "header": "Material", "kind": "string"}])},
+                "two columns are headed",
+            ),
+            (
+                {"materials": catalogue(columns=[*columns, {"id": "density", "kind": "quantity"}])},
+                "declares no unit",
+            ),
+            (
+                {"materials": catalogue(columns=[*columns, {"id": "Density", "kind": "number"}])},
+                "is no identifier",
+            ),
+            (
+                {"materials": catalogue(columns=[*columns, {"id": "density", "kind": "number", "required": True}])},
+                "unknown=['required']",
+            ),
+        ):
+            self.assert_rejected(catalogues, reason)
+
+    def test_rejects_reads_of_undeclared_catalogues_and_columns(self) -> None:
+        declared = {"materials": catalogue()}
+        for applicability, reason in (
+            (catalogue_read(catalogue_id="woods"), "declares no catalogue 'woods'"),
+            (catalogue_read("density"), "has no value column 'density'"),
+            # The key column names the entries; it is no value of one.
+            (catalogue_read("name"), "has no value column 'name'"),
+            (catalogue_read(catalogue_id="a#b"), "names no valid catalogue"),
+            (catalogue_read("Lambda"), "names no valid column"),
+        ):
+            self.assert_rejected(declared, reason, applicability=applicability)
+        # Without catalogues none is declared.
+        self.assert_rejected(
+            None, "declares no catalogue 'materials'", applicability=catalogue_read()
+        )
+        self.assert_rejected(
+            declared,
+            "declares no catalogue 'woods'",
+            values=derived_value(catalogue_node(catalogue_id="woods")),
+        )
+
+    def test_pkl_renders_catalogues_and_omits_them_when_empty(self) -> None:
+        rules = (validate.ROOT / "schema/RuleSets.pkl").as_uri()
+
+        def module(body: str) -> str:
+            return (
+                f'amends "{rules}"\n\n'
+                'package { id = "axioval:example.catalogues"; version = "0.1.0"; '
+                'name { default = "Catalogues" } }\n'
+                'definitionPackages { "axioval:example.definitions" }\n'
+                'root { id = "root"; name { default = "Root" } }\n'
+                f"{body}\n"
+            )
+
+        body = """catalogues {
+  ["materials"] {
+    id = "materials"
+    name { default = "materials" }
+    key = "name"
+    columns {
+      new { id = "name"; header = "Material"; kind = "string" }
+      new { id = "lambda"; kind = "quantity"; unit = "W/(m*K)" }
+      new { id = "combustible"; kind = "boolean" }
+    }
+  }
+  ["epd.2024-v1"] {
+    id = "epd.2024-v1"
+    name { default = "epd.2024-v1" }
+    description { default = "EPD" }
+    key = "name"
+    columns {
+      new { id = "name"; kind = "string" }
+    }
+  }
+}"""
+        with tempfile.TemporaryDirectory(dir=validate.ROOT / "tests") as tmp:
+            path = Path(tmp) / "catalogues.pkl"
+            path.write_text(module(body), encoding="utf-8")
+            evaluated = validate.evaluate(path)
+            self.assertEqual(
+                evaluated["catalogues"],
+                {
+                    "materials": catalogue(),
+                    "epd.2024-v1": {
+                        "id": "epd.2024-v1",
+                        "name": {"default": "epd.2024-v1", "translations": {}},
+                        "description": {"default": "EPD", "translations": {}},
+                        "key": "name",
+                        "columns": [{"id": "name", "kind": "string"}],
+                    },
+                },
+            )
+            self.assertEqual(
+                list(evaluated["catalogues"]["materials"]),
+                ["id", "name", "key", "columns"],
+            )
+            self.assertEqual(list(evaluated)[-1], "catalogues")
+            validate.bind_ruleset(evaluated, [copy.deepcopy(self.definitions)], "test")
+            path.write_text(module(""), encoding="utf-8")
+            self.assertNotIn("catalogues", validate.evaluate(path))
+            key = 'key = "name"\n    columns {\n      new { id = "name"; header'
+            for broken in (
+                body.replace('["materials"] {\n    id = "materials"', '["materials"] {\n    id = "woods"'),
+                body.replace('id = "materials"', 'id = "a=b"').replace('["materials"]', '["a=b"]'),
+                body.replace('id = "materials"', 'id = "a#b"').replace('["materials"]', '["a#b"]'),
+                body.replace(key, key.replace('"name"', '"lambda"', 1)),
+                body.replace(key, key.replace('"name"', '"density"', 1)),
+                body.replace('kind = "boolean"', 'kind = "reference"'),
+                body.replace('kind = "boolean"', 'kind = "textPattern"'),
+                body.replace('kind = "boolean"', 'kind = "selector"'),
+                body.replace('id = "combustible"', 'id = "lambda"'),
+                body.replace('      new { id = "name"; kind = "string" }\n', ""),
+            ):
+                with self.subTest(broken=broken), self.assertRaises(SystemExit):
+                    path.write_text(module(broken), encoding="utf-8")
+                    validate.evaluate(path)
+
 if __name__ == "__main__":
     unittest.main()

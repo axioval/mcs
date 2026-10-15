@@ -202,6 +202,20 @@ class Lookup2Expression extends Expression {
   clamp: Boolean = false
 }
 
+/// The `column` value of the entry of the ruleset's catalogue `catalogue`
+/// whose key equals `key`, a text, exactly: a material name, a classification
+/// code or a product ID. The value is the catalogue's statement, cited with
+/// its ID, version and entry, never the model's. An empty cell is `null`, and
+/// so is a `null` key; a key no entry has, and a catalogue the host did not
+/// supply, are not evaluated. The binder requires `catalogue` to be declared
+/// and `column` to be one of its columns other than its key.
+class CatalogueExpression extends Expression {
+  kind: "catalogue" = "catalogue"
+  catalogue: Types.CatalogueId
+  key: Expression
+  column: Types.Identifier
+}
+
 class NotExpression extends UnaryExpression {
   kind: "not" = "not"
 }

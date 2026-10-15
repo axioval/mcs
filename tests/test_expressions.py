@@ -239,6 +239,17 @@ values {{
     }}
   }}
 }}
+catalogues {{
+  ["materials"] {{
+    id = "materials"
+    name {{ default = "Materials" }}
+    key = "name"
+    columns {{
+      new {{ id = "name"; kind = "string" }}
+      new {{ id = "lambda"; header = "λ"; kind = "quantity"; unit = "W/(m·K)" }}
+    }}
+  }}
+}}
 root {{
   id = "root"
   name {{ default = "Fixtures" }}
@@ -279,7 +290,7 @@ class ExpressionFixtureTests(unittest.TestCase):
             covered.add(node["kind"])
             pending.extend(contracts.expression_children(node))
         self.assertEqual(covered, set(contracts.EXPRESSION_KINDS))
-        self.assertEqual(len(contracts.EXPRESSION_KINDS), 54)
+        self.assertEqual(len(contracts.EXPRESSION_KINDS), 55)
         self.assertEqual(
             {
                 value["value"]["type"]
@@ -314,7 +325,7 @@ class ExpressionFixtureTests(unittest.TestCase):
 
     def test_pkl_authors_every_fixture_byte_for_byte(self) -> None:
         stems = sorted(fixtures())
-        self.assertEqual(len(stems), 64)
+        self.assertEqual(len(stems), 65)
         with tempfile.TemporaryDirectory() as output:
             proc = subprocess.run(
                 [
@@ -1196,6 +1207,44 @@ class ExpressionBindingTests(unittest.TestCase):
                 "unknown aggregate function 'median'",
             ),
             ({"kind": "previous"}, "missing=['operand']"),
+            (
+                {"kind": "catalogue", "catalogue": "materials", "column": "lambda"},
+                "missing=['key']",
+            ),
+            *(
+                (
+                    {
+                        "kind": "catalogue",
+                        "catalogue": catalogue,
+                        "key": literal,
+                        "column": "lambda",
+                    },
+                    "names no valid catalogue",
+                )
+                for catalogue in ("", " ", "a:b", "a;b", "a|b", "a/b", "a#b", "a=b", "a b", 1)
+            ),
+            *(
+                (
+                    {
+                        "kind": "catalogue",
+                        "catalogue": "materials",
+                        "key": literal,
+                        "column": column,
+                    },
+                    "names no valid column",
+                )
+                for column in ("", "Lambda", "a b", None)
+            ),
+            (
+                {
+                    "kind": "catalogue",
+                    "catalogue": "materials",
+                    "key": literal,
+                    "column": "lambda",
+                    "label": " ",
+                },
+                "names a blank label",
+            ),
         )
         for expression, reason in cases:
             with self.subTest(expression=expression):

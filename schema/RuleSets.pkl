@@ -443,6 +443,45 @@ class ValueDefinition {
   expression: Expressions.Expression
 }
 
+/// A catalogue of material or product data that models leave out or name only
+/// by reference, such as each material's thermal conductivity, taken as values
+/// the catalogue states.
+///
+/// The ruleset declares only its shape: the text column `key` whose cells
+/// name the entries (a material name, a classification code or a product ID)
+/// and every column the file holds, as a `tableFile` declares them. The host
+/// supplies the entries at check time, beside the model, as a CSV file or one
+/// sheet of an `.xlsx` workbook, with the catalogue's version, so one rule
+/// package serves every catalogue edition. The package states no entries and
+/// no digest.
+///
+/// A `CatalogueExpression` reads the entry whose key equals its `key`
+/// exactly. Its value is the catalogue's statement, cited with the
+/// catalogue's ID, version, file digest and entry, never the model's. An
+/// empty cell is a value the catalogue states as absent (`null`); a key no
+/// entry has, and a catalogue the host did not supply, leave the reading
+/// object not evaluated, never given a default.
+class CatalogueDefinition {
+  id: Types.CatalogueId
+  name: Types.LocalizedText
+  /// Normalized JSON omits it when unset.
+  description: Types.LocalizedText?
+  /// The ID of the `string` column whose cells name the entries.
+  key: Types.Identifier(columns.toList().any((it) -> it.id == this && it.kind == "string"))
+  /// Every column of the catalogue's file, the key column included, each
+  /// holding a value: no `reference` or `textPattern` column.
+  columns: Listing<Values.TableFileColumn>(
+    !isEmpty,
+    isDistinctBy((it) -> it.id),
+    isDistinctBy((it) -> it.header ?? it.id),
+    every((it) -> it.kind != "reference" && it.kind != "textPattern")
+  )
+}
+
+/// Render a catalogue without an unset description.
+const function normalizedCatalogue(catalogue: CatalogueDefinition): Map<String, Any> =
+  catalogue.toMap().filter((_, value) -> value != null)
+
 /// Concrete ruleset package (ABox-like): instances reference definitions by
 /// stable ID. Definition and capability resolution happens in the consuming
 /// application and must fail closed when unavailable.
@@ -470,13 +509,22 @@ relations: Mapping<String, RelationDefinition>(
 /// Values the ruleset derives per object from expressions, by name.
 /// Normalized JSON omits it when empty.
 values: Mapping<Types.Identifier, ValueDefinition> = new {}
+/// Catalogues of material or product data the host supplies at check time,
+/// by ID. Normalized JSON omits it when empty.
+catalogues: Mapping<String, CatalogueDefinition>(
+  toMap().every((key, value) -> key == value.id)
+) = new {}
 
 output {
-  // Omit an empty `classifications`, `groupings`, `relations` or `values`,
-  // so packages that declare none keep byte-identical normalized JSON.
+  // Omit an empty `classifications`, `groupings`, `relations`, `values` or
+  // `catalogues`, so packages that declare none keep byte-identical
+  // normalized JSON.
   value =
     module.toMap().filter((key, value) ->
-      !(Set("classifications", "groupings", "relations", "values").contains(key) && value.isEmpty)
+      !(
+        Set("classifications", "groupings", "relations", "values", "catalogues").contains(key)
+          && value.isEmpty
+      )
     )
   renderer {
     // Omit defaulted property-, property-pattern-, and source-selector flags,
@@ -492,6 +540,7 @@ output {
       [ClassDefinition] = (it) -> normalizedClass(it)
       [GroupingDefinition] = (it) -> normalizedGrouping(it)
       [GroupingKey] = (it) -> normalizedGroupingKey(it)
+      [CatalogueDefinition] = (it) -> normalizedCatalogue(it)
       [Selectors.DerivedClassSelector] = (it) -> Selectors.normalizedDerivedClassSelector(it)
       [Selectors.PropertySelector] = (it) -> Selectors.normalizedPropertySelector(it)
       [Selectors.PropertyPatternSelector] = (it) ->

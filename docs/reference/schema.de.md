@@ -1224,12 +1224,58 @@ Regelsatz nicht deklariert.
     }
     ```
 
+## Kataloge
+
+Ein Regelsatz kann Kataloge `catalogues` mit Baustoff- oder Produktdaten nach
+ID deklarieren, etwa die Wärmeleitfähigkeit jedes Baustoffs, die Modelle
+weglassen oder nur beim Namen nennen. Der Regelsatz deklariert nur die Form
+eines Katalogs: einen lokalisierten `name`, eine optionale `description`, die
+Spalten `columns` seiner Datei, deklariert wie die einer
+[`tableFile`](#tabellen-aus-datendateien) (`id`, optional `header`, `kind`,
+die `unit` einer Größe), und seinen Schlüssel `key`, die `string`-Spalte,
+deren Zellen die Einträge benennen. Der Host liefert die Einträge zur
+Prüfzeit neben dem Modell, als CSV-Datei oder als ein Blatt einer
+`.xlsx`-Arbeitsmappe, mit der Version des Katalogs, sodass ein Regelpaket jeder
+Katalogausgabe dient; das Paket gibt weder Einträge noch eine Prüfsumme an, und
+der Packer legt keine Datei dafür ab. Ein
+[`catalogue`-Ausdruck](../expressions.de.md#kataloge) entnimmt ihm einen Wert.
+
+Die ID eines Katalogs steht im Locator jedes Werts, der ihm entnommen wird:
+Sie darf nicht leer sein und weder `:`, `;`, `|`, `/`, `#`, `=` noch Leerraum
+enthalten. Jede Spalte enthält einen Wert, daher wird eine `reference`- oder
+`textPattern`-Spalte abgelehnt, und wie in jeder Tabellendatei eine
+`selector`-Spalte. Normalisiertes JSON lässt leere `catalogues` und eine nicht
+gesetzte `description` weg, sodass Pakete ohne Kataloge bytegleich bleiben.
+Der Binder lehnt einen Zuordnungsschlüssel ungleich der ID ab, Spalten, die
+eine Tabellendatei nicht deklarieren könnte (doppelte IDs oder Überschriften,
+eine leere Überschrift, eine Größe ohne Einheit, eine Einheit an einer anderen
+Art) oder deren ID kein Bezeichner ist, einen Schlüssel `key`, der keine
+deklarierte `string`-Spalte nennt, und einen `catalogue`-Ausdruck, der einen
+Katalog nennt, den derselbe Regelsatz nicht deklariert, eine Spalte, die der
+Katalog nicht deklariert, oder seine Schlüsselspalte.
+
+??? example "Einen Katalog von Baustoffen anzeigen"
+    ```pkl
+    catalogues {
+      ["materials"] {
+        id = "materials"
+        name { default = "Baustoffe" }
+        key = "name"
+        columns {
+          new { id = "name"; header = "Baustoff"; kind = "string" }
+          new { id = "lambda"; header = "λ"; kind = "quantity"; unit = "W/(m·K)" }
+          new { id = "combustible"; kind = "boolean" }
+        }
+      }
+    }
+    ```
+
 ## Ausdrücke und abgeleitete Werte {#ausdruecke-und-abgeleitete-werte}
 
 `Expressions.pkl` beschreibt berechnete Werte als Daten: einen Baum aus Knoten
 mit einer Art `kind` und optional einem nicht leeren `label`, von skalaren
-`literal`-Werten, Eigenschaften, Parametern, Tabellenabfragen und abgeleiteten
-Werten über Logik, Vergleich, Arithmetik, Neigung, Text, `aggregate`, `argmin`,
+`literal`-Werten, Eigenschaften, Parametern, Tabellenabfragen, Katalogwerten
+und abgeleiteten Werten über Logik, Vergleich, Arithmetik, Neigung, Text, `aggregate`, `argmin`,
 `argmax` und `pairs` mit `previous` und `next` eines Paars bis zu den
 Ergebnissen anderer Regeln. [Mit Ausdrücken rechnen](../expressions.de.md)
 erklärt jede Art.
@@ -1252,7 +1298,8 @@ Normalisiertes JSON schreibt die Felder jedes Knotens in der Reihenfolge der
 prüfenden Anwendung, das `label` zuletzt, lässt nicht gesetzte Felder, die
 Vorgabe `true` von `caseSensitive`, `lowInclusive` und `highInclusive` sowie die
 Vorgabe `false` von `clamp`, `interpolateRow` und `interpolateColumn` weg,
-ordnet die `keys` eines Lookups nach Spalten-ID und lässt leere `values` weg,
+ordnet die `keys` eines Lookups nach Spalten-ID und lässt leere `values` und
+`catalogues` weg,
 sodass bestehende Pakete bytegleich bleiben. Eine Ausdruckseigenschaft nennt ein
 deklariertes Eigenschaftskonzept in einer deklarierten oder reservierten Menge
 oder einen Namen einer abgeleiteten Menge; der Binder lehnt außerdem Ausdrücke

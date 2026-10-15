@@ -42,7 +42,7 @@ for it instead of its rendered form.
 
 | Group | Kinds |
 | --- | --- |
-| values | `literal`, `null`, `property`, `parameter`, `derived`, `lookup`, `interpolate`, `lookup2` |
+| values | `literal`, `null`, `property`, `parameter`, `derived`, `lookup`, `interpolate`, `lookup2`, `catalogue` |
 | truth | `not`, `and`, `or`, `implies`, `xor`, `isDefined`, `isUndefined` |
 | comparison | `compare`, `between`, `oneOf`, `noneOf` |
 | choice | `if`, `coalesce` |
@@ -64,6 +64,9 @@ for it instead of its rendered form.
   `lookup` reads the `column` cell of the most specific row of a `table`
   parameter whose key columns match `keys`. `interpolate` and `lookup2` read
   between a table's rows; see [Tables](#tables).
+- A `catalogue` takes a value from a catalogue the host supplies beside the
+  model, such as a material's thermal conductivity; see
+  [Catalogues](#catalogues).
 - `compare` takes an `operator`: `equals`, `notEquals`, `lessThan`,
   `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals`, `like`, `matches`,
   or `contains`. `caseSensitive: false` folds case. `between` is inclusive
@@ -221,6 +224,54 @@ column to be an `integer`, `number`, or `quantity` column, and the `column`
 read to be one too when any key is interpolated. The checking application
 checks that a key's unit matches its column's.
 
+## Catalogues
+
+Models often leave out material or product data, or name a material only by
+reference: a wall states its material's name, not its thermal conductivity.
+A ruleset declares the shape of a catalogue holding such data in
+`catalogues`, by ID, and the host supplies its entries at check time, beside
+the model, as a CSV file or one sheet of an `.xlsx` workbook, with the
+catalogue's version. One rule package thus serves every catalogue edition, and
+the package states no entries.
+
+A `catalogue` node reads the entry of the catalogue `catalogue` whose key
+equals `key`, a text, exactly, and takes its `column` value. The value is the
+catalogue's statement, cited with the catalogue's ID, version, file digest,
+and entry, never the model's. An empty cell is `null`, and so is a `null` key;
+a key no entry has, and a catalogue the host did not supply, leave the object
+not evaluated, never given a default.
+
+??? example "Show a material's thermal conductivity from a catalogue"
+    ```pkl
+    catalogues {
+      ["materials"] {
+        id = "materials"
+        name { default = "Materials" }
+        key = "name"
+        columns {
+          new { id = "name"; header = "Material"; kind = "string" }
+          new { id = "lambda"; header = "λ"; kind = "quantity"; unit = "W/(m·K)" }
+        }
+      }
+    }
+    ```
+
+    ```pkl
+    new Expressions.CatalogueExpression {
+      catalogue = "materials"
+      key = new Expressions.PropertyExpression {
+        propertySet = "axioval:example.material"
+        property = "axioval:example.material.name"
+      }
+      column = "lambda"
+      label = "thermal conductivity"
+    }
+    ```
+
+The binder requires the catalogue to be declared and `column` to be one of its
+columns other than its key column, which names the entries. The checking
+application checks that `key` is a text.
+
 ## Derived values
 
 A ruleset names a value once in `values` and every rule, selector, and other
@@ -329,6 +380,8 @@ Pkl checks each node's shape. The binder then refuses, among others:
   parameter, or naming a parameter the rule neither binds nor defaults, a
   table column it lacks, a parameter that is no single value, or a
   non-numeric column it interpolates along or reads interpolated;
+- a `catalogue` naming a catalogue the ruleset does not declare, a column
+  the catalogue does not declare, or its key column;
 - a rule outcome naming a rule outside the ruleset, a rule reading its own
   outcome, rules reading one another in a cycle, and any rule outcome in a
   derived value, classification, grouping, or relation; and

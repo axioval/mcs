@@ -1165,11 +1165,53 @@ columns, and a path step naming a relation the same ruleset does not declare.
     }
     ```
 
+## Catalogues
+
+A ruleset may declare `catalogues` of material or product data, by ID, such
+as each material's thermal conductivity, which models leave out or name only
+by reference. The ruleset declares only a catalogue's shape: a localized
+`name`, an optional `description`, the `columns` its file holds, declared as a
+[`tableFile`](#tables-from-data-files)'s are (`id`, optional `header`, `kind`,
+a quantity's `unit`), and its `key`, the `string` column whose cells name the
+entries. The host supplies the entries at check time, beside the model, as a
+CSV file or one sheet of an `.xlsx` workbook, with the catalogue's version, so
+one rule package serves every catalogue edition; the package states no entries
+and no digest, and the packer stores no file for it. A
+[`catalogue` expression](../expressions.md#catalogues) takes a value from it.
+
+A catalogue ID is cited in the locator of every value taken from it: it must
+not be blank or hold `:`, `;`, `|`, `/`, `#`, `=`, or whitespace. Every column
+holds a value, so a `reference` or `textPattern` column is refused, and a
+`selector` column as in any table file. Normalized JSON omits empty
+`catalogues` and an unset `description`, so packages without catalogues render
+byte-identically. The binder rejects a map key other than the ID, columns a
+table file could not declare (duplicate ids or headers, an empty header, a
+quantity without a unit, a unit on another kind) or whose id is no identifier,
+a `key` that names no declared `string` column, and a `catalogue` expression
+naming a catalogue the same ruleset does not declare, a column the catalogue
+does not declare, or its key column.
+
+??? example "Show a catalogue of materials"
+    ```pkl
+    catalogues {
+      ["materials"] {
+        id = "materials"
+        name { default = "Materials" }
+        key = "name"
+        columns {
+          new { id = "name"; header = "Material"; kind = "string" }
+          new { id = "lambda"; header = "λ"; kind = "quantity"; unit = "W/(m·K)" }
+          new { id = "combustible"; kind = "boolean" }
+        }
+      }
+    }
+    ```
+
 ## Expressions and derived values
 
 `Expressions.pkl` states computed values as data: a tree of nodes tagged by
 `kind`, each with an optional non-blank `label`, from scalar `literal`s,
-properties, parameters, table lookups, and derived values, through logic,
+properties, parameters, table lookups, catalogue values, and derived values, through logic,
 comparison, arithmetic, slope, text, `aggregate`, `argmin`, `argmax`, and
 `pairs` nodes with the `previous` and `next` of a pair, to the outcomes of other rules. [Compute with expressions](../expressions.md) explains every kind.
 
@@ -1190,7 +1232,7 @@ Normalized JSON writes each node's fields in the checking application's order,
 its `label` last, omits unset fields, the default `true` of
 `caseSensitive`, `lowInclusive`, and `highInclusive`, and the default `false`
 of `clamp`, `interpolateRow`, and `interpolateColumn`, orders a lookup's `keys`
-by column ID, and omits empty `values`, so existing packages render
+by column ID, and omits empty `values` and `catalogues`, so existing packages render
 byte-identically. An expression property names a declared property concept, in
 a declared or reserved set, or a name of a derived set; the binder also refuses
 expressions nesting deeper than 64 levels, holding more than 2,048 nodes, or

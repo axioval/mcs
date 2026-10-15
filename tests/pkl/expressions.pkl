@@ -90,6 +90,28 @@ facts {
       == #"{"kind":"lookup2","table":"cover","rowKeyColumn":"span","rowKey":{"kind":"property","propertySet":"axioval:measured","property":"extent_z"},"columnKeyColumn":"class","columnKey":{"kind":"null"},"column":"cover","interpolateRow":true,"clamp":true,"label":"cover"}"#
   }
 
+  ["catalogue values write catalogue, key and column in order"] {
+    rendered(new Expressions.CatalogueExpression {
+      label = "conductivity"
+      column = "lambda"
+      key = new Expressions.NullExpression {}
+      catalogue = "epd.2024-v1"
+    })
+      == #"{"kind":"catalogue","catalogue":"epd.2024-v1","key":{"kind":"null"},"column":"lambda","label":"conductivity"}"#
+    for (id in List("", "a:b", "a;b", "a|b", "a/b", "a#b", "a=b", "a b")) {
+      test.catch(() -> new Expressions.CatalogueExpression {
+        catalogue = id
+        key = new Expressions.NullExpression {}
+        column = "lambda"
+      }.catalogue).contains("matches")
+    }
+    test.catch(() -> new Expressions.CatalogueExpression {
+      catalogue = "materials"
+      key = new Expressions.NullExpression {}
+      column = "Lambda"
+    }.column).contains("matches")
+  }
+
   ["argmin and argmax write over, where, by and value in order"] {
     rendered(new Expressions.ArgmaxExpression {
       label = "steepest"

@@ -44,7 +44,7 @@ ihn statt seiner ausgeschriebenen Form nennen.
 
 | Gruppe | Arten |
 | --- | --- |
-| Werte | `literal`, `null`, `property`, `parameter`, `derived`, `lookup`, `interpolate`, `lookup2` |
+| Werte | `literal`, `null`, `property`, `parameter`, `derived`, `lookup`, `interpolate`, `lookup2`, `catalogue` |
 | Wahrheit | `not`, `and`, `or`, `implies`, `xor`, `isDefined`, `isUndefined` |
 | Vergleich | `compare`, `between`, `oneOf`, `noneOf` |
 | Auswahl | `if`, `coalesce` |
@@ -68,6 +68,9 @@ ihn statt seiner ausgeschriebenen Form nennen.
   `table`-Parameters, deren Schlüsselspalten zu `keys` passen. `interpolate`
   und `lookup2` lesen zwischen den Zeilen einer Tabelle; siehe
   [Tabellen](#tabellen).
+- Ein `catalogue` entnimmt einen Wert einem Katalog, den der Host neben dem
+  Modell liefert, etwa die Wärmeleitfähigkeit eines Baustoffs; siehe
+  [Kataloge](#kataloge).
 - `compare` nimmt einen Operator `operator`: `equals`, `notEquals`,
   `lessThan`, `lessThanOrEquals`, `greaterThan`, `greaterThanOrEquals`,
   `like`, `matches` oder `contains`. `caseSensitive: false` ignoriert die
@@ -237,6 +240,55 @@ eine interpolierte Schlüsselspalte eine `integer`-, `number`- oder
 sobald ein Schlüssel interpoliert wird. Ob die Einheit eines Schlüssels zu
 seiner Spalte passt, prüft die prüfende Anwendung.
 
+## Kataloge
+
+Modelle lassen Baustoff- und Produktdaten oft weg oder nennen einen Baustoff
+nur beim Namen: Eine Wand gibt den Namen ihres Baustoffs an, nicht seine
+Wärmeleitfähigkeit. Ein Regelsatz deklariert die Form eines Katalogs mit
+solchen Daten in `catalogues`, nach ID, und der Host liefert seine Einträge zur
+Prüfzeit neben dem Modell, als CSV-Datei oder als ein Blatt einer
+`.xlsx`-Arbeitsmappe, mit der Version des Katalogs. So dient ein Regelpaket
+jeder Katalogausgabe, und das Paket gibt keine Einträge an.
+
+Ein `catalogue`-Knoten liest den Eintrag des Katalogs `catalogue`, dessen
+Schlüssel genau gleich `key` ist, einem Text, und entnimmt ihm den Wert der
+Spalte `column`. Der Wert ist die Angabe des Katalogs, belegt mit ID, Version,
+Dateiprüfsumme und Eintrag des Katalogs, nie die des Modells. Eine leere Zelle
+ist `null`, ebenso ein Schlüssel `null`; ein Schlüssel, den kein Eintrag hat,
+und ein Katalog, den der Host nicht geliefert hat, lassen das Objekt
+ungeprüft und geben ihm nie einen Vorgabewert.
+
+??? example "Wärmeleitfähigkeit eines Baustoffs aus einem Katalog anzeigen"
+    ```pkl
+    catalogues {
+      ["materials"] {
+        id = "materials"
+        name { default = "Baustoffe" }
+        key = "name"
+        columns {
+          new { id = "name"; header = "Baustoff"; kind = "string" }
+          new { id = "lambda"; header = "λ"; kind = "quantity"; unit = "W/(m·K)" }
+        }
+      }
+    }
+    ```
+
+    ```pkl
+    new Expressions.CatalogueExpression {
+      catalogue = "materials"
+      key = new Expressions.PropertyExpression {
+        propertySet = "axioval:example.material"
+        property = "axioval:example.material.name"
+      }
+      column = "lambda"
+      label = "thermal conductivity"
+    }
+    ```
+
+Der Binder verlangt, dass der Katalog deklariert ist und `column` eine seiner
+Spalten außer der Schlüsselspalte ist, die die Einträge benennt. Dass `key`
+ein Text ist, prüft die prüfende Anwendung.
+
 ## Abgeleitete Werte
 
 Ein Regelsatz benennt einen Wert einmal in `values`, und jede Regel, jeder
@@ -351,6 +403,9 @@ Pkl prüft die Form jedes Knotens. Der Binder lehnt danach unter anderem ab:
   vorgibt, einer Tabellenspalte, die es nicht gibt, einem Parameter, der kein
   einzelner Wert ist, oder einer nicht numerischen Spalte, entlang der oder
   aus der interpoliert wird;
+- ein `catalogue`, das einen Katalog nennt, den der Regelsatz nicht
+  deklariert, eine Spalte, die der Katalog nicht deklariert, oder seine
+  Schlüsselspalte;
 - ein Regelergebnis einer Regel außerhalb des Regelsatzes, eine Regel, die ihr
   eigenes Ergebnis liest, Regeln, die einander im Kreis lesen, und jedes
   Regelergebnis in einem abgeleiteten Wert, einer Klassifikation, Gruppierung
