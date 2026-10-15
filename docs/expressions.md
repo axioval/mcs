@@ -86,8 +86,11 @@ for it instead of its rendered form.
 - `aggregate` computes `count`, `sum`, `min`, `max`, `average`, `any`, `all`,
   `none`, or `distinctCount` over members it reaches `over` a relationship
   `path`, the derived `group` of a grouping, a `selector`, or a `measured`
-  member list such as `steps`. An optional `where` selector filters the
-  members, and `value` is evaluated for each; a count takes no `value`, every
+  member list of the engine's measured registry, such as `steps` or
+  `layers;spaces=IfcSpace`, its parameters checked as a
+  [measured value's](reference/schema.md#measured-values). An optional `where`
+  selector filters the members, and `value` is evaluated for each; a count
+  takes no `value`, every
   other function needs one. Inside the `value` of an aggregate over measured
   members, the reserved set `axioval:member` names each member's fields.
 - `argmin` and `argmax` choose the member whose `by`, a number, is least or
@@ -462,9 +465,10 @@ Pkl checks each node's shape. The binder then refuses, among others:
   or nesting aggregates, `argmin`, `argmax`, and `pairs` more than two deep
   within one another's `value`, `by`, or `where`;
 - an aggregate or `pairs` whose `value` does not match its function, a `where`
-  on measured members, an unknown measured member list, and `axioval:member`
-  outside the `value` of a measured aggregate or the `by` and `value` of a
-  measured `argmin`, `argmax`, or `pairs`;
+  on measured members, an unknown measured member list or one with a
+  parameter the registry does not accept, and `axioval:member` outside the
+  `value` of a measured aggregate or the `by` and `value` of a measured
+  `argmin`, `argmax`, or `pairs`;
 - a `previous` or `next` anywhere but within the `value` of a `pairs`: not in
   its `by` or `where`, not in another `previous` or `next`, and not within an
   aggregate, `argmin`, `argmax`, or `pairs` nested in that `value`, which reads

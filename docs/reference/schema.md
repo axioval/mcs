@@ -1282,38 +1282,85 @@ round-trip through `.mcs` byte for byte in the transport's canonical form
 ## Measured values
 
 The reserved set `axioval:measured` names values the checking application
-measures from an object's body rather than reads from a source:
+measures from an object's body, its surroundings, or the project, rather than
+reads from a source. Its names are those of the engine's measured registry,
+which the
+[engine's derived values reference](https://github.com/axioval/engine/blob/0e1a0f6158372daa361307c10c71a7127e42ca23/docs/src/derived.md)
+documents one by one. Some of them:
 
 | Name | Value |
 | --- | --- |
-| `extent_x`, `extent_y` | the extent along the world x or y axis, a length |
-| `extent_z` | the height, a length |
+| `extent_x`, `extent_y`, `extent_z` | the extent along a world axis, a length |
 | `bottom`, `top` | the elevation of the lowest and highest point, a length |
-| `area` | the footprint area, overlaps counted once |
-| `volume` | the enclosed volume |
-| `x`, `y`, `z` | the world coordinates of the placement origin, a length |
-| `level_height` | a storey's height to the next storey, a length, as the source states it |
+| `area`, `volume` | the footprint area, overlaps counted once, and the enclosed volume |
+| `slope[;face=<face>]` | a face's steepest gradient, an angle |
 | `bottom_above_level;path=<steps>` | the bottom above the one level the path reaches, a length |
 | `boundary_area;kind=<kind>[;plane=<metres>]` | a space's boundary area against elements of the source kind `kind` or a subtype |
 | `station;alignment=<kinds>[;path=<steps>]` | the station of the object's reference point along the one alignment of the source kinds `alignment`, a length |
+| `count_within;to=<kinds>;radius=<metres>` | how many counterparts lie within a radius |
+| `sum_within;to=<kinds>;value=<property>;radius=<metres>` | the sum of a number the counterparts within a radius state; `min_within`, `max_within` and `mean_within` alike |
+| `zone_area;zone=<id>` | the area of a context zone supplied beside the model |
+| `above_terrain;terrain=<ground>;of=<what>` | the height above the original or finished terrain, a length |
 
-Three names take parameters after the name, `;`-separated `key=value` pairs
-that are part of the property name. `bottom_above_level` requires `path`, the
-`,`-separated steps a related selector writes,
-`Relationship[|Relationship...][:forward|backward|either][+]`, such as
-`IfcRelContainedInSpatialStructure:backward`. `boundary_area` requires `kind`
-and takes an optional `plane`, a number of metres of at least zero. `station`
-requires `alignment`, the `,`-separated source kinds of the alignment, and
-takes an optional `path`, the steps from the object to its alignment, written
-as `bottom_above_level`'s.
+A name takes its parameters after it, `;`-separated `key=value` pairs that are
+part of the property name, such as
+`sum_within;to=ex:extinguisher;value=ex:units;radius=15`. The binder checks them
+as the engine's `measured::parse` does, against the registry's grammar mirrored
+in `scripts/measured_registry.json`: each key ignoring ASCII case, one the name
+takes, stated once; every required parameter stated; and each value, stated or
+defaulted, of its kind:
+
+| Kind | Written as |
+| --- | --- |
+| `path`, `paths` | `,`-separated steps a related selector writes; for `paths`, `,`-separated paths, each its steps separated by spaces |
+| `sourceKind`, `objects`, `text`, `pattern` | any text that is not empty |
+| `length`, `number`, `area` | a finite number of at least the parameter's minimum |
+| `angle` | degrees of at least zero and below the parameter's bound |
+| `choice`, `choices` | one, or several `,`-separated, of the parameter's options, ignoring ASCII case |
+| `vector` | `x,y,z`, not zero |
+| `polygon` | at least three `lateral:up` vertices, `,`-separated, of a simple polygon |
+| `property` | `set/name` or `name` |
+| `truth` | `true` or `false` |
+| `table` | only a rule parameter, `@name` |
+
+A step is written `Relationship[|Relationship...][:forward|backward|either][+]`,
+such as `IfcRelContainedInSpatialStructure:backward`; the engine reads the
+steps once it resolves the path, and the binder refuses a step no related
+selector could write after the engine's own checks pass.
+
+A value written `@name` instead names a parameter of the rule reading the
+measured value, where the parameter's kind takes one (neither a `vector` nor a
+`polygon` does), and `@anchor` in an `objects` parameter the object the rule
+checks, except for a value measured for each source or the project. The checks
+across parameters follow too: `face=facing` needs its `direction` and a
+`tolerance` of at most 180 degrees, and no other face takes either; a value
+reaching its counterparts by `radius`, a shared `group`, or a context `zone`
+states exactly one of them, and with `group` or `zone` nothing of a distance
+(`from`, `projection`, `direction`, `measure`, `walking_*`); `measure=walking`
+needs `walking_radius`, `walking_height`, and `walking_step` and takes no
+`projection` or `direction`; and a value naming its zone by `zone` or by the
+kind of zone the object `stands_in` states exactly one.
 
 Selectors, property references, and category levels name them in that set,
 matched ignoring ASCII case and surrounding whitespace; they bind to no concept.
-The binder rejects any other name there, a missing required parameter, a
-malformed step or `plane`, a parameter stated twice, and any other parameter. A selector compares a measured value with a `quantity`. A
-value the application measures only to lie within an interval, such as from a
-tessellated body, leaves an object not evaluated when the interval straddles
-the bound.
+The binder rejects any other name, and any parameter the registry does not
+accept, with the engine's reason, such as ``"`sum_within` needs `radius`"``. A
+selector compares a measured value with a `quantity`. A value the application
+measures only to lie within an interval, such as from a tessellated body, leaves
+an object not evaluated when the interval straddles the bound.
+
+The registry's snapshot records the engine commit it was taken from. To check
+that it has not drifted, point `AXIOVAL_ENGINE_CATALOGUE` at the engine's
+golden authoring catalogue and run the tests; the check fails when the engine
+adds, removes, or changes a measured value or member list.
+`python3 scripts/measured_registry.py <catalogue> <commit>` regenerates the
+snapshot; `schema/Types.pkl` and `schema/Expressions.pkl` list the same names.
+
+??? example "Show the drift check against an engine checkout"
+    ```bash
+    AXIOVAL_ENGINE_CATALOGUE=../engine/crates/engine/rules/tests/golden/catalogue.json \
+      python3 -m unittest tests.test_measured -v
+    ```
 
 ??? example "Show a selector for objects lower than 50 mm"
     ```pkl

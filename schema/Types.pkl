@@ -55,23 +55,71 @@ typealias RelationId = String(matches(Regex(#"[^:;|/\s]+"#)))
 /// a locator.
 typealias CatalogueId = String(matches(Regex(#"[^:;|/#=\s]+"#)))
 
-/// The names in `measuredSet`, matched ignoring ASCII case: the body's extent
-/// along the world axes (`extent_x`, `extent_y`, `extent_z`), the elevation of
-/// its lowest and highest point (`bottom`, `top`), its footprint area (`area`),
-/// its enclosed volume (`volume`), the world coordinates of its placement
-/// origin (`x`, `y`, `z`), and a storey's height to the next storey
-/// (`level_height`). Two names take `;key=value` parameters after the name:
-/// `bottom_above_level;path=<steps>`, the bottom above the one level the
-/// `,`-separated related-selector steps reach, and
-/// `boundary_area;kind=<kind>[;plane=<metres>]`, a space's boundary area
-/// against elements of one source kind, and
-/// `station;alignment=<kinds>[;path=<steps>]`, the station of the object's
-/// reference point along the one alignment of those source kinds. Pkl checks
-/// the name before the parameters; the binder checks the parameters.
+/// The names in `measuredSet`, matched ignoring ASCII case: every measured
+/// value of the engine's measured registry, such as the body's extent along a
+/// world axis (`extent_z`), its footprint `area`, a face's `slope`, or how many
+/// counterparts lie within a radius (`count_within`). A name may take
+/// `;key=value` parameters after it, such as
+/// `sum_within;to=<kinds>;value=<property>;radius=<metres>`. Pkl checks the
+/// name before the parameters; the binder checks the parameters against the
+/// registry's grammar (`scripts/measured_registry.json`), as the engine's
+/// `measured::parse` does.
 const measuredNames: Set<String> = Set(
-  "extent_x", "extent_y", "extent_z", "bottom", "top", "area", "volume",
-  "x", "y", "z", "level_height", "bottom_above_level", "boundary_area",
-  "station"
+  "above_terrain", "alignment_cant", "alignment_cant_ratio",
+  "alignment_curvature", "alignment_gradient", "alignment_radius",
+  "alignment_vertical_curvature", "alignment_vertical_radius", "angle_to",
+  "any_external", "area", "available_sight_distance", "azimuth",
+  "band_uncovered_area", "bearing", "body_extent", "body_position", "bottom",
+  "bottom_above_level", "boundary_area", "boundary_coverage_off",
+  "boundary_coverage_overlap", "boundary_coverage_share",
+  "boundary_coverage_surface", "boundary_coverage_uncovered",
+  "boundary_covered_share", "boundary_gap", "boundary_off_surface_count",
+  "boundary_overlap_area", "boundary_uncovered_area", "bounds_envelope",
+  "cap_coverage", "centre_line_distance", "clear_height", "clear_width",
+  "clearance_below", "compactness", "contact_area", "contact_gap",
+  "contact_share", "coordinate_reference", "coordinate_shift",
+  "coordinate_turn", "count_within", "counterpart_covering",
+  "counterpart_infill", "counterpart_uncovered",
+  "counterpart_uncovered_share", "counterpart_whole", "cover", "cross_fall",
+  "declared_external", "distance", "distance_to_feature", "door_clear_height",
+  "door_clear_width", "drainage_path", "duplicate_count",
+  "effect_covered_area", "effect_covered_share", "effective_area",
+  "effective_capacity", "effective_covered", "effective_reaching",
+  "effective_share", "effective_unread", "end_width", "envelope_area",
+  "envelope_intrusions", "envelope_size", "envelope_volume", "extent",
+  "extent_x", "extent_y", "extent_z", "external_declarations", "facade_area",
+  "face_area", "fall_in_flow", "flight_rise", "flight_width",
+  "gradient_direction", "guard_surfaces", "handrail_breaks", "headroom",
+  "height_above_gradient", "height_above_ground", "height_above_surface",
+  "hinged_leaves", "host_walls", "inclination", "intersection_count",
+  "landing_clear_width", "landing_count", "landing_depth",
+  "landing_door_conflicts", "landing_width", "largest_unallocated_region",
+  "leaf_count", "leaf_width", "length", "level_elevation", "level_height",
+  "level_index", "level_rise", "levels_above", "levels_below", "light_area",
+  "light_size", "light_step", "map_conversion", "map_scale_change",
+  "map_target_change", "max_along", "max_within", "mean_terrain_height",
+  "mean_within", "middle_face_area", "min_along", "min_within",
+  "missing_tactile_strips", "obstructed_end_spaces", "obstruction_angle",
+  "obstruction_count", "offset", "on_envelope", "opening_area",
+  "opening_count", "opening_section_area", "perimeter", "plan_area",
+  "plan_coverage", "plan_diameter", "plan_overlap", "possible_hosts",
+  "prevailing_elevation", "prevailing_rise", "profile_dimension",
+  "profile_slope", "rails_over_surfaces", "rate_along", "ratio_area",
+  "rectangle_side", "run_count", "section_area", "section_modulus",
+  "setback_area", "setback_depth", "setback_outside_area",
+  "setback_overlap_area", "shelf_clear_height", "shelf_length", "sill_height",
+  "skew", "slope", "slope_along", "space_cap", "space_duplicates",
+  "space_height", "space_intersections", "space_supports",
+  "space_uncovered_boundary", "stack_distance", "stack_prevailing",
+  "stair_rise", "station", "station_section_area",
+  "station_section_thickness", "storey_end", "sum_within", "support_count",
+  "swing_area", "swings_into", "thickness", "threshold_step", "tilt", "top",
+  "travel_distance", "triangle_count", "unallocated_share", "uncovered_area",
+  "undecided_count", "undeclared_hosts", "undrained_area", "volume",
+  "walking_line_turns", "well_gap", "well_height", "well_section_area",
+  "well_section_width", "x", "y", "z", "zone_angle", "zone_area",
+  "zone_distance", "zone_floor_area", "zone_footprint_area",
+  "zone_inside_area", "zone_length", "zone_outside_area", "zone_value"
 )
 
 /// Whether `name` can name a property in `propertySet`: a property in a

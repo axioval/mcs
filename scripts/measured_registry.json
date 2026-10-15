@@ -1,0 +1,1840 @@
+{
+  "engine": {"repository": "https://github.com/axioval/engine", "commit": "0e1a0f6158372daa361307c10c71a7127e42ca23", "source": "crates/engine/rules/tests/golden/catalogue.json"},
+  "measuredValues": [
+    {"name": "above_terrain", "parameters": [
+      {"key": "terrain", "kind": {"type": "choice", "options": ["original", "finished"]}, "required": true, "references": "string"},
+      {"key": "of", "kind": {"type": "choice", "options": ["point", "bottom", "top", "level"]}, "required": true, "references": "string"},
+      {"key": "reference", "kind": {"type": "choice", "options": ["mean", "beneath"]}, "required": false, "default": "mean", "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "outline", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "outline_path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "alignment_cant", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "alignment_cant_ratio", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "alignment_curvature", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "alignment_gradient", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "alignment_radius", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "alignment_vertical_curvature", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "alignment_vertical_radius", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "angle_to", "parameters": [
+      {"key": "between", "kind": {"type": "choice", "options": ["axis", "face_normal"]}, "required": false, "default": "axis", "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "any_external", "subject": "source", "parameters": [
+      {"key": "host_selector", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "external_property", "kind": {"type": "property"}, "required": true, "references": "property"}
+    ]},
+    {"name": "area", "parameters": []},
+    {"name": "available_sight_distance", "parameters": [
+      {"key": "obstacles", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "station", "kind": {"type": "length", "minimum": -1000000.0}, "required": true, "references": "length"},
+      {"key": "eye_height", "kind": {"type": "length", "minimum": 0.001}, "required": true, "references": "length"},
+      {"key": "eye_offset", "kind": {"type": "length", "minimum": -1000.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "target_height", "kind": {"type": "length", "minimum": 0.001}, "required": true, "references": "length"},
+      {"key": "target_offset", "kind": {"type": "length", "minimum": -1000.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "range", "kind": {"type": "length", "minimum": 0.001}, "required": true, "references": "length"},
+      {"key": "step", "kind": {"type": "length", "minimum": 0.001}, "required": false, "default": "10", "references": "length"}
+    ]},
+    {"name": "azimuth", "parameters": [
+      {"key": "reference", "kind": {"type": "choice", "options": ["true_north", "project_north"]}, "required": false, "default": "true_north", "references": "string"}
+    ]},
+    {"name": "band_uncovered_area", "parameters": [
+      {"key": "members", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "member_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "angle_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "maximum", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "footprints", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "footprint_path", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "bearing", "parameters": [
+      {"key": "axis", "kind": {"type": "choice", "options": ["own_x", "own_y", "long"]}, "required": true, "references": "string"},
+      {"key": "reference", "kind": {"type": "choice", "options": ["project_north", "true_north"]}, "required": false, "default": "project_north", "references": "string"}
+    ]},
+    {"name": "body_extent", "parameters": [
+      {"key": "axis", "kind": {"type": "choice", "options": ["right", "forward", "up"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "body_position", "parameters": [
+      {"key": "axis", "kind": {"type": "choice", "options": ["right", "forward", "up"]}, "required": true, "references": "string"},
+      {"key": "end", "kind": {"type": "choice", "options": ["low", "high"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "bottom", "parameters": []},
+    {"name": "bottom_above_level", "parameters": [
+      {"key": "path", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "boundary_area", "parameters": [
+      {"key": "kind", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "plane", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "boundary_coverage_off", "parameters": [
+      {"key": "plane", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "boundary_coverage_overlap", "parameters": [
+      {"key": "plane", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "boundary_coverage_share", "parameters": [
+      {"key": "plane", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "boundary_coverage_surface", "parameters": [
+      {"key": "plane", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "boundary_coverage_uncovered", "parameters": [
+      {"key": "plane", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "boundary_covered_share", "parameters": [
+      {"key": "plane", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "boundary_gap", "parameters": [
+      {"key": "elements", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "at_least", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["total", "longest"]}, "required": false, "default": "total", "references": "string"}
+    ]},
+    {"name": "boundary_off_surface_count", "parameters": [
+      {"key": "plane", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "boundary_overlap_area", "parameters": [
+      {"key": "plane", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "boundary_uncovered_area", "parameters": [
+      {"key": "plane", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "bounds_envelope", "parameters": [
+      {"key": "derivation", "kind": {"type": "choice", "options": ["all-spaces", "gross-area-groups"]}, "required": true, "references": "string"},
+      {"key": "bounding", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "groups", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "group_path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "cap_coverage", "parameters": [
+      {"key": "cap", "kind": {"type": "choice", "options": ["top", "bottom"]}, "required": true, "references": "string"},
+      {"key": "elements", "kind": {"type": "sourceKind"}, "required": false, "references": "string"}
+    ]},
+    {"name": "centre_line_distance", "parameters": [
+      {"key": "walls", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "centre_line", "kind": {"type": "choice", "options": ["long", "short", "against-wall"]}, "required": true, "references": "string"},
+      {"key": "side", "kind": {"type": "choice", "options": ["nearest", "farther"]}, "required": false, "default": "nearest", "references": "string"},
+      {"key": "reach", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "inset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "clear_height", "parameters": []},
+    {"name": "clear_width", "parameters": [
+      {"key": "obstacles", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "band_from", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "band_to", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "along", "kind": {"type": "choice", "options": ["flight", "runs"]}, "required": false, "default": "flight", "references": "string"}
+    ]},
+    {"name": "clearance_below", "parameters": [
+      {"key": "spaces", "kind": {"type": "sourceKind"}, "required": true, "references": "string"}
+    ]},
+    {"name": "compactness", "subject": "project", "parameters": [
+      {"key": "elements", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "contact_area", "parameters": [
+      {"key": "with", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "side", "kind": {"type": "choice", "options": ["below", "above"]}, "required": false, "default": "below", "references": "string"},
+      {"key": "gap", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "intersection", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "polygon", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "contact_gap", "parameters": [
+      {"key": "with", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "side", "kind": {"type": "choice", "options": ["below", "above"]}, "required": false, "default": "below", "references": "string"},
+      {"key": "gap", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "intersection", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "polygon", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "contact_share", "parameters": [
+      {"key": "with", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "side", "kind": {"type": "choice", "options": ["below", "above"]}, "required": false, "default": "below", "references": "string"},
+      {"key": "gap", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "intersection", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "polygon", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "coordinate_reference", "subject": "project", "parameters": [
+      {"key": "reference", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "coordinate_shift", "subject": "source", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["world", "site", "map"]}, "required": true, "references": "string"},
+      {"key": "reference", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "coordinate_turn", "subject": "source", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["world", "site", "north", "map"]}, "required": true, "references": "string"},
+      {"key": "reference", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "count_within", "parameters": [
+      {"key": "to", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "radius", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "from", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "projection", "kind": {"type": "choice", "options": ["minimum_3d", "horizontal", "vertical", "plan_overlap"]}, "required": false, "default": "minimum_3d", "references": "string"},
+      {"key": "direction", "kind": {"type": "choice", "options": ["either", "above", "below"]}, "required": false, "references": "string"},
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "counterpart_covering", "parameters": [
+      {"key": "by", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["plan", "height", "elevation", "plan_and_height"]}, "required": false, "default": "plan", "references": "string"},
+      {"key": "horizontal", "kind": {"type": "length", "minimum": null}, "required": false, "default": "0", "references": "length"},
+      {"key": "vertical", "kind": {"type": "length", "minimum": null}, "required": false, "default": "0", "references": "length"},
+      {"key": "axis_tolerance", "kind": {"type": "angle", "below": 45.0}, "required": false, "references": "angle"},
+      {"key": "frame", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "infill_above", "kind": {"type": "number", "minimum": 0.0}, "required": false, "default": "0.5", "references": "number"}
+    ]},
+    {"name": "counterpart_infill", "parameters": [
+      {"key": "by", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["plan", "height", "elevation", "plan_and_height"]}, "required": false, "default": "plan", "references": "string"},
+      {"key": "horizontal", "kind": {"type": "length", "minimum": null}, "required": false, "default": "0", "references": "length"},
+      {"key": "vertical", "kind": {"type": "length", "minimum": null}, "required": false, "default": "0", "references": "length"},
+      {"key": "axis_tolerance", "kind": {"type": "angle", "below": 45.0}, "required": false, "references": "angle"},
+      {"key": "frame", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "infill_above", "kind": {"type": "number", "minimum": 0.0}, "required": false, "default": "0.5", "references": "number"}
+    ]},
+    {"name": "counterpart_uncovered", "parameters": [
+      {"key": "by", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["plan", "height", "elevation", "plan_and_height"]}, "required": false, "default": "plan", "references": "string"},
+      {"key": "horizontal", "kind": {"type": "length", "minimum": null}, "required": false, "default": "0", "references": "length"},
+      {"key": "vertical", "kind": {"type": "length", "minimum": null}, "required": false, "default": "0", "references": "length"},
+      {"key": "axis_tolerance", "kind": {"type": "angle", "below": 45.0}, "required": false, "references": "angle"},
+      {"key": "frame", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "infill_above", "kind": {"type": "number", "minimum": 0.0}, "required": false, "default": "0.5", "references": "number"}
+    ]},
+    {"name": "counterpart_uncovered_share", "parameters": [
+      {"key": "by", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["plan", "height", "elevation", "plan_and_height"]}, "required": false, "default": "plan", "references": "string"},
+      {"key": "horizontal", "kind": {"type": "length", "minimum": null}, "required": false, "default": "0", "references": "length"},
+      {"key": "vertical", "kind": {"type": "length", "minimum": null}, "required": false, "default": "0", "references": "length"},
+      {"key": "axis_tolerance", "kind": {"type": "angle", "below": 45.0}, "required": false, "references": "angle"},
+      {"key": "frame", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "infill_above", "kind": {"type": "number", "minimum": 0.0}, "required": false, "default": "0.5", "references": "number"}
+    ]},
+    {"name": "counterpart_whole", "parameters": [
+      {"key": "by", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["plan", "height", "elevation", "plan_and_height"]}, "required": false, "default": "plan", "references": "string"},
+      {"key": "horizontal", "kind": {"type": "length", "minimum": null}, "required": false, "default": "0", "references": "length"},
+      {"key": "vertical", "kind": {"type": "length", "minimum": null}, "required": false, "default": "0", "references": "length"},
+      {"key": "axis_tolerance", "kind": {"type": "angle", "below": 45.0}, "required": false, "references": "angle"},
+      {"key": "frame", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "infill_above", "kind": {"type": "number", "minimum": 0.0}, "required": false, "default": "0.5", "references": "number"}
+    ]},
+    {"name": "cover", "parameters": [
+      {"key": "host_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "faces", "kind": {"type": "choices", "options": ["top", "side", "bottom"]}, "required": false, "default": "top,side,bottom", "references": "stringList"}
+    ]},
+    {"name": "cross_fall", "parameters": [
+      {"key": "axis", "kind": {"type": "choice", "options": ["x", "y", "own_x", "own_y"]}, "required": true, "references": "string"},
+      {"key": "face", "kind": {"type": "choice", "options": ["top", "bottom", "facing"]}, "required": false, "default": "top", "references": "string"},
+      {"key": "direction", "kind": {"type": "vector"}, "required": false},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "declared_external", "parameters": [
+      {"key": "derivation", "kind": {"type": "choice", "options": ["all-spaces", "gross-area-groups"]}, "required": true, "references": "string"},
+      {"key": "bounding", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "groups", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "group_path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "distance", "parameters": [
+      {"key": "to", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "mode", "kind": {"type": "choice", "options": ["nearest", "farthest"]}, "required": false, "default": "nearest", "references": "string"},
+      {"key": "projection", "kind": {"type": "choice", "options": ["minimum_3d", "horizontal", "vertical", "plan_overlap"]}, "required": false, "default": "minimum_3d", "references": "string"},
+      {"key": "direction", "kind": {"type": "choice", "options": ["either", "above", "below"]}, "required": false, "references": "string"},
+      {"key": "subject_surface", "kind": {"type": "choice", "options": ["top", "bottom"]}, "required": false, "references": "string"},
+      {"key": "counterpart_surface", "kind": {"type": "choice", "options": ["top", "bottom", "nearest"]}, "required": false, "references": "string"},
+      {"key": "within", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "1000", "references": "length"}
+    ]},
+    {"name": "distance_to_feature", "parameters": [
+      {"key": "feature", "kind": {"type": "choice", "options": ["ridge", "hip", "valley", "eaves", "verge", "abutment"]}, "required": true, "references": "string"},
+      {"key": "roofs", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "projection", "kind": {"type": "choice", "options": ["space", "plan"]}, "required": false, "default": "space", "references": "string"},
+      {"key": "tolerance", "kind": {"type": "angle", "below": 45.0}, "required": false, "default": "2", "references": "angle"}
+    ]},
+    {"name": "door_clear_height", "parameters": [
+      {"key": "stated", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "overall", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "lining", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "threshold", "kind": {"type": "property"}, "required": false, "references": "property"}
+    ]},
+    {"name": "door_clear_width", "parameters": [
+      {"key": "stated", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "from_leaves", "kind": {"type": "choice", "options": ["passage", "widest-leaf"]}, "required": false, "references": "string"},
+      {"key": "overall", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "deduction", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "drainage_path", "parameters": [
+      {"key": "outlets", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "minimum_fall", "kind": {"type": "number", "minimum": 0.0}, "required": false, "default": "0", "references": "number"}
+    ]},
+    {"name": "duplicate_count", "parameters": []},
+    {"name": "effect_covered_area", "parameters": [
+      {"key": "sources", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "blockers", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "reach", "kind": {"type": "choice", "options": ["grown", "travel", "visible"]}, "required": false, "default": "grown", "references": "string"},
+      {"key": "range", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "effect_covered_share", "parameters": [
+      {"key": "sources", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "blockers", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "reach", "kind": {"type": "choice", "options": ["grown", "travel", "visible"]}, "required": false, "default": "grown", "references": "string"},
+      {"key": "range", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "effective_area", "parameters": [
+      {"key": "sources", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "blockers", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "mode", "kind": {"type": "choice", "options": ["grown", "touching", "travel", "visible"]}, "required": false, "default": "grown", "references": "string"},
+      {"key": "range", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "touch_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "area_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "capacity_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "capacity_multiplier", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "capacity_multiplier_property", "kind": {"type": "property"}, "required": false, "references": "property"}
+    ]},
+    {"name": "effective_capacity", "parameters": [
+      {"key": "sources", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "blockers", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "mode", "kind": {"type": "choice", "options": ["grown", "touching", "travel", "visible"]}, "required": false, "default": "grown", "references": "string"},
+      {"key": "range", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "touch_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "area_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "capacity_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "capacity_multiplier", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "capacity_multiplier_property", "kind": {"type": "property"}, "required": false, "references": "property"}
+    ]},
+    {"name": "effective_covered", "parameters": [
+      {"key": "sources", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "blockers", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "mode", "kind": {"type": "choice", "options": ["grown", "touching", "travel", "visible"]}, "required": false, "default": "grown", "references": "string"},
+      {"key": "range", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "touch_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "area_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "capacity_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "capacity_multiplier", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "capacity_multiplier_property", "kind": {"type": "property"}, "required": false, "references": "property"}
+    ]},
+    {"name": "effective_reaching", "parameters": [
+      {"key": "sources", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "blockers", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "mode", "kind": {"type": "choice", "options": ["grown", "touching", "travel", "visible"]}, "required": false, "default": "grown", "references": "string"},
+      {"key": "range", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "touch_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "area_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "capacity_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "capacity_multiplier", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "capacity_multiplier_property", "kind": {"type": "property"}, "required": false, "references": "property"}
+    ]},
+    {"name": "effective_share", "parameters": [
+      {"key": "sources", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "blockers", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "mode", "kind": {"type": "choice", "options": ["grown", "touching", "travel", "visible"]}, "required": false, "default": "grown", "references": "string"},
+      {"key": "range", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "touch_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "area_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "capacity_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "capacity_multiplier", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "capacity_multiplier_property", "kind": {"type": "property"}, "required": false, "references": "property"}
+    ]},
+    {"name": "effective_unread", "parameters": [
+      {"key": "sources", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "blockers", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "mode", "kind": {"type": "choice", "options": ["grown", "touching", "travel", "visible"]}, "required": false, "default": "grown", "references": "string"},
+      {"key": "range", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "touch_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "area_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "capacity_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "capacity_multiplier", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "capacity_multiplier_property", "kind": {"type": "property"}, "required": false, "references": "property"}
+    ]},
+    {"name": "end_width", "parameters": [
+      {"key": "end", "kind": {"type": "choice", "options": ["bottom", "top"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "envelope_area", "subject": "project", "parameters": [
+      {"key": "elements", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "toward", "kind": {"type": "choice", "options": ["north", "east", "south", "west"]}, "required": false, "references": "string"},
+      {"key": "reference", "kind": {"type": "choice", "options": ["true_north", "project_north"]}, "required": false, "default": "true_north", "references": "string"}
+    ]},
+    {"name": "envelope_intrusions", "parameters": [
+      {"key": "bodies", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "envelope", "kind": {"type": "polygon"}, "required": true},
+      {"key": "from", "kind": {"type": "length", "minimum": -1000000.0}, "required": true, "references": "length"},
+      {"key": "to", "kind": {"type": "length", "minimum": -1000000.0}, "required": true, "references": "length"},
+      {"key": "step", "kind": {"type": "length", "minimum": 0.001}, "required": true, "references": "length"}
+    ]},
+    {"name": "envelope_size", "subject": "project", "parameters": [
+      {"key": "derivation", "kind": {"type": "choice", "options": ["all-spaces", "gross-area-groups"]}, "required": true, "references": "string"},
+      {"key": "bounding", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "groups", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "group_path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "envelope_volume", "subject": "project", "parameters": [
+      {"key": "elements", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "extent", "parameters": [
+      {"key": "axis", "kind": {"type": "choice", "options": ["own_x", "own_y", "own_z", "x", "y", "z"]}, "required": false, "references": "string"},
+      {"key": "direction", "kind": {"type": "vector"}, "required": false}
+    ]},
+    {"name": "extent_x", "parameters": []},
+    {"name": "extent_y", "parameters": []},
+    {"name": "extent_z", "parameters": []},
+    {"name": "external_declarations", "subject": "source", "parameters": [
+      {"key": "derivations", "kind": {"type": "choices", "options": ["all-spaces", "gross-area-groups"]}, "required": true, "references": "stringList"},
+      {"key": "bounding", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "groups", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "group_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "objects", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "facade_area", "parameters": []},
+    {"name": "face_area", "parameters": []},
+    {"name": "fall_in_flow", "parameters": []},
+    {"name": "flight_rise", "parameters": [
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "flight_width", "parameters": []},
+    {"name": "gradient_direction", "parameters": [
+      {"key": "face", "kind": {"type": "choice", "options": ["top", "bottom", "facing"]}, "required": false, "default": "top", "references": "string"},
+      {"key": "direction", "kind": {"type": "vector"}, "required": false},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "guard_surfaces", "subject": "project", "parameters": [
+      {"key": "barrier_gap", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "platform_gap", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "landing_gap", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "landing_width", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "climb_distance", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "climb_side", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "measure_from", "kind": {"type": "choice", "options": ["floor", "curb"]}, "required": false, "default": "floor", "references": "string"},
+      {"key": "barriers", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "landings", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "climbables", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "surfaces", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "from_curb", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "climb_height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "handrail_breaks", "parameters": [
+      {"key": "rails", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "reach_across", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach_above", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "stair", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "flights", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "break_doors", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "landing", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "headroom", "parameters": [
+      {"key": "obstacles", "kind": {"type": "sourceKind"}, "required": true, "references": "string"}
+    ]},
+    {"name": "height_above_gradient", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "height_above_ground", "parameters": [
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "datum", "kind": {"type": "length", "minimum": -1000000.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "height_above_surface", "parameters": [
+      {"key": "surface", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "edge", "kind": {"type": "choice", "options": ["top", "bottom"]}, "required": false, "default": "top", "references": "string"}
+    ]},
+    {"name": "hinged_leaves", "parameters": []},
+    {"name": "host_walls", "subject": "source", "parameters": [
+      {"key": "host_selector", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "external_property", "kind": {"type": "property"}, "required": true, "references": "property"}
+    ]},
+    {"name": "inclination", "parameters": [
+      {"key": "axis", "kind": {"type": "choice", "options": ["own_x", "own_y", "own_z"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "intersection_count", "parameters": [
+      {"key": "elements", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0.005", "references": "length"}
+    ]},
+    {"name": "landing_clear_width", "parameters": [
+      {"key": "landing", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "end", "kind": {"type": "choice", "options": ["bottom", "top"]}, "required": true, "references": "string"},
+      {"key": "obstacles", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "band_from", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "band_to", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "landing_count", "parameters": [
+      {"key": "landing", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "end", "kind": {"type": "choice", "options": ["bottom", "top"]}, "required": true, "references": "string"},
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"}
+    ]},
+    {"name": "landing_depth", "parameters": [
+      {"key": "landing", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "end", "kind": {"type": "choice", "options": ["bottom", "top"]}, "required": true, "references": "string"},
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"}
+    ]},
+    {"name": "landing_door_conflicts", "parameters": [
+      {"key": "landing", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "doors", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "height", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "swing", "kind": {"type": "choice", "options": ["no", "yes"]}, "required": false, "default": "no", "references": "string"},
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"}
+    ]},
+    {"name": "landing_width", "parameters": [
+      {"key": "landing", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "end", "kind": {"type": "choice", "options": ["bottom", "top"]}, "required": true, "references": "string"},
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"}
+    ]},
+    {"name": "largest_unallocated_region", "parameters": []},
+    {"name": "leaf_count", "parameters": []},
+    {"name": "leaf_width", "parameters": [
+      {"key": "measure", "kind": {"type": "choice", "options": ["widest", "narrowest", "total"]}, "required": false, "default": "widest", "references": "string"}
+    ]},
+    {"name": "length", "parameters": [
+      {"key": "axis", "kind": {"type": "choice", "options": ["own_x", "own_y", "own_z"]}, "required": false, "default": "own_x", "references": "string"}
+    ]},
+    {"name": "level_elevation", "parameters": [
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "level_height", "parameters": []},
+    {"name": "level_index", "parameters": [
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "datum", "kind": {"type": "length", "minimum": -1000000.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "level_rise", "parameters": [
+      {"key": "levels", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "order", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "anchor", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "lowest", "kind": {"type": "choice", "options": ["checked", "ignored"]}, "required": false, "default": "checked", "references": "string"},
+      {"key": "highest", "kind": {"type": "choice", "options": ["undecided", "ignored"]}, "required": false, "default": "undecided", "references": "string"},
+      {"key": "contents", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "content_kinds", "kind": {"type": "sourceKind"}, "required": false, "references": "string"}
+    ]},
+    {"name": "levels_above", "parameters": [
+      {"key": "levels", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "levels_below", "parameters": [
+      {"key": "levels", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "light_area", "parameters": [
+      {"key": "stated", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "overall_width", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "overall_height", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "light_area_table", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "light_type", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "light_type_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "light_size_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "frame_width", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "read", "kind": {"type": "choice", "options": ["area", "stated", "overall"]}, "required": false, "default": "area", "references": "string"}
+    ]},
+    {"name": "light_size", "parameters": [
+      {"key": "stated", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "overall_width", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "overall_height", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "light_area_table", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "light_type", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "light_type_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "light_size_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "frame_width", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "side", "kind": {"type": "choice", "options": ["width", "height"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "light_step", "parameters": [
+      {"key": "stated", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "overall_width", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "overall_height", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "light_area_table", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "light_type", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "light_type_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "light_size_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "frame_width", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "step", "kind": {"type": "choice", "options": ["stated", "table", "frame"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "map_conversion", "subject": "source", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["own", "reference"]}, "required": false, "default": "own", "references": "string"},
+      {"key": "reference", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "map_scale_change", "subject": "source", "parameters": [
+      {"key": "reference", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "map_target_change", "subject": "source", "parameters": [
+      {"key": "reference", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "max_along", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["gradient", "curvature", "cant", "cant_ratio", "vertical_curvature"]}, "required": true, "references": "string"},
+      {"key": "from", "kind": {"type": "length", "minimum": -1000000.0}, "required": false, "references": "length"},
+      {"key": "to", "kind": {"type": "length", "minimum": -1000000.0}, "required": false, "references": "length"},
+      {"key": "step", "kind": {"type": "length", "minimum": 0.001}, "required": false, "references": "length"},
+      {"key": "rate", "kind": {"type": "truth"}, "required": false, "references": "boolean"}
+    ]},
+    {"name": "max_within", "parameters": [
+      {"key": "to", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "value", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "radius", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "from", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "projection", "kind": {"type": "choice", "options": ["minimum_3d", "horizontal", "vertical", "plan_overlap"]}, "required": false, "default": "minimum_3d", "references": "string"},
+      {"key": "direction", "kind": {"type": "choice", "options": ["either", "above", "below"]}, "required": false, "references": "string"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["closest", "walking"]}, "required": false, "default": "closest", "references": "string"},
+      {"key": "walking_radius", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_step", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_slope", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "group", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "mean_terrain_height", "parameters": [
+      {"key": "terrain", "kind": {"type": "choice", "options": ["original", "finished"]}, "required": true, "references": "string"},
+      {"key": "outline", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "outline_path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "mean_within", "parameters": [
+      {"key": "to", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "value", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "radius", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "from", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "projection", "kind": {"type": "choice", "options": ["minimum_3d", "horizontal", "vertical", "plan_overlap"]}, "required": false, "default": "minimum_3d", "references": "string"},
+      {"key": "direction", "kind": {"type": "choice", "options": ["either", "above", "below"]}, "required": false, "references": "string"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["closest", "walking"]}, "required": false, "default": "closest", "references": "string"},
+      {"key": "walking_radius", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_step", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_slope", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "group", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "middle_face_area", "parameters": [
+      {"key": "length_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "default": "extrusion", "references": "string"},
+      {"key": "height_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "default": "profile-y", "references": "string"}
+    ]},
+    {"name": "min_along", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["gradient", "curvature", "cant", "cant_ratio", "vertical_curvature"]}, "required": true, "references": "string"},
+      {"key": "from", "kind": {"type": "length", "minimum": -1000000.0}, "required": false, "references": "length"},
+      {"key": "to", "kind": {"type": "length", "minimum": -1000000.0}, "required": false, "references": "length"},
+      {"key": "step", "kind": {"type": "length", "minimum": 0.001}, "required": false, "references": "length"},
+      {"key": "rate", "kind": {"type": "truth"}, "required": false, "references": "boolean"}
+    ]},
+    {"name": "min_within", "parameters": [
+      {"key": "to", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "value", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "radius", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "from", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "projection", "kind": {"type": "choice", "options": ["minimum_3d", "horizontal", "vertical", "plan_overlap"]}, "required": false, "default": "minimum_3d", "references": "string"},
+      {"key": "direction", "kind": {"type": "choice", "options": ["either", "above", "below"]}, "required": false, "references": "string"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["closest", "walking"]}, "required": false, "default": "closest", "references": "string"},
+      {"key": "walking_radius", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_step", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_slope", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "group", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "missing_tactile_strips", "parameters": [
+      {"key": "tactiles", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "offset", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "depth", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "intermediate", "kind": {"type": "choice", "options": ["no", "yes"]}, "required": false, "default": "no", "references": "string"},
+      {"key": "stair", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "flights", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "within", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "obstructed_end_spaces", "parameters": [
+      {"key": "obstacles", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "depth", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "width", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "height", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"}
+    ]},
+    {"name": "obstruction_angle", "parameters": [
+      {"key": "obstacles", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "sector", "kind": {"type": "angle", "below": 180.0}, "required": false, "default": "0", "references": "angle"}
+    ]},
+    {"name": "obstruction_count", "parameters": [
+      {"key": "obstacles", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "reach", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "at", "kind": {"type": "choice", "options": ["ends", "sides", "within"]}, "required": true, "references": "string"},
+      {"key": "side_zone", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "offset", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "side", "kind": {"type": "choice", "options": ["left", "right"]}, "required": false, "default": "left", "references": "string"}
+    ]},
+    {"name": "on_envelope", "parameters": [
+      {"key": "derivation", "kind": {"type": "choice", "options": ["all-spaces", "gross-area-groups"]}, "required": true, "references": "string"},
+      {"key": "bounding", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "groups", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "group_path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "opening_area", "parameters": [
+      {"key": "path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "length_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "default": "extrusion", "references": "string"},
+      {"key": "height_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "default": "profile-y", "references": "string"},
+      {"key": "minimum", "kind": {"type": "area", "minimum": 0.0}, "required": false, "references": "area"},
+      {"key": "openings", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "cites", "kind": {"type": "choice", "options": ["reached", "counted"]}, "required": false, "default": "reached", "references": "string"}
+    ]},
+    {"name": "opening_count", "parameters": [
+      {"key": "path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "length_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "default": "extrusion", "references": "string"},
+      {"key": "height_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "default": "profile-y", "references": "string"},
+      {"key": "minimum", "kind": {"type": "area", "minimum": 0.0}, "required": false, "references": "area"},
+      {"key": "openings", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "cites", "kind": {"type": "choice", "options": ["reached", "counted"]}, "required": false, "default": "reached", "references": "string"}
+    ]},
+    {"name": "opening_section_area", "parameters": [
+      {"key": "host_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "length_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "default": "extrusion", "references": "string"},
+      {"key": "height_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "default": "profile-y", "references": "string"}
+    ]},
+    {"name": "perimeter", "parameters": []},
+    {"name": "plan_area", "parameters": [
+      {"key": "measure", "kind": {"type": "choice", "options": ["footprint", "facade"]}, "required": false, "default": "footprint", "references": "string"}
+    ]},
+    {"name": "plan_coverage", "parameters": [
+      {"key": "candidates", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "minimum", "kind": {"type": "number", "minimum": 0.0}, "required": true, "references": "number"},
+      {"key": "relationship", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "direction", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "follow_chain", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "skip_absent_relationship_ends", "kind": {"type": "truth"}, "required": false, "references": "boolean"}
+    ]},
+    {"name": "plan_diameter", "parameters": []},
+    {"name": "plan_overlap", "parameters": [
+      {"key": "with", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["largest", "total"]}, "required": false, "default": "largest", "references": "string"}
+    ]},
+    {"name": "possible_hosts", "subject": "source", "parameters": [
+      {"key": "host_selector", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "external_property", "kind": {"type": "property"}, "required": true, "references": "property"}
+    ]},
+    {"name": "prevailing_elevation", "parameters": [
+      {"key": "side", "kind": {"type": "choice", "options": ["bottom", "top"]}, "required": true, "references": "string"},
+      {"key": "spaces", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "kinds", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "prevailing_rise", "parameters": [
+      {"key": "levels", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "order", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "anchor", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "lowest", "kind": {"type": "choice", "options": ["checked", "ignored"]}, "required": false, "default": "checked", "references": "string"},
+      {"key": "highest", "kind": {"type": "choice", "options": ["undecided", "ignored"]}, "required": false, "default": "undecided", "references": "string"},
+      {"key": "contents", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "content_kinds", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0.001", "references": "length"}
+    ]},
+    {"name": "profile_dimension", "parameters": [
+      {"key": "name", "kind": {"type": "choice", "options": ["width", "depth", "web_thickness", "flange_thickness", "thickness", "wall_thickness", "radius", "girth", "fillet_radius", "semi_axis_1", "semi_axis_2", "top_width", "top_offset", "top_flange_thickness", "top_fillet_radius", "edge_radius", "top_edge_radius", "web_edge_radius", "outer_fillet_radius"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "profile_slope", "parameters": [
+      {"key": "name", "kind": {"type": "choice", "options": ["flange_slope", "top_flange_slope", "leg_slope", "web_slope"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "rails_over_surfaces", "parameters": [
+      {"key": "rails", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "reach_across", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach_above", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "surfaces", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "of", "kind": {"type": "choice", "options": ["ramp"]}, "required": false, "default": "ramp", "references": "string"}
+    ]},
+    {"name": "rate_along", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["gradient", "curvature", "cant", "cant_ratio", "vertical_curvature"]}, "required": true, "references": "string"},
+      {"key": "station", "kind": {"type": "length", "minimum": -1000000.0}, "required": true, "references": "length"},
+      {"key": "over", "kind": {"type": "length", "minimum": 0.001}, "required": false, "references": "length"}
+    ]},
+    {"name": "ratio_area", "parameters": [
+      {"key": "property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["footprint", "facade"]}, "required": false, "references": "string"},
+      {"key": "otherwise", "kind": {"type": "choice", "options": ["footprint", "facade"]}, "required": false, "references": "string"}
+    ]},
+    {"name": "rectangle_side", "parameters": [
+      {"key": "side", "kind": {"type": "choice", "options": ["width", "length"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "run_count", "parameters": []},
+    {"name": "section_area", "parameters": []},
+    {"name": "section_modulus", "parameters": [
+      {"key": "axis", "kind": {"type": "choice", "options": ["strong", "weak"]}, "required": false, "default": "strong", "references": "string"}
+    ]},
+    {"name": "setback_area", "parameters": [
+      {"key": "terrain", "kind": {"type": "choice", "options": ["original", "finished"]}, "required": true, "references": "string"},
+      {"key": "factor", "kind": {"type": "number", "minimum": 0.0}, "required": true, "references": "number"},
+      {"key": "minimum", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "roof", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "roof_share", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"}
+    ]},
+    {"name": "setback_depth", "parameters": [
+      {"key": "terrain", "kind": {"type": "choice", "options": ["original", "finished"]}, "required": true, "references": "string"},
+      {"key": "factor", "kind": {"type": "number", "minimum": 0.0}, "required": true, "references": "number"},
+      {"key": "minimum", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "roof", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "roof_share", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"}
+    ]},
+    {"name": "setback_outside_area", "parameters": [
+      {"key": "terrain", "kind": {"type": "choice", "options": ["original", "finished"]}, "required": true, "references": "string"},
+      {"key": "factor", "kind": {"type": "number", "minimum": 0.0}, "required": true, "references": "number"},
+      {"key": "minimum", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "roof", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "roof_share", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "stands_in", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "setback_overlap_area", "parameters": [
+      {"key": "terrain", "kind": {"type": "choice", "options": ["original", "finished"]}, "required": true, "references": "string"},
+      {"key": "factor", "kind": {"type": "number", "minimum": 0.0}, "required": true, "references": "number"},
+      {"key": "minimum", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "roof", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "roof_share", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "others", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "shelf_clear_height", "parameters": [
+      {"key": "depth", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "horizontal", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "vertical", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "bottom", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "top", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "clearance", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "access", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "doors", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "openings", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "spaces", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "shelf_length", "parameters": [
+      {"key": "depth", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "horizontal", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "vertical", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "bottom", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "top", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "clearance", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "access", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "doors", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "openings", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "spaces", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "sill_height", "parameters": [
+      {"key": "floor_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["greatest", "least"]}, "required": false, "default": "greatest", "references": "string"}
+    ]},
+    {"name": "skew", "parameters": [
+      {"key": "path", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "slope", "parameters": [
+      {"key": "face", "kind": {"type": "choice", "options": ["top", "bottom", "facing"]}, "required": false, "default": "top", "references": "string"},
+      {"key": "direction", "kind": {"type": "vector"}, "required": false},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "slope_along", "parameters": [
+      {"key": "direction", "kind": {"type": "choice", "options": ["x", "y", "own_x", "own_y"]}, "required": true, "references": "string"},
+      {"key": "face", "kind": {"type": "choice", "options": ["top", "bottom"]}, "required": false, "default": "top", "references": "string"}
+    ]},
+    {"name": "space_cap", "parameters": [
+      {"key": "cap", "kind": {"type": "choice", "options": ["top", "bottom"]}, "required": true, "references": "string"},
+      {"key": "check", "kind": {"type": "truth"}, "required": true, "references": "boolean"},
+      {"key": "elements", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "space_duplicates", "parameters": [
+      {"key": "space", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "space_height", "parameters": []},
+    {"name": "space_intersections", "parameters": [
+      {"key": "elements", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "space_supports", "subject": "project", "parameters": [
+      {"key": "top", "kind": {"type": "truth"}, "required": true, "references": "boolean"},
+      {"key": "bottom", "kind": {"type": "truth"}, "required": true, "references": "boolean"},
+      {"key": "top_elements", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "bottom_elements", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "space_uncovered_boundary", "parameters": [
+      {"key": "segment", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "elements", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "stack_distance", "parameters": [
+      {"key": "measure", "kind": {"type": "choice", "options": ["top_to_top", "bottom_to_bottom", "top_to_bottom"]}, "required": true, "references": "string"},
+      {"key": "slabs", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "ratio", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "stack_prevailing", "parameters": [
+      {"key": "measure", "kind": {"type": "choice", "options": ["top_to_top", "bottom_to_bottom", "top_to_bottom"]}, "required": true, "references": "string"},
+      {"key": "slabs", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "ratio", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0.001", "references": "length"}
+    ]},
+    {"name": "stair_rise", "parameters": [
+      {"key": "stair", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "flights", "kind": {"type": "sourceKind"}, "required": true, "references": "string"}
+    ]},
+    {"name": "station", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "station_section_area", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "station", "kind": {"type": "length", "minimum": -1000000.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "station_section_thickness", "parameters": [
+      {"key": "alignment", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "station", "kind": {"type": "length", "minimum": -1000000.0}, "required": true, "references": "length"},
+      {"key": "direction", "kind": {"type": "choice", "options": ["lateral", "up"]}, "required": false, "default": "up", "references": "string"}
+    ]},
+    {"name": "storey_end", "parameters": [
+      {"key": "end", "kind": {"type": "choice", "options": ["top", "bottom"]}, "required": true, "references": "string"},
+      {"key": "storeys", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "relationship", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "direction", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "follow_chain", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "skip_absent_relationship_ends", "kind": {"type": "truth"}, "required": false, "references": "boolean"}
+    ]},
+    {"name": "sum_within", "parameters": [
+      {"key": "to", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "value", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "radius", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "from", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "projection", "kind": {"type": "choice", "options": ["minimum_3d", "horizontal", "vertical", "plan_overlap"]}, "required": false, "default": "minimum_3d", "references": "string"},
+      {"key": "direction", "kind": {"type": "choice", "options": ["either", "above", "below"]}, "required": false, "references": "string"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["closest", "walking"]}, "required": false, "default": "closest", "references": "string"},
+      {"key": "walking_radius", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_step", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_slope", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "group", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "support_count", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["slabs", "roofs"]}, "required": false, "default": "slabs", "references": "string"}
+    ]},
+    {"name": "swing_area", "parameters": []},
+    {"name": "swings_into", "parameters": [
+      {"key": "path", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "thickness", "parameters": [
+      {"key": "direction", "kind": {"type": "choice", "options": ["own_x", "own_y", "own_z", "x", "y", "z"]}, "required": false, "references": "string"},
+      {"key": "face", "kind": {"type": "choice", "options": ["top", "bottom"]}, "required": false, "references": "string"}
+    ]},
+    {"name": "threshold_step", "parameters": [
+      {"key": "floor_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "threshold", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "measure", "kind": {"type": "choice", "options": ["greatest", "least"]}, "required": false, "default": "greatest", "references": "string"},
+      {"key": "ramps", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "ramp_reach", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "tilt", "parameters": []},
+    {"name": "top", "parameters": []},
+    {"name": "travel_distance", "parameters": [
+      {"key": "exits", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "kinds", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "start", "kind": {"type": "choice", "options": ["farthest-point", "door"]}, "required": false, "default": "farthest-point", "references": "string"},
+      {"key": "doors", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_kinds", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "walking_height", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "walking_step", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "triangle_count", "parameters": []},
+    {"name": "unallocated_share", "parameters": []},
+    {"name": "uncovered_area", "parameters": [
+      {"key": "by", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "growth", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "undecided_count", "parameters": [
+      {"key": "objects", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "undeclared_hosts", "subject": "source", "parameters": [
+      {"key": "host_selector", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "external_property", "kind": {"type": "property"}, "required": true, "references": "property"}
+    ]},
+    {"name": "undrained_area", "parameters": [
+      {"key": "outlets", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "minimum_fall", "kind": {"type": "number", "minimum": 0.0}, "required": false, "default": "0", "references": "number"}
+    ]},
+    {"name": "volume", "parameters": []},
+    {"name": "walking_line_turns", "parameters": []},
+    {"name": "well_gap", "parameters": [
+      {"key": "members", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "well_height", "parameters": [
+      {"key": "members", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "well_section_area", "parameters": [
+      {"key": "members", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "well_section_width", "parameters": [
+      {"key": "members", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "x", "parameters": []},
+    {"name": "y", "parameters": []},
+    {"name": "z", "parameters": []},
+    {"name": "zone_angle", "parameters": [
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "stands_in", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "value", "kind": {"type": "choice", "options": ["roof_pitch", "roof_pitch_min", "roof_pitch_max"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "zone_area", "parameters": [
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "stands_in", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "zone_distance", "parameters": [
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "stands_in", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "zone_floor_area", "subject": "project", "parameters": [
+      {"key": "zone", "kind": {"type": "text"}, "required": true, "references": "string"},
+      {"key": "elements", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "zone_footprint_area", "subject": "project", "parameters": [
+      {"key": "zone", "kind": {"type": "text"}, "required": true, "references": "string"},
+      {"key": "elements", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "zone_inside_area", "parameters": [
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "stands_in", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "zone_length", "parameters": [
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "stands_in", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "value", "kind": {"type": "choice", "options": ["eaves_height", "eaves_height_min", "eaves_height_max", "ridge_height", "ridge_height_min", "ridge_height_max", "top_height", "top_height_min", "top_height_max"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "zone_outside_area", "parameters": [
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "stands_in", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]},
+    {"name": "zone_value", "parameters": [
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "stands_in", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "value", "kind": {"type": "choice", "options": ["coverage_ratio_min", "coverage_ratio_max", "floor_area_ratio_min", "floor_area_ratio_max", "storeys", "storeys_min", "storeys_max"]}, "required": true, "references": "string"}
+    ]}
+  ],
+  "measuredMembers": [
+    {"name": "alignment_elements", "parameters": [
+      {"key": "layout", "kind": {"type": "choice", "options": ["horizontal", "vertical"]}, "required": true, "references": "string"}
+    ]},
+    {"name": "allocations", "subject": "project", "parameters": [
+      {"key": "rows", "kind": {"type": "table"}, "required": true, "references": "table"},
+      {"key": "mode", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "key_1", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_2", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_3", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_4", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "case_sensitive", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "area_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "area_mode", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "anchor_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "anchor_key", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "across_sources", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "relationship", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "direction", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "follow_chain", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "skip_absent_relationship_ends", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "axes_within", "parameters": [
+      {"key": "of", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "reach", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"}
+    ]},
+    {"name": "centre_line_sides", "parameters": [
+      {"key": "walls", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "centre_line", "kind": {"type": "choice", "options": ["long", "short", "against-wall"]}, "required": true, "references": "string"},
+      {"key": "sides", "kind": {"type": "choice", "options": ["nearest", "both"]}, "required": true, "references": "string"},
+      {"key": "reach", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "inset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "circulation_verdicts", "parameters": [
+      {"key": "component_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "obstacles", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "subtract_door_swings", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "width_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "clear_height_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "tolerance_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "component_mode", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "end_width_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "end_length_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "end_reach_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "short_end_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "narrow_end_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "merge_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "band_from_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "end_exempt_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "end_exempt_reach_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "partner_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "require_entrances", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "check_entrance_width", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "clear_width_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "clear_width_from_leaves", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "overall_width", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "width_deduction", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "passing_width_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "passing_length_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "passing_spacing_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "passing_reach_metres", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "clash_matrix_pairs", "subject": "project", "parameters": [
+      {"key": "counterparts", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "subjects", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "cells", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "key_1", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_2", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_3", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "case_sensitive", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "symmetric", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "report_unmatched", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "exclude_same_system", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "system_path", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "exclude_paths", "kind": {"type": "paths"}, "required": false, "references": "stringList"},
+      {"key": "exclude_target_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "exclude_same_layer", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "group_by", "kind": {"type": "choice", "options": ["type_pair", "subject", "similar"]}, "required": false, "references": "string"},
+      {"key": "per_storey", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "storey_path", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "group_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "group_tolerance_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "severity_by_class", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "grade_by", "kind": {"type": "choice", "options": ["smallest_extent", "volume"]}, "required": false, "references": "string"},
+      {"key": "severity_grades", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "duplicate_quantities", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "tolerance_cases", "kind": {"type": "table"}, "required": false, "references": "table"}
+    ]},
+    {"name": "clash_pairs", "subject": "project", "parameters": [
+      {"key": "counterparts", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "subjects", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "penetration_tolerance_metres", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "clearance_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "duplicate_tolerance_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "horizontal_tolerance_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "vertical_tolerance_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "volume_tolerance_cubic_metres", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "report_duplicates", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "report_containment", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "report_intersections", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "exclude_paths", "kind": {"type": "paths"}, "required": false, "references": "stringList"},
+      {"key": "exclude_target_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "exclude_same_layer", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "group_by", "kind": {"type": "choice", "options": ["type_pair", "subject", "similar"]}, "required": false, "references": "string"},
+      {"key": "per_storey", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "storey_path", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "group_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "group_tolerance_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "severity_by_class", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "grade_by", "kind": {"type": "choice", "options": ["smallest_extent", "volume"]}, "required": false, "references": "string"},
+      {"key": "severity_grades", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "duplicate_quantities", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "tolerance_cases", "kind": {"type": "table"}, "required": false, "references": "table"}
+    ]},
+    {"name": "clear_widths", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "obstacles", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "band_from", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "band_to", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "landing", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "ends", "kind": {"type": "choice", "options": ["both", "bottom", "top", "none", "intermediate"]}, "required": false, "default": "both", "references": "string"},
+      {"key": "stretch", "kind": {"type": "choice", "options": ["yes", "no"]}, "required": false, "default": "yes", "references": "string"},
+      {"key": "stair", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "flights", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "clearance_checks", "parameters": [
+      {"key": "side", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "sides", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "quantifier", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "front_axis", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "both_sides", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "width", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "width_mode", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "width_minimum", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "width_maximum", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "depth", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "depth_mode", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "depth_minimum", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "depth_maximum", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "depth_from", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "radius", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "height", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "height_mode", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "height_minimum", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "height_maximum", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "size_mode", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "size_tolerance", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "offset", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "lateral_offset", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "align", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "slide_from", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "slide_to", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "depth_slide_from", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "depth_slide_to", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "height_reference", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "vertical_offset", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "top_datum", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "top_offset", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "obstacles", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "allowed_intruders", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "protrusion", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "within_space", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "space_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "wall_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "wall_reach", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "wall_inset", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "support_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "support_tolerance", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "clear_width_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "clear_width_from_leaves", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "overall_width", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "width_deduction", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"}
+    ]},
+    {"name": "clearances", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "side", "kind": {"type": "choice", "options": ["above", "below"]}, "required": false, "default": "above", "references": "string"},
+      {"key": "obstacles", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "compositions", "subject": "project", "parameters": [
+      {"key": "requirements", "kind": {"type": "table"}, "required": true, "references": "table"},
+      {"key": "key_1", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_2", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_3", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "case_sensitive", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "group_key", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "group_key_1", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "group_key_2", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "group_key_3", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "report_absent_groups", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "member_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "ungrouped_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "relationship", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "direction", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "follow_chain", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "skip_absent_relationship_ends", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "connected_spaces", "parameters": [
+      {"key": "host_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "host_selector", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "external_property", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "space_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "containment_counts", "subject": "project", "parameters": [
+      {"key": "counterparts", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "minimum_volume_ratio", "kind": {"type": "number", "minimum": 0.0}, "required": true, "references": "number"},
+      {"key": "combine_adjacent", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "cover", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "minimum_count", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "maximum_count", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "report_orphans", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "containment_items", "parameters": [
+      {"key": "counterparts", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "minimum_volume_ratio", "kind": {"type": "number", "minimum": 0.0}, "required": true, "references": "number"},
+      {"key": "combine_adjacent", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "cover", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "minimum_count", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "maximum_count", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "report_orphans", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "coordinate_differences", "subject": "source", "parameters": [
+      {"key": "reference", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "length", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0.001", "references": "length"},
+      {"key": "angle", "kind": {"type": "number", "minimum": 0.0}, "required": false, "default": "0.01", "references": "number"},
+      {"key": "scale", "kind": {"type": "number", "minimum": 0.0}, "required": false, "default": "0", "references": "number"},
+      {"key": "require_map", "kind": {"type": "truth"}, "required": false, "default": "false", "references": "boolean"}
+    ]},
+    {"name": "corridor_end_openings", "parameters": [
+      {"key": "path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "openings", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "depth", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "facing", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"}
+    ]},
+    {"name": "distance_items", "parameters": [
+      {"key": "counterparts", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "minimum_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "maximum_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "mode", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "count", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "projection", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "footprint_offset_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "vertical_direction", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "subject_extent", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "counterpart_extent", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "subject_surface", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "counterpart_surface", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "elevation_overlap", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "elevation_offset_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "container_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "relationship", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "direction", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "follow_chain", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "skip_absent_relationship_ends", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "distance_open", "subject": "project", "parameters": [
+      {"key": "counterparts", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "minimum_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "maximum_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "mode", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "count", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "projection", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "footprint_offset_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "vertical_direction", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "subject_extent", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "counterpart_extent", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "subject_surface", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "counterpart_surface", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "elevation_overlap", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "elevation_offset_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "container_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "relationship", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "direction", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "follow_chain", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "skip_absent_relationship_ends", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "distance_rows", "parameters": [
+      {"key": "distances", "kind": {"type": "table"}, "required": true, "references": "table"},
+      {"key": "storey_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "storey_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "walking_radius", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_step", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "walking_slope", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "stair_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "ramp_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "lift_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "stair_length", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "vertical_factor", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"}
+    ]},
+    {"name": "effective_missing", "parameters": [
+      {"key": "sources", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "blockers", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "mode", "kind": {"type": "choice", "options": ["grown", "touching", "travel", "visible"]}, "required": false, "default": "grown", "references": "string"},
+      {"key": "range", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "touch_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "area_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "capacity_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "capacity_multiplier", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "capacity_multiplier_property", "kind": {"type": "property"}, "required": false, "references": "property"}
+    ]},
+    {"name": "end_spaces", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "obstacles", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "depth", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "width", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "height", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "end_walls", "parameters": [
+      {"key": "corridor", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "kinds", "kind": {"type": "sourceKind"}, "required": false, "references": "string"}
+    ]},
+    {"name": "escape_verdicts", "parameters": [
+      {"key": "uses", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "widths", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "exit_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "exit_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "door_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "clear_width_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "walking_height", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "walking_step", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "sections", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "section_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "passage_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "passage_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "passage_width_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "exit_door_direction", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "walked_passages", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "no_escape_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "compartment_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "compartment_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "compartment_overlap", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "zones", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "exit_count", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "route_door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "common_path_factor", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "route_door_direction", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "minimum_clear_height", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "clear_height_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "overall_height", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "lining_thickness", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "threshold_thickness", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "stair_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "ramp_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "lift_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "stair_length", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "vertical_factor", "kind": {"type": "number", "minimum": null}, "required": false, "references": "number"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "exit_pairs", "parameters": [
+      {"key": "exits", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "kinds", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "between", "kind": {"type": "choice", "options": ["closest", "centres", "farthest"]}, "required": false, "default": "closest", "references": "string"}
+    ]},
+    {"name": "exit_separation", "parameters": [
+      {"key": "exit_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "exit_selector", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "fraction", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "flag", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "flag_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "flagged_fraction", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "flag_sources", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "flag_default", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "separation", "kind": {"type": "choice", "options": ["closest", "centres", "farthest"]}, "required": false, "references": "string"},
+      {"key": "pairs", "kind": {"type": "choice", "options": ["any", "all"]}, "required": false, "references": "string"},
+      {"key": "minimum_exits", "kind": {"type": "number", "minimum": 1.0}, "required": false, "references": "number"}
+    ]},
+    {"name": "face_pieces", "parameters": [
+      {"key": "face", "kind": {"type": "choice", "options": ["top", "bottom", "facing"]}, "required": false, "default": "top", "references": "string"},
+      {"key": "direction", "kind": {"type": "vector"}, "required": false},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "flights", "parameters": [
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "free_floor_fit", "parameters": [
+      {"key": "shape", "kind": {"type": "choice", "options": ["circle", "rectangle"]}, "required": true, "references": "string"},
+      {"key": "diameter_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "width_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "length_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "height_metres", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "orientation", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "obstacles", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "band_from_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "band_to_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "merge_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "subtract_door_swings", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "entrance_path_width", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "entrance_tolerance_metres", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "free_placements", "parameters": [
+      {"key": "shape", "kind": {"type": "choice", "options": ["circle", "rectangle"]}, "required": true, "references": "string"},
+      {"key": "diameter", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "width", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "length", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "height", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "obstacles", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "band_from", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "band_to", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "merge", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "swings", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "entrance_width", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "access", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "doors", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "openings", "kind": {"type": "sourceKind"}, "required": false, "references": "string"}
+    ]},
+    {"name": "guard_edges", "parameters": [
+      {"key": "barrier_gap", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "platform_gap", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "landing_gap", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "landing_width", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "climb_distance", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "climb_side", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "measure_from", "kind": {"type": "choice", "options": ["floor", "curb"]}, "required": false, "default": "floor", "references": "string"},
+      {"key": "barriers", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "landings", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "climbables", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "surfaces", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "from_curb", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "climb_height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "handrail_stretches", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "rails", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "reach_across", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach_above", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "level_over", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "from", "kind": {"type": "choice", "options": ["nosing", "riser"]}, "required": false, "references": "string"}
+    ]},
+    {"name": "handrails", "parameters": [
+      {"key": "rails", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "reach_across", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach_above", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "level_over", "kind": {"type": "length", "minimum": 0.0}, "required": false, "default": "0", "references": "length"},
+      {"key": "from", "kind": {"type": "choice", "options": ["nosing", "riser"]}, "required": false, "default": "nosing", "references": "string"},
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"}
+    ]},
+    {"name": "landing_doors", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "landing", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "doors", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "height", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "landing_swings", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "landing", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "doors", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "height", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "landings", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "landing", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "layers", "parameters": [
+      {"key": "spaces", "kind": {"type": "sourceKind"}, "required": false, "references": "string"}
+    ]},
+    {"name": "leaf_glazing", "parameters": []},
+    {"name": "limit_row", "parameters": [
+      {"key": "limits", "kind": {"type": "table"}, "required": true, "references": "table"},
+      {"key": "key_1", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "key_1_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "key_2", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_2_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "key_3", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_3_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "key_4", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_4_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "pair_key", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "case_sensitive", "kind": {"type": "truth"}, "required": false, "references": "boolean"}
+    ]},
+    {"name": "limited_values", "parameters": [
+      {"key": "limits", "kind": {"type": "table"}, "required": true, "references": "table"},
+      {"key": "key_1", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "key_1_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "key_2", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_2_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "key_3", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_3_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "key_4", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "key_4_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "pair_key", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "case_sensitive", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "quantity", "kind": {"type": "choice", "options": ["clear-height", "clear-width", "glazing-ratio", "measured", "member-plan-area", "plan-area", "property", "sill-height", "threshold-step"]}, "required": true, "references": "string"},
+      {"key": "quantity_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "measured_value", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "floor_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "overall_width", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "width_deduction", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "clear_width_from_leaves", "kind": {"type": "choice", "options": ["passage", "widest-leaf"]}, "required": false, "references": "string"},
+      {"key": "overall_height", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "lining_thickness", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "threshold_thickness", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "ramp_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "ramp_reach", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "member_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "relationship", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "direction", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "follow_chain", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "skip_absent_relationship_ends", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "door_type_defaults", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "glazing_ratio_per", "kind": {"type": "choice", "options": ["door", "leaf"]}, "required": false, "references": "string"}
+    ]},
+    {"name": "line_spacing", "parameters": [
+      {"key": "members", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "member_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "direction", "kind": {"type": "vector"}, "required": true},
+      {"key": "gap", "kind": {"type": "choice", "options": ["centre", "clear"]}, "required": false, "default": "centre", "references": "string"}
+    ]},
+    {"name": "name_sequence", "parameters": [
+      {"key": "member_selector", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "name", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "order", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "first", "kind": {"type": "number", "minimum": -1.7976931348623157e+308}, "required": false, "references": "number"},
+      {"key": "increment", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "order_fallback", "kind": {"type": "choice", "options": ["placement_height"]}, "required": false, "references": "string"},
+      {"key": "relationship", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "direction", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "follow_chain", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "skip_absent_relationship_ends", "kind": {"type": "truth"}, "required": false, "references": "boolean"}
+    ]},
+    {"name": "numbering", "parameters": [
+      {"key": "property", "kind": {"type": "property"}, "required": true, "references": "property"},
+      {"key": "pattern", "kind": {"type": "pattern"}, "required": true, "references": "string"},
+      {"key": "prefix_length", "kind": {"type": "number", "minimum": 1.0}, "required": false, "references": "number"},
+      {"key": "gap_free", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "across_sources", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "relationship", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "direction", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "follow_chain", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "skip_absent_relationship_ends", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "opening_placements", "parameters": [
+      {"key": "host_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "hosts", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "length_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "default": "extrusion", "references": "string"},
+      {"key": "height_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "default": "profile-y", "references": "string"},
+      {"key": "zone", "kind": {"type": "choice", "options": ["section", "web"]}, "required": false, "default": "section", "references": "string"},
+      {"key": "minimum", "kind": {"type": "area", "minimum": 0.0}, "required": false, "references": "area"}
+    ]},
+    {"name": "parallel_pairs", "parameters": [
+      {"key": "members", "kind": {"type": "sourceKind"}, "required": true, "references": "string"},
+      {"key": "member_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "angle_tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "parking_bay", "parameters": [
+      {"key": "min_width", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "max_width", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "min_length", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "max_length", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "min_height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "max_height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "aisles", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "aisle_reach", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "orientation", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "angle_tolerance", "kind": {"type": "angle", "below": 45.0}, "required": false, "references": "angle"},
+      {"key": "obstacles", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "obstruction_reach", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "end_obstructions", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "side_obstructions", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "applies_when", "kind": {"type": "pattern"}, "required": false, "references": "string"},
+      {"key": "orientations", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "end_states", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "side_states", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "side_zone_length", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "neighbour_reach", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": true, "references": "selector"}
+    ]},
+    {"name": "rail_continuity", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "rails", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "reach_across", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach_above", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "level_over", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "gap", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "rail_extensions", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "rails", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "reach_across", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach_above", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "level_over", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "from", "kind": {"type": "choice", "options": ["nosing", "riser"]}, "required": false, "references": "string"}
+    ]},
+    {"name": "rail_gaps", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "rails", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "reach_across", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach_above", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "level_over", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "from", "kind": {"type": "choice", "options": ["nosing", "riser"]}, "required": false, "references": "string"}
+    ]},
+    {"name": "rail_heights", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "rails", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "reach_across", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach_above", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "level_over", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "from", "kind": {"type": "choice", "options": ["nosing", "riser"]}, "required": false, "references": "string"}
+    ]},
+    {"name": "rail_obstructions", "parameters": [
+      {"key": "of", "kind": {"type": "choice", "options": ["flight", "ramp"]}, "required": false, "default": "flight", "references": "string"},
+      {"key": "rails", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "level_over", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "surfaces", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "reach_across", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach_above", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "recesses", "parameters": [
+      {"key": "requirements", "kind": {"type": "table"}, "required": false, "references": "table"}
+    ]},
+    {"name": "roof_features", "parameters": [
+      {"key": "feature", "kind": {"type": "choice", "options": ["ridge", "hip", "valley", "eaves", "verge", "abutment"]}, "required": false, "references": "string"},
+      {"key": "tolerance", "kind": {"type": "angle", "below": 45.0}, "required": false, "default": "2", "references": "angle"},
+      {"key": "level_path", "kind": {"type": "path"}, "required": false, "references": "stringList"}
+    ]},
+    {"name": "route_verdicts", "parameters": [
+      {"key": "route_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "start_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "portal_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "lift_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "ramp_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "stair_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "obstacle_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "subtract_door_swings", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "width_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "clear_height_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "door_width_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "ramp_width_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "stair_width_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "forbid_stairs", "kind": {"type": "truth"}, "required": false, "references": "boolean"},
+      {"key": "clear_width_property", "kind": {"type": "property"}, "required": false, "references": "property"},
+      {"key": "obstruction_depth_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "surface_gap_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "passing_width_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "passing_length_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "passing_spacing_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "passing_reach_metres", "kind": {"type": "length", "minimum": null}, "required": false, "references": "length"},
+      {"key": "selection", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "runs", "parameters": [
+      {"key": "landing", "kind": {"type": "sourceKind"}, "required": false, "references": "string"}
+    ]},
+    {"name": "sight_view", "parameters": [
+      {"key": "targets", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "blockers", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "eye_height", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "radius", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "space_connections", "parameters": [
+      {"key": "connections", "kind": {"type": "table"}, "required": true, "references": "table"},
+      {"key": "access_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "door_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "opening_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "space_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "space_overlaps", "parameters": [
+      {"key": "elements", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "tolerance", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"}
+    ]},
+    {"name": "stair_clear_widths", "parameters": [
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "flights", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "obstacles", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "band_from", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "band_to", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "landing", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "stair_continuity", "parameters": [
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "flights", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "rails", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "reach_across", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "reach_above", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "level_over", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "gap", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "landing", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "doors", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "height", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "stairs", "parameters": [
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "flights", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "steps", "parameters": [
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"}
+    ]},
+    {"name": "swing_spaces", "parameters": [
+      {"key": "path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "kinds", "kind": {"type": "sourceKind"}, "required": false, "references": "string"},
+      {"key": "towards", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "not_towards", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "tactile_strips", "parameters": [
+      {"key": "walking_line_offset", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "tactiles", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "offset", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "depth", "kind": {"type": "length", "minimum": 0.0}, "required": true, "references": "length"},
+      {"key": "stair", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "flights", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "unallocated_regions", "subject": "project", "parameters": []},
+    {"name": "unallocated_storeys", "subject": "project", "parameters": []},
+    {"name": "wall_spacing", "parameters": [
+      {"key": "members", "kind": {"type": "objects"}, "required": true, "references": "selector"},
+      {"key": "member_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "angle_tolerance", "kind": {"type": "angle", "below": 45.0}, "required": true, "references": "angle"},
+      {"key": "minimum", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "maximum", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "footprints", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "footprint_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "uncovered_above", "kind": {"type": "area", "minimum": 0.0}, "required": false, "references": "area"}
+    ]},
+    {"name": "well_gaps", "parameters": [
+      {"key": "members", "kind": {"type": "path"}, "required": true, "references": "stringList"}
+    ]},
+    {"name": "well_requirements", "parameters": [
+      {"key": "members", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "requirements", "kind": {"type": "table"}, "required": false, "references": "table"}
+    ]},
+    {"name": "zone_checks", "parameters": [
+      {"key": "host_path", "kind": {"type": "path"}, "required": true, "references": "stringList"},
+      {"key": "host_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "length_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "references": "string"},
+      {"key": "height_axis", "kind": {"type": "choice", "options": ["extrusion", "profile-x", "profile-y"]}, "required": false, "references": "string"},
+      {"key": "end_distance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "edge_distance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "edge_distance_maximum", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "maximum_edges", "kind": {"type": "choice", "options": ["top", "bottom", "both"]}, "required": false, "references": "string"},
+      {"key": "zone", "kind": {"type": "choice", "options": ["section", "web"]}, "required": false, "references": "string"},
+      {"key": "opening_spacing", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "zones", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "minimum_opening_area", "kind": {"type": "area", "minimum": 0.0}, "required": false, "references": "area"},
+      {"key": "dimensions", "kind": {"type": "table"}, "required": false, "references": "table"},
+      {"key": "support_path", "kind": {"type": "path"}, "required": false, "references": "stringList"},
+      {"key": "support_selector", "kind": {"type": "objects"}, "required": false, "references": "selector"},
+      {"key": "support_gap", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "support_distance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "support_distance_ratio", "kind": {"type": "number", "minimum": 0.0}, "required": false, "references": "number"},
+      {"key": "support_distance_reference", "kind": {"type": "choice", "options": ["span", "depth"]}, "required": false, "references": "string"},
+      {"key": "support_clearance", "kind": {"type": "length", "minimum": 0.0}, "required": false, "references": "length"},
+      {"key": "openings", "kind": {"type": "objects"}, "required": false, "references": "selector"}
+    ]},
+    {"name": "zone_neighbours", "parameters": [
+      {"key": "zone", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "stands_in", "kind": {"type": "text"}, "required": false, "references": "string"},
+      {"key": "kinds", "kind": {"type": "text"}, "required": false, "references": "string"}
+    ]}
+  ]
+}

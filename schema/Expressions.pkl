@@ -32,12 +32,28 @@ const maxAggregateNesting = 2
 
 /// The lists of members the checking application measures one by one, such
 /// as a flight's `steps`, which an aggregate may range over by name, written
-/// `name[;key=value...]`. The binder checks each parameter's `key=value`
-/// shape; the application checks the parameters themselves.
+/// `name[;key=value...]`: every member list of the engine's measured registry.
+/// Pkl checks the name and each parameter's `key=value` shape; the binder
+/// checks the parameters against the registry's grammar, as a measured
+/// value's.
 const measuredMemberLists: Set<String> = Set(
-  "axes_within", "end_walls", "exit_pairs", "free_placements", "guard_edges",
-  "handrails", "opening_placements", "parallel_pairs", "recesses", "runs",
-  "steps", "swing_spaces"
+  "alignment_elements", "allocations", "axes_within", "centre_line_sides",
+  "circulation_verdicts", "clash_matrix_pairs", "clash_pairs", "clear_widths",
+  "clearance_checks", "clearances", "compositions", "connected_spaces",
+  "containment_counts", "containment_items", "coordinate_differences",
+  "corridor_end_openings", "distance_items", "distance_open", "distance_rows",
+  "effective_missing", "end_spaces", "end_walls", "escape_verdicts",
+  "exit_pairs", "exit_separation", "face_pieces", "flights", "free_floor_fit",
+  "free_placements", "guard_edges", "handrail_stretches", "handrails",
+  "landing_doors", "landing_swings", "landings", "layers", "leaf_glazing",
+  "limit_row", "limited_values", "line_spacing", "name_sequence", "numbering",
+  "opening_placements", "parallel_pairs", "parking_bay", "rail_continuity",
+  "rail_extensions", "rail_gaps", "rail_heights", "rail_obstructions",
+  "recesses", "roof_features", "route_verdicts", "runs", "sight_view",
+  "space_connections", "space_overlaps", "stair_clear_widths",
+  "stair_continuity", "stairs", "steps", "swing_spaces", "tactile_strips",
+  "unallocated_regions", "unallocated_storeys", "wall_spacing", "well_gaps",
+  "well_requirements", "zone_checks", "zone_neighbours"
 )
 
 /// Whether `name` names a measured member list: a name of

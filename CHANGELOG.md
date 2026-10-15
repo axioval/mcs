@@ -63,11 +63,6 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   refuse both or neither of `zone` and `standsIn` and a blank one or a blank
   `value`. The engine's kinds are now 56.
 
-- The measured name `station;alignment=<kinds>[;path=<steps>]`, the station
-  of an object's reference point along an alignment, which the engine's
-  `catalogue-at` fixture reads its position with. The binder requires
-  `alignment` and checks `path` as `bottom_above_level`'s.
-
 - A ruleset may declare `catalogues` of material or product data, by ID, and
   `Expressions.CatalogueExpression` (`catalogue`) takes a value from one, as
   the engine's catalogues do (axioval/engine#322). A `CatalogueDefinition`
@@ -85,6 +80,48 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   other than the ID, columns a table file could not declare, column ids that
   are no identifiers, and a `catalogue` node naming an undeclared catalogue,
   an undeclared column or the key column, wherever the node stands.
+
+- `axioval:measured` accepts every measured value of the engine's measured
+  registry, and an aggregate's `measured` source every measured member list,
+  mirrored from the engine at 0e1a0f61 in `scripts/measured_registry.json`, a
+  projection of the engine's golden authoring catalogue: 202 values, among
+  them `station;alignment=<kinds>[;path=<steps>]`, the station of an
+  object's reference point along an alignment, which the engine's
+  `catalogue-at` fixture reads its position with, `distance`,
+  `count_within`, `slope`, `sum_within`, `min_within`,
+  `max_within` and `mean_within` (axioval/engine#351, with the `zone`
+  parameter and the optional `radius` of `count_within` of
+  axioval/engine#360), `max_along`, `min_along`, `rate_along`,
+  `alignment_cant_ratio` and `fall_in_flow` (axioval/engine#344), `azimuth`,
+  `tilt`, `obstruction_angle`, `envelope_area`, `envelope_volume`,
+  `compactness`, `cover`, `height_above_surface` and `distance_to_feature`
+  (axioval/engine#354), the `zone_*` values with `zone` or `stands_in`
+  (axioval/engine#327, axioval/engine#319, axioval/engine#321),
+  `above_terrain` and `mean_terrain_height` (axioval/engine#325), the
+  `setback_*` values (axioval/engine#326) and `undrained_area` and
+  `drainage_path` (axioval/engine#335); and 70 member lists, among them
+  `layers` (axioval/engine#334), `zone_neighbours`, `line_spacing` and
+  `roof_features`. `schema/Types.pkl` and `schema/Expressions.pkl` list the
+  same names.
+
+- The binder checks a measured value's and a member list's parameters as the
+  engine's `measured::parse` does, with the engine's messages: each key once
+  and one the name takes, every required parameter, each value of its kind
+  (path, source kind, objects, text, pattern, length, number, area, angle,
+  choice, choices, vector, polygon, property, truth, table) or a rule
+  parameter `@name` its kind takes, `@anchor` only in an `objects` parameter
+  of a value measured for each object, `face=facing` with its `direction` and
+  `tolerance`, exactly one of `radius`, `group` and `zone` (``one of
+  `radius`, `group`, `zone` reaches the counterparts``) and nothing of a
+  distance with `group` or `zone`, a walk's profile, and exactly one of
+  `zone` and `stands_in`. A path's steps must also be steps a related
+  selector writes.
+
+- `tests/test_measured.py` checks the snapshot against the engine: with
+  `AXIOVAL_ENGINE_CATALOGUE` pointing at the engine's
+  `crates/engine/rules/tests/golden/catalogue.json` it fails when the engine
+  adds, removes or changes a measured value or member list;
+  `scripts/measured_registry.py` regenerates the snapshot.
 
 - `Expressions.PairsExpression` (`pairs`), `Expressions.PreviousExpression`
   (`previous`) and `Expressions.NextExpression` (`next`) mirror the engine's
@@ -426,6 +463,12 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 - The shared expression fixtures are re-copied from the engine at 3cb7c47c
   with `catalogue`.
+
+- A measured member list's parameters are checked against the registry, no
+  longer only for their `key=value` shape, and an unknown measured name or
+  member list, a parameter the name does not take, a missing or repeated one
+  and a malformed value are refused with the engine's message, such as
+  ``"`sum_within` needs `radius`"``, in place of the binder's earlier wording.
 
 - The shared expression fixtures are re-copied from the engine at 04c9d69a
   with `pairs`, `pairs-next` and `aggregate-flow`; a kind counts as covered

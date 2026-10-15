@@ -7,6 +7,7 @@ import math
 import re
 import zipfile
 from datetime import date
+from decimal import Decimal
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit
@@ -120,7 +121,7 @@ SOURCE_FIELDS = {"fileName", "application", "schema", "project", "timestamp"}
 PATH_DIRECTIONS = ("forward", "backward", "either")
 # A source relationship name in a related-selector or category path step.
 RELATED_PATH_RELATIONSHIP = re.compile(r"[^:\s|]+")
-# A source relationship name in a `bottom_above_level` path step, which the
+# A source relationship name in a measured parameter's path step, which the
 # measured name's own `;` and the path's `,` separate.
 MEASURED_PATH_RELATIONSHIP = re.compile(r"[^:\s|,;]+")
 # A derived relationship the checking engine computes, with its optional
@@ -192,27 +193,58 @@ RESERVED_PROPERTY_SETS = {
 CLASSIFICATION_SET = "axioval:classification"
 # Reserved sets the engine derives rather than a source states: their property
 # names are engine or ruleset vocabulary and bind to no concept.
-# The reserved set of values measured from geometry, its names without
-# parameters, and its names taking `;key=value` parameters, matched ignoring
-# ASCII case.
+# The reserved set of values measured from geometry. Its names, and the
+# measured member lists an aggregate ranges over, are the engine's measured
+# registry, mirrored in `measured_registry.json`: each name with its subject
+# and typed parameters, matched ignoring ASCII case.
 MEASURED_SET = "axioval:measured"
-MEASURED_NAMES = {
-    "extent_x",
-    "extent_y",
-    "extent_z",
-    "bottom",
-    "top",
-    "area",
-    "volume",
-    "x",
-    "y",
-    "z",
-    "level_height",
+MEASURED_REGISTRY = json.loads(
+    Path(__file__).with_name("measured_registry.json").read_text(encoding="utf-8")
+)
+MEASURED_VALUES = {
+    entry["name"]: entry for entry in MEASURED_REGISTRY["measuredValues"]
 }
-MEASURED_BOTTOM_ABOVE_LEVEL = "bottom_above_level"
-MEASURED_BOUNDARY_AREA = "boundary_area"
-# The station of an object's reference point along an alignment.
-MEASURED_STATION = "station"
+MEASURED_MEMBERS = {
+    entry["name"]: entry for entry in MEASURED_REGISTRY["measuredMembers"]
+}
+# The parameter kinds the registry states, as the engine's
+# `MeasuredParameterKind` names them.
+MEASURED_PARAMETER_KINDS = {
+    "path",
+    "paths",
+    "sourceKind",
+    "length",
+    "choice",
+    "choices",
+    "vector",
+    "property",
+    "text",
+    "pattern",
+    "polygon",
+    "objects",
+    "table",
+    "number",
+    "truth",
+    "angle",
+    "area",
+}
+# The `@` reference naming the object a rule checks, which only an `objects`
+# parameter takes.
+MEASURED_ANCHOR = "anchor"
+# The keys of a distance that a value reaching its counterparts by a shared
+# `group` or a context `zone` states none of.
+MEASURED_DISTANCE_KEYS = (
+    "from",
+    "projection",
+    "direction",
+    "measure",
+    "walking_radius",
+    "walking_height",
+    "walking_step",
+    "walking_slope",
+)
+# A rule parameter's name as a measured parameter's `@name` writes it.
+MEASURED_REFERENCE = re.compile(r"[A-Za-z0-9_.-]+")
 # A decimal number as the engine parses one.
 DECIMAL = re.compile(r"[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?")
 # The whitespace the engine trims around names, keys, and values.
@@ -415,22 +447,6 @@ RULE_READING_EXPRESSIONS = {
     "selected",
     "findingCount",
     "deviation",
-}
-# The lists of members the engine measures one by one, which an aggregate
-# ranges over as `name[;key=value...]`.
-MEASURED_MEMBER_LISTS = {
-    "axes_within",
-    "end_walls",
-    "exit_pairs",
-    "free_placements",
-    "guard_edges",
-    "handrails",
-    "opening_placements",
-    "parallel_pairs",
-    "recesses",
-    "runs",
-    "steps",
-    "swing_spaces",
 }
 # How deeply an expression nests, how many nodes it holds (its aggregates'
 # member filters included), and how deeply aggregates nest within one another.
@@ -2127,58 +2143,411 @@ def check_path_derived(
 def measured_name_error(name: str) -> str | None:
     """Why `name` is no name in `axioval:measured`, if it is none.
 
-    Mirrors the engine's parser: a name, ignoring ASCII case and surrounding
-    whitespace, then `;`-separated `key=value` parameters. Only
-    `bottom_above_level` (`path`, required: `,`-separated related-selector
-    steps), `boundary_area` (`kind`, required, and `plane`, a length of at
-    least zero) and `station` (`alignment`, required: source kinds, and
-    `path`, steps as `bottom_above_level`'s) take parameters.
+    Mirrors the engine's `measured::parse` against the registry's
+    `measuredValues`."""
+    return measured_call_error(name, MEASURED_VALUES, "measured value")
+
+
+# A number as Rust's `f64::from_str` parses one: a decimal, or `inf`,
+# `infinity` or `nan` in any ASCII case, each with an optional sign.
+RUST_FLOAT = re.compile(
+    r"[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:e[+-]?[0-9]+)?|inf|infinity|nan)",
+    re.ASCII | re.IGNORECASE,
+)
+
+
+def rust_float(text: str) -> float | None:
+    """`text` as Rust's `f64::from_str` parses it, if it parses."""
+    return float(text) if RUST_FLOAT.fullmatch(text) else None
+
+
+def rust_display(number: float | None) -> str:
+    """`number` as Rust's `Display` writes an `f64`: its shortest
+    round-trip digits without an exponent; `None`, a registry minimum of
+    negative infinity, as `-inf`."""
+    if number is None:
+        return "-inf"
+    if math.isnan(number):
+        return "NaN"
+    if math.isinf(number):
+        return "inf" if number > 0 else "-inf"
+    text = format(Decimal(repr(number)), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+def measured_call_error(
+    text: str, registry: dict[str, dict[str, Any]], what: str
+) -> str | None:
+    """Why `text` is no `name[;key=value...]` of `registry`, which names
+    `what`, if it is none.
+
+    Mirrors the engine's `measured::parse_in`: the name ignoring ASCII case
+    and surrounding whitespace, then `;`-separated `key=value` parameters,
+    each key ignoring ASCII case, one the name takes, stated once; every
+    required parameter stated, and each value, stated or defaulted, of its
+    kind or a reference `@name` its kind takes. Then the checks across
+    parameters: `face=facing` with its `direction` and `tolerance`, one of
+    `radius`, `group` and `zone` and a walk's profile, and one of `zone` and
+    `stands_in`. The messages are the engine's.
     """
-    base, *parts = name.split(";")
+    base, *parts = text.split(";")
     base = ascii_lower(base.strip(TRIMMED))
-    parameters: dict[str, str] = {}
+    entry = registry.get(base)
+    if entry is None:
+        return f"`{base}` is no {what}; known: {', '.join(registry)}"
+    name = entry["name"]
+    parameters = {parameter["key"]: parameter for parameter in entry["parameters"]}
+    stated: dict[str, str] = {}
     for part in parts:
-        if "=" not in part:
-            return f"{part!r} is not 'key=value'"
-        key, value = part.split("=", 1)
+        key, separator, value = part.partition("=")
+        if not separator:
+            return f"`{part}` of `{name}` is not `key=value`"
         key = ascii_lower(key.strip(TRIMMED))
-        if key in parameters:
-            return f"{key!r} is stated twice"
-        parameters[key] = value.strip(TRIMMED)
-    if base == MEASURED_BOTTOM_ABOVE_LEVEL:
-        path = parameters.pop("path", None)
-        if path is None:
-            return "'bottom_above_level' needs 'path'"
-        for step in path.split(","):
-            error = path_step_error(step.strip(TRIMMED), MEASURED_PATH_RELATIONSHIP)
-            if error is not None:
-                return error
-    elif base == MEASURED_STATION:
-        if not parameters.pop("alignment", ""):
-            return "'station' needs 'alignment'"
-        path = parameters.pop("path", None)
-        if path is not None:
-            for step in path.split(","):
-                error = path_step_error(step.strip(TRIMMED), MEASURED_PATH_RELATIONSHIP)
+        if key not in parameters:
+            accepted = ", ".join(f"`{known}`" for known in parameters)
+            return f"`{name}` takes no parameter `{key}`" + (
+                f"; it takes {accepted}" if accepted else ""
+            )
+        if key in stated:
+            return f"`{name}` states `{key}` twice"
+        stated[key] = value.strip(TRIMMED)
+    arguments: dict[str, tuple[Any, ...]] = {}
+    for key, parameter in parameters.items():
+        value = stated.get(key, parameter.get("default"))
+        if value is None:
+            if parameter["required"]:
+                return f"`{name}` needs `{key}`"
+            continue
+        argument, detail = measured_argument(parameter, value)
+        if argument == ("anchor",) and entry.get("subject", "object") != "object":
+            subject = "project" if entry["subject"] == "project" else "source"
+            detail = (
+                f"`{value}` names the anchor, but `{name}` is measured for each "
+                f"{subject}, never for an object"
+            )
+        if detail is not None:
+            return f"`{name}` parameter `{key}`: {detail}"
+        arguments[key] = argument
+    error = (
+        measured_facing_error(name, parameters, arguments)
+        or measured_reach_error(name, parameters, stated, arguments)
+        or measured_zone_error(name, parameters, stated)
+    )
+    if error is not None:
+        return error
+    # The engine reads a path's steps once it resolves the path; the binder
+    # refuses a step no related selector could write before then.
+    for key, argument in arguments.items():
+        if argument[0] == "path":
+            for step in argument[1]:
+                error = path_step_error(step, MEASURED_PATH_RELATIONSHIP)
                 if error is not None:
-                    return error
-    elif base == MEASURED_BOUNDARY_AREA:
-        if not parameters.pop("kind", ""):
-            return "'boundary_area' needs 'kind'"
-        plane = parameters.pop("plane", None)
-        if plane is not None and not (
-            DECIMAL.fullmatch(plane)
-            and math.isfinite(float(plane))
-            and float(plane) >= 0
+                    return f"`{name}` parameter `{key}`: {error}"
+    return None
+
+
+def measured_argument(
+    parameter: dict[str, Any], value: str
+) -> tuple[tuple[Any, ...], str | None]:
+    """The argument `value` states for `parameter`, tagged by what it is,
+    or why it is none: the engine's `measured::argument`."""
+    kind = parameter["kind"]
+    kind_type = kind.get("type")
+    if kind_type not in MEASURED_PARAMETER_KINDS:
+        return (), f"the registry states no parameter kind {kind_type!r}"
+    if value.startswith("@"):
+        reference = value[1:].strip(TRIMMED)
+        if reference == MEASURED_ANCHOR:
+            if kind_type == "objects":
+                return ("anchor",), None
+            return (), (
+                f"`{value}` names the anchor, which only objects measured against take"
+            )
+        if "references" not in parameter:
+            return (), f"`{value}` names a rule parameter, which it never takes"
+        if not MEASURED_REFERENCE.fullmatch(reference):
+            return (), f"`{value}` names no rule parameter"
+        return ("parameter", reference), None
+    if kind_type in {"path", "paths"}:
+        steps = [step.strip(TRIMMED) for step in value.split(",")]
+        if any(not step for step in steps):
+            return (), "a step is empty"
+        if kind_type == "paths":
+            # Whole paths, each its steps separated by spaces.
+            steps = [step for path in steps for step in path.split()]
+        return ("path", steps), None
+    if kind_type in {"sourceKind", "objects", "text", "pattern"}:
+        return (("text", value), None) if value else ((), "it is empty")
+    if kind_type in {"length", "number", "area"}:
+        number = rust_float(value)
+        minimum = kind.get("minimum")
+        if (
+            number is None
+            or not math.isfinite(number)
+            or (minimum is not None and number < minimum)
         ):
-            return f"'plane' {plane!r} is no length of at least zero"
-    elif base not in MEASURED_NAMES:
-        return (
-            f"{base!r} is not a measured name "
-            f"{sorted(MEASURED_NAMES | {MEASURED_BOTTOM_ABOVE_LEVEL, MEASURED_BOUNDARY_AREA, MEASURED_STATION})}"
+            what = {
+                "length": f"length of at least {rust_display(minimum)} m",
+                "number": f"number of at least {rust_display(minimum)}",
+                "area": f"area of at least {rust_display(minimum)} m²",
+            }[kind_type]
+            return (), f"`{value}` is no {what}"
+        return (kind_type, number), None
+    if kind_type == "angle":
+        number = rust_float(value)
+        if number is None or not 0 <= number < kind["below"]:
+            return (), (
+                f"`{value}` is no angle of at least 0 and below "
+                f"{rust_display(kind['below'])} degrees"
+            )
+        return ("number", number), None
+    if kind_type == "choice":
+        options = kind["options"]
+        for option in options:
+            if ascii_lower(option) == ascii_lower(value):
+                return ("choice", option), None
+        return (), f"`{value}` is none of {', '.join(options)}"
+    if kind_type == "choices":
+        options = kind["options"]
+        chosen: list[str] = []
+        for written in value.split(","):
+            written = written.strip(TRIMMED)
+            option = next(
+                (
+                    option
+                    for option in options
+                    if ascii_lower(option) == ascii_lower(written)
+                ),
+                None,
+            )
+            if option is None:
+                return (), f"`{written}` is none of {', '.join(options)}"
+            if option in chosen:
+                return (), f"`{written}` is chosen twice"
+            chosen.append(option)
+        return ("choices", chosen), None
+    if kind_type == "property":
+        property_set, slash, property_name = value.partition("/")
+        if not slash:
+            property_set, property_name = "", value
+        if not property_name.strip(TRIMMED) or (slash and not property_set.strip(TRIMMED)):
+            return (), f"`{value}` is no `set/name` property"
+        return ("property", value), None
+    if kind_type == "vector":
+        components = [rust_float(part.strip(TRIMMED)) for part in value.split(",")]
+        if (
+            len(components) != 3
+            or any(c is None or not math.isfinite(c) for c in components)
+            or all(c == 0 for c in components)
+        ):
+            return (), f"`{value}` is no `x,y,z` direction"
+        return ("vector", components), None
+    if kind_type == "polygon":
+        vertices: list[tuple[float, float]] = []
+        for vertex in value.split(","):
+            lateral, colon, up = vertex.partition(":")
+            coordinates = (rust_float(lateral.strip(TRIMMED)), rust_float(up.strip(TRIMMED)))
+            if not colon or None in coordinates:
+                return (), (
+                    f"`{value}` is no polygon of `lateral:up` vertices, `,`-separated"
+                )
+            vertices.append(coordinates)  # type: ignore[arg-type]
+        problem = polygon_problem(vertices)
+        if problem is not None:
+            return (), f"`{value}` is no simple polygon: {problem}"
+        return ("polygon", vertices), None
+    if kind_type == "truth":
+        if ascii_lower(value) in {"true", "false"}:
+            return ("truth", ascii_lower(value) == "true"), None
+        return (), f"`{value}` is neither `true` nor `false`"
+    # A table is named only as a rule parameter.
+    return (), (
+        f"`{value}` is no table; a table is named only as a rule parameter, `@name`"
+    )
+
+
+def polygon_problem(vertices: list[tuple[float, float]]) -> str | None:
+    """Why `vertices` is no simple polygon, if it is none: the engine's
+    `measured::polygon_problem`. At least three finite vertices enclosing an
+    area, no vertex repeating the one before it, and no edge crossing or
+    touching another but its two neighbours at their shared vertex."""
+    count = len(vertices)
+    if count < 3:
+        return f"it has {count} vertices, fewer than three"
+    if any(not math.isfinite(c) for vertex in vertices for c in vertex):
+        return "a coordinate is not finite"
+    twice_area = 0.0
+    for i in range(count):
+        (ax, ay), (bx, by) = vertices[i], vertices[(i + 1) % count]
+        twice_area += ax * by - bx * ay
+    if twice_area == 0 or not math.isfinite(twice_area):
+        return "it encloses no area"
+
+    def edge(i: int) -> tuple[tuple[float, float], tuple[float, float]]:
+        return vertices[i], vertices[(i + 1) % count]
+
+    def same(p: tuple[float, float], q: tuple[float, float]) -> bool:
+        return all(
+            a == b and math.copysign(1, a) == math.copysign(1, b)
+            for a, b in zip(p, q)
         )
-    if parameters:
-        return f"{base!r} takes no parameter {next(iter(parameters))!r}"
+
+    for i in range(count):
+        a, b = edge(i)
+        if same(a, b):
+            return f"vertex {(i + 1) % count + 1} repeats the one before it"
+        for j in range(i + 1, count):
+            c, d = edge(j)
+            if j == i + 1 or (i == 0 and j == count - 1):
+                # Neighbours share one vertex; they may not fold back onto
+                # each other.
+                shared, one, other = (b, a, d) if j == i + 1 else (a, b, c)
+                cross = (one[0] - shared[0]) * (other[1] - shared[1]) - (
+                    one[1] - shared[1]
+                ) * (other[0] - shared[0])
+                dot = (one[0] - shared[0]) * (other[0] - shared[0]) + (
+                    one[1] - shared[1]
+                ) * (other[1] - shared[1])
+                if cross == 0 and dot > 0:
+                    return f"edges {i + 1} and {j + 1} overlap"
+            elif segments_meet(a, b, c, d):
+                return f"edges {i + 1} and {j + 1} cross or touch"
+    return None
+
+
+def segments_meet(
+    a: tuple[float, float],
+    b: tuple[float, float],
+    c: tuple[float, float],
+    d: tuple[float, float],
+) -> bool:
+    """Whether the closed segments `ab` and `cd` share a point."""
+
+    def orient(p: tuple[float, float], q: tuple[float, float], r: tuple[float, float]) -> int:
+        value = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+        return 1 if value > 0 else -1 if value < 0 else 0
+
+    def within(p: tuple[float, float], q: tuple[float, float], r: tuple[float, float]) -> bool:
+        return (
+            min(p[0], q[0]) <= r[0] <= max(p[0], q[0])
+            and min(p[1], q[1]) <= r[1] <= max(p[1], q[1])
+        )
+
+    o1, o2, o3, o4 = orient(a, b, c), orient(a, b, d), orient(c, d, a), orient(c, d, b)
+    if o1 * o2 < 0 and o3 * o4 < 0:
+        return True
+    return (
+        (o1 == 0 and within(a, b, c))
+        or (o2 == 0 and within(a, b, d))
+        or (o3 == 0 and within(c, d, a))
+        or (o4 == 0 and within(c, d, b))
+    )
+
+
+def measured_facing_error(
+    name: str,
+    parameters: dict[str, dict[str, Any]],
+    arguments: dict[str, tuple[Any, ...]],
+) -> str | None:
+    """Where a value's `face` may face a direction, `face=facing` states its
+    `direction` and a `tolerance` of at most 180 degrees, and no other face
+    states either: the engine's `measured::facing`."""
+    face = parameters.get("face")
+    if not (
+        face is not None
+        and face["kind"].get("type") == "choice"
+        and "facing" in face["kind"]["options"]
+    ):
+        return None
+    facing = arguments.get("face") == ("choice", "facing")
+    for key in ("direction", "tolerance"):
+        if facing and key not in arguments:
+            return f"`{name}` needs `{key}`"
+        if not facing and key in arguments:
+            return f"`{name}` parameter `{key}`: only `face=facing` takes it"
+    tolerance = arguments.get("tolerance")
+    if tolerance is not None and tolerance[0] == "length" and tolerance[1] > 180:
+        return (
+            f"`{name}` parameter `tolerance`: {rust_display(tolerance[1])} degrees "
+            "is more than 180"
+        )
+    return None
+
+
+def measured_reach_error(
+    name: str,
+    parameters: dict[str, dict[str, Any]],
+    stated: dict[str, str],
+    arguments: dict[str, tuple[Any, ...]],
+) -> str | None:
+    """How a value reaches its counterparts: the engine's `measured::reach`.
+
+    Where it may reach them by `radius`, a shared `group` or a context
+    `zone`, it states exactly one, and with `group` or `zone` nothing of a
+    distance. Where it may walk, `measure=walking` states the profile's
+    radius, height and step and no `projection` or `direction`, and no other
+    measure states any of the profile; a measure named by `@` is checked
+    once bound."""
+    reaches = [key for key in ("radius", "group", "zone") if key in parameters]
+    if len(reaches) > 1:
+        named = [key for key in reaches if key in stated]
+        if not named:
+            return f"`{name}` needs `radius`"
+        if len(named) > 1:
+            listed = ", ".join(f"`{key}`" for key in reaches)
+            return (
+                f"`{name}` parameter `{named[-1]}`: one of {listed} reaches the "
+                "counterparts"
+            )
+        if named != ["radius"]:
+            distance = next(
+                (key for key in MEASURED_DISTANCE_KEYS if key in stated), None
+            )
+            if distance is not None:
+                by = "a shared `group`" if named == ["group"] else "a context `zone`"
+                return (
+                    f"`{name}` parameter `{distance}`: {by} reaches the counterparts "
+                    "at no distance"
+                )
+            return None
+    if "walking_radius" not in parameters:
+        return None
+    measure = arguments.get("measure")
+    if measure is None or measure[0] != "choice":
+        return None
+    walking = measure[1] == "walking"
+    for key in ("walking_radius", "walking_height", "walking_step"):
+        if walking and key not in stated:
+            return f"`{name}` needs `{key}`"
+    for key in ("walking_radius", "walking_height", "walking_step", "walking_slope"):
+        if not walking and key in stated:
+            return f"`{name}` parameter `{key}`: only `measure=walking` takes it"
+    for key in ("projection", "direction"):
+        if walking and key in stated:
+            return (
+                f"`{name}` parameter `{key}`: a walk is measured in plan, never "
+                "projected"
+            )
+    return None
+
+
+def measured_zone_error(
+    name: str, parameters: dict[str, dict[str, Any]], stated: dict[str, str]
+) -> str | None:
+    """Where a value names its context zone by id (`zone`) or by the kind of
+    zone the object stands in (`stands_in`), it states exactly one: the
+    engine's `measured::zone_or_kind`."""
+    if "stands_in" not in parameters or "zone" not in parameters:
+        return None
+    if "zone" not in stated and "stands_in" not in stated:
+        return f"`{name}` needs `zone`"
+    if "zone" in stated and "stands_in" in stated:
+        return (
+            f"`{name}` parameter `stands_in`: it names the zone in place of `zone`; "
+            "state one of them"
+        )
     return None
 
 
@@ -2452,25 +2821,13 @@ def selector_expressions(value: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def measured_members_error(name: Any) -> str | None:
-    """Why `name` names no measured member list, if it names none: a list
-    name, ignoring ASCII case and surrounding whitespace, then `;`-separated
-    `key=value` parameters, each key stated once."""
+    """Why `name` names no measured member list, if it names none.
+
+    Mirrors the engine's `measured::parse_members`: a list of the registry's
+    `measuredMembers`, its parameters checked as a measured value's."""
     if type(name) is not str:
         return "a measured member list must be a string"
-    base, *parts = name.split(";")
-    base = ascii_lower(base.strip(TRIMMED))
-    if base not in MEASURED_MEMBER_LISTS:
-        return f"{base!r} is not a measured member list {sorted(MEASURED_MEMBER_LISTS)}"
-    keys: set[str] = set()
-    for part in parts:
-        key, separator, _ = part.partition("=")
-        key = ascii_lower(key.strip(TRIMMED))
-        if not separator or not key:
-            return f"{part!r} is not 'key=value'"
-        if key in keys:
-            return f"{key!r} is stated twice"
-        keys.add(key)
-    return None
+    return measured_call_error(name, MEASURED_MEMBERS, "measured member list")
 
 
 def literal_error(value: Any) -> str | None:

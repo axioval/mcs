@@ -512,7 +512,7 @@ class ExpressionBindingTests(unittest.TestCase):
         self.bind(ruleset, definitions)
         for property_set, name, reason in (
             ("axioval:value", "steepness", "derives no value 'steepness'"),
-            ("axioval:measured", "girth", "is not a measured name"),
+            ("axioval:measured", "girth", "`girth` is no measured value; known: "),
             ("axioval:classification", "zone", "unknown classification 'zone'"),
         ):
             ruleset, definitions = self.documents()
@@ -1015,9 +1015,13 @@ class ExpressionBindingTests(unittest.TestCase):
             (
                 {"kind": "measured", "name": "treads"},
                 None,
-                "not a measured member list",
+                "`treads` is no measured member list; known: ",
             ),
-            ({"kind": "measured", "name": "steps;offset"}, None, "is not 'key=value'"),
+            (
+                {"kind": "measured", "name": "steps;offset"},
+                None,
+                "`offset` of `steps` is not `key=value`",
+            ),
         )
         for over, where, reason in cases:
             ruleset, definitions = self.documents()

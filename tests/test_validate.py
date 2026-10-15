@@ -4169,6 +4169,11 @@ class MeasuredValueTests(unittest.TestCase):
         "boundary_area;kind=IfcWall;plane=0.05",
         "station;alignment=IfcAlignment",
         "station;alignment=IfcAlignment,IfcLinearPositioningElement;path=IfcRelPositions:backward",
+        "sum_within;to=ex:extinguisher;value=ex:units;radius=15",
+        "slope",
+        "count_within;to=IfcDoor;zone=WA1",
+        "zone_value;stands_in=parcel;value=storeys_max",
+        "above_terrain;terrain=original;of=top",
     )
 
     @classmethod
@@ -4221,7 +4226,7 @@ class MeasuredValueTests(unittest.TestCase):
     def test_rejects_other_names_and_non_quantity_comparisons(self) -> None:
         for name in (
             "height",
-            "extent",
+            "extents",
             "extent-z",
             "",
             "EXTENT_\u017f",
@@ -4257,6 +4262,11 @@ class MeasuredValueTests(unittest.TestCase):
             "station;alignment=IfcAlignment;path=IfcRelPositions:up",
             "station;alignment=IfcAlignment;alignment=IfcAlignment",
             "station;alignment=IfcAlignment;kind=IfcWall",
+            "slpoe",
+            "sum_within;to=ex:extinguisher;value=ex:units",
+            "count_within;to=IfcDoor;radius=5;zone=WA1",
+            "zone_area;zone=WA1;stands_in=parcel",
+            "layers;spaces=IfcSpace",
         ):
             self.assert_rejected(applicability=measured(name))
             self.assert_rejected(
@@ -4309,12 +4319,18 @@ class MeasuredValueTests(unittest.TestCase):
             evaluated = evaluate(MEASURED_SET, "Extent_Z")
             self.assertEqual(evaluated["selector"]["property"], "Extent_Z")
             self.assertEqual(evaluated["reference"]["propertySet"], MEASURED_SET)
-            name = "boundary_area;kind=IfcWall;plane=0.05"
-            self.assertEqual(
-                evaluate(MEASURED_SET, name)["reference"]["property"], name
-            )
+            for name in (
+                "boundary_area;kind=IfcWall;plane=0.05",
+                "sum_within;to=ex:extinguisher;value=ex:units;radius=15",
+                "Slope",
+            ):
+                self.assertEqual(
+                    evaluate(MEASURED_SET, name)["reference"]["property"], name
+                )
             for property_set, name in (
                 (MEASURED_SET, "height"),
+                (MEASURED_SET, "slpoe"),
+                (MEASURED_SET, "layers;spaces=IfcSpace"),
                 (MEASURED_SET, "height;path=IfcRelAggregates"),
                 (MEASURED_SET, "axioval:example.height"),
                 (None, "extent_z"),

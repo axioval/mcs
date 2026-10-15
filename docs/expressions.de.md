@@ -92,8 +92,11 @@ ihn statt seiner ausgeschriebenen Form nennen.
 - `aggregate` berechnet `count`, `sum`, `min`, `max`, `average`, `any`, `all`,
   `none` oder `distinctCount` über Mitglieder, die es `over` einen
   Beziehungspfad `path`, die abgeleitete Gruppe `group` einer Gruppierung,
-  einen `selector` oder eine gemessene Mitgliederliste `measured` wie `steps`
-  erreicht. Ein optionaler Selektor `where` filtert die Mitglieder, und `value`
+  einen `selector` oder eine gemessene Mitgliederliste `measured` der
+  Messwert-Registry der Engine erreicht, etwa `steps` oder
+  `layers;spaces=IfcSpace`, deren Parameter wie die eines
+  [Messwerts](reference/schema.de.md#gemessene-werte) geprüft werden. Ein
+  optionaler Selektor `where` filtert die Mitglieder, und `value`
   wird für jedes ausgewertet; eine Zählung nimmt kein `value`, jede andere
   Funktion braucht eines. Im `value` eines Aggregats über gemessene Mitglieder
   nennt die reservierte Menge `axioval:member` die Felder jedes Mitglieds.
@@ -488,7 +491,8 @@ Pkl prüft die Form jedes Knotens. Der Binder lehnt danach unter anderem ab:
   zwei Ebenen in `value`, `by` oder `where` ineinander schachtelt;
 - ein Aggregat oder `pairs`, dessen `value` nicht zu seiner Funktion passt, ein
   `where` über gemessenen Mitgliedern, eine unbekannte gemessene
-  Mitgliederliste und `axioval:member` außerhalb des `value` eines solchen
+  Mitgliederliste oder eine mit einem Parameter, den die Registry nicht annimmt,
+  und `axioval:member` außerhalb des `value` eines solchen
   Aggregats oder des `by` und `value` eines solchen `argmin`, `argmax` oder
   `pairs`;
 - ein `previous` oder `next` irgendwo außer im `value` eines `pairs`: nicht in

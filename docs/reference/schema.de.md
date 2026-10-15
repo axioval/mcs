@@ -1355,42 +1355,92 @@ zurückkommen.
 ## Gemessene Werte
 
 Die reservierte Gruppe `axioval:measured` nennt Werte, die die prüfende
-Anwendung am Körper eines Objekts misst, statt sie aus einer Quelle zu lesen:
+Anwendung am Körper eines Objekts, an seiner Umgebung oder am Projekt misst,
+statt sie aus einer Quelle zu lesen. Ihre Namen sind die der Messwert-Registry
+der Engine, die die
+[Referenz der abgeleiteten Werte der Engine](https://github.com/axioval/engine/blob/0e1a0f6158372daa361307c10c71a7127e42ca23/docs/src/derived.md)
+einzeln beschreibt. Einige davon:
 
 | Name | Wert |
 | --- | --- |
-| `extent_x`, `extent_y` | die Ausdehnung entlang der x- oder y-Achse der Welt, eine Länge |
-| `extent_z` | die Höhe, eine Länge |
+| `extent_x`, `extent_y`, `extent_z` | die Ausdehnung entlang einer Achse der Welt, eine Länge |
 | `bottom`, `top` | die Höhenlage des tiefsten und höchsten Punkts, eine Länge |
-| `area` | die Grundrissfläche, Überlappungen einmal gezählt |
-| `volume` | das umschlossene Volumen |
-| `x`, `y`, `z` | die Weltkoordinaten des Einfügepunkts, eine Länge |
-| `level_height` | die Höhe eines Geschosses bis zum nächsten Geschoss, eine Länge, wie die Quelle sie angibt |
+| `area`, `volume` | die Grundrissfläche, Überlappungen einmal gezählt, und das umschlossene Volumen |
+| `slope[;face=<face>]` | das steilste Gefälle einer Fläche, ein Winkel |
 | `bottom_above_level;path=<steps>` | die Unterkante über der einen Ebene, die der Pfad erreicht, eine Länge |
 | `boundary_area;kind=<kind>[;plane=<metres>]` | die Begrenzungsfläche eines Raums gegen Elemente der Quellenart `kind` oder eines Untertyps |
 | `station;alignment=<kinds>[;path=<steps>]` | die Station des Bezugspunkts des Objekts entlang der einen Achse der Quellenarten `alignment`, eine Länge |
+| `count_within;to=<kinds>;radius=<metres>` | wie viele Gegenstücke im Umkreis liegen |
+| `sum_within;to=<kinds>;value=<property>;radius=<metres>` | die Summe einer Zahl, die die Gegenstücke im Umkreis angeben; ebenso `min_within`, `max_within` und `mean_within` |
+| `zone_area;zone=<id>` | die Fläche einer neben dem Modell gelieferten Kontextzone |
+| `above_terrain;terrain=<ground>;of=<what>` | die Höhe über dem ursprünglichen oder fertigen Gelände, eine Länge |
 
-Drei Namen nehmen nach dem Namen Parameter, durch `;` getrennte
-`key=value`-Paare, die Teil des Eigenschaftsnamens sind. `bottom_above_level`
-benötigt `path`, die durch `,` getrennten Schritte, wie ein Selektor für
-verbundene Objekte sie schreibt,
-`Relationship[|Relationship...][:forward|backward|either][+]`,
-etwa `IfcRelContainedInSpatialStructure:backward`. `boundary_area` benötigt
-`kind` und nimmt optional `plane`, eine Zahl von Metern von mindestens null.
-`station` benötigt `alignment`, die durch `,` getrennten Quellenarten der
-Achse, und nimmt optional `path`, die Schritte vom Objekt zu seiner Achse,
-geschrieben wie bei `bottom_above_level`.
+Ein Name nimmt seine Parameter nach sich, durch `;` getrennte
+`key=value`-Paare, die Teil des Eigenschaftsnamens sind, etwa
+`sum_within;to=ex:extinguisher;value=ex:units;radius=15`. Der Binder prüft sie
+wie `measured::parse` der Engine gegen die Grammatik der Registry, gespiegelt in
+`scripts/measured_registry.json`: jeden Schlüssel ohne Rücksicht auf
+ASCII-Groß- und Kleinschreibung, einen, den der Name nimmt, einmal angegeben;
+jeden benötigten Parameter angegeben; und jeden Wert, angegeben oder
+voreingestellt, von seiner Art:
+
+| Art | Geschrieben als |
+| --- | --- |
+| `path`, `paths` | durch `,` getrennte Schritte, wie ein Selektor für verbundene Objekte sie schreibt; bei `paths` durch `,` getrennte Pfade, deren Schritte durch Leerzeichen getrennt sind |
+| `sourceKind`, `objects`, `text`, `pattern` | beliebiger nicht leerer Text |
+| `length`, `number`, `area` | eine endliche Zahl von mindestens dem Minimum des Parameters |
+| `angle` | Grad von mindestens null und unter der Grenze des Parameters |
+| `choice`, `choices` | eine oder mehrere durch `,` getrennte der Optionen des Parameters, ohne Rücksicht auf ASCII-Groß- und Kleinschreibung |
+| `vector` | `x,y,z`, nicht null |
+| `polygon` | mindestens drei durch `,` getrennte Eckpunkte `lateral:up` eines einfachen Polygons |
+| `property` | `set/name` oder `name` |
+| `truth` | `true` oder `false` |
+| `table` | nur ein Regelparameter, `@name` |
+
+Ein Schritt wird `Relationship[|Relationship...][:forward|backward|either][+]`
+geschrieben, etwa `IfcRelContainedInSpatialStructure:backward`; die Engine
+liest die Schritte, wenn sie den Pfad auflöst, und der Binder lehnt einen
+Schritt, den kein Selektor für verbundene Objekte schreiben könnte, ab, nachdem
+die eigenen Prüfungen der Engine bestanden sind.
+
+Ein als `@name` geschriebener Wert nennt stattdessen einen Parameter der Regel,
+die den Messwert liest, wo die Art des Parameters einen nimmt (weder `vector`
+noch `polygon` tut es), und `@anchor` in einem Parameter `objects` das Objekt,
+das die Regel prüft, außer bei einem Wert, der je Quelle oder für das Projekt
+gemessen wird. Auch die Prüfungen über Parameter hinweg gelten: `face=facing`
+benötigt seine `direction` und eine `tolerance` von höchstens 180 Grad, und
+keine andere Fläche nimmt eines davon; ein Wert, der seine Gegenstücke über
+`radius`, eine gemeinsame `group` oder eine Kontextzone `zone` erreicht, gibt
+genau eines davon an, und mit `group` oder `zone` nichts von einem Abstand
+(`from`, `projection`, `direction`, `measure`, `walking_*`); `measure=walking`
+benötigt `walking_radius`, `walking_height` und `walking_step` und nimmt weder
+`projection` noch `direction`; und ein Wert, der seine Zone über `zone` oder
+über die Art der Zone nennt, in der das Objekt steht (`stands_in`), gibt genau
+eines davon an.
 
 Selektoren, Eigenschaftsreferenzen und Kategorieebenen nennen sie in dieser
 Gruppe, abgeglichen ohne Rücksicht auf ASCII-Groß- und Kleinschreibung und
-umgebenden Leerraum; sie binden an kein Konzept. Der Binder lehnt dort jeden
-anderen Namen ab, ebenso einen fehlenden benötigten Parameter, einen
-fehlerhaften Schritt oder `plane`, einen doppelt angegebenen und jeden anderen
-Parameter. Ein
-Selektor vergleicht einen gemessenen Wert mit einer `quantity`. Ein Wert, den
-die Anwendung nur innerhalb eines Intervalls bestimmt, etwa an einem
-triangulierten Körper, lässt ein Objekt unausgewertet, wenn das Intervall die
-Grenze überspannt.
+umgebenden Leerraum; sie binden an kein Konzept. Der Binder lehnt jeden anderen
+Namen und jeden Parameter, den die Registry nicht annimmt, mit der Begründung
+der Engine ab, etwa ``"`sum_within` needs `radius`"``. Ein Selektor vergleicht
+einen gemessenen Wert mit einer `quantity`. Ein Wert, den die Anwendung nur
+innerhalb eines Intervalls bestimmt, etwa an einem triangulierten Körper, lässt
+ein Objekt unausgewertet, wenn das Intervall die Grenze überspannt.
+
+Der Schnappschuss der Registry hält den Commit der Engine fest, aus dem er
+stammt. Um zu prüfen, dass er nicht abgewichen ist, zeigt
+`AXIOVAL_ENGINE_CATALOGUE` auf den goldenen Autorenkatalog der Engine, und die
+Tests laufen; die Prüfung schlägt fehl, wenn die Engine einen Messwert oder eine
+Mitgliederliste hinzufügt, entfernt oder ändert.
+`python3 scripts/measured_registry.py <catalogue> <commit>` erzeugt den
+Schnappschuss neu; `schema/Types.pkl` und `schema/Expressions.pkl` führen
+dieselben Namen.
+
+??? example "Abweichungsprüfung gegen einen Checkout der Engine anzeigen"
+    ```bash
+    AXIOVAL_ENGINE_CATALOGUE=../engine/crates/engine/rules/tests/golden/catalogue.json \
+      python3 -m unittest tests.test_measured -v
+    ```
 
 ??? example "Selektor für Objekte niedriger als 50 mm anzeigen"
     ```pkl
