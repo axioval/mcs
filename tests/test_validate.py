@@ -821,6 +821,95 @@ class DefinitionsPackageTests(unittest.TestCase):
             )
 
 
+class InstalledDefinitionsTests(unittest.TestCase):
+    """A rule set resolves declared packages it does not carry from supplied ones."""
+
+    LIBRARY = "axioval:example.template-library"
+
+    def load(self, path: str) -> dict:
+        return json.loads((validate.ROOT / path).read_text())
+
+    def documents(self) -> tuple[dict, list[dict], list[tuple[dict, Path]]]:
+        ruleset = self.load("examples/installed-library/expected/ruleset.json")
+        carried = [self.load("examples/installed-library/expected/definitions.json")]
+        library = self.load("examples/template-library/expected/definitions.json")
+        root = validate.ROOT / "examples/template-library"
+        return ruleset, carried, [(library, root)]
+
+    def test_binds_with_the_supplied_library(self) -> None:
+        ruleset, carried, supplied = self.documents()
+        validate.bind_ruleset(ruleset, carried, "test", supplied_definitions=supplied)
+
+    def test_unresolved_declared_package_fails_naming_it(self) -> None:
+        ruleset, carried, _ = self.documents()
+        with self.assertRaisesRegex(SystemExit, rf"{self.LIBRARY!r} is neither"):
+            validate.bind_ruleset(ruleset, carried, "test")
+
+    def test_carried_package_must_be_declared(self) -> None:
+        ruleset, carried, supplied = self.documents()
+        ruleset["definitionPackages"] = [self.LIBRARY]
+        with self.assertRaisesRegex(SystemExit, "does not declare"):
+            validate.bind_ruleset(
+                ruleset, carried, "test", supplied_definitions=supplied
+            )
+
+    def test_supplied_package_the_rule_set_does_not_declare_is_ignored(self) -> None:
+        ruleset, carried, supplied = self.documents()
+        # A clashing package of another ID would fail if it were bound.
+        clash = copy.deepcopy(carried[0])
+        clash["package"]["id"] = "axioval:example.unrelated"
+        validate.bind_ruleset(
+            ruleset,
+            carried,
+            "test",
+            supplied_definitions=[*supplied, (clash, None)],
+        )
+
+    def test_carried_package_wins_over_a_supplied_one_of_the_same_id(self) -> None:
+        ruleset, carried, supplied = self.documents()
+        shadow = copy.deepcopy(carried[0])
+        validate.bind_ruleset(
+            ruleset,
+            carried,
+            "test",
+            supplied_definitions=[*supplied, (shadow, None)],
+        )
+
+    def test_supplied_package_binds_under_the_same_uniqueness_checks(self) -> None:
+        ruleset, carried, supplied = self.documents()
+        library, root = supplied[0]
+        library = copy.deepcopy(library)
+        library["objectTypes"] = copy.deepcopy(carried[0]["objectTypes"])
+        with self.assertRaisesRegex(SystemExit, "duplicate object-type concepts"):
+            validate.bind_ruleset(
+                ruleset, carried, "test", supplied_definitions=[(library, root)]
+            )
+
+    def test_package_supplied_twice_is_ambiguous(self) -> None:
+        ruleset, carried, supplied = self.documents()
+        with self.assertRaisesRegex(SystemExit, "supplied more than once"):
+            validate.bind_ruleset(
+                ruleset, carried, "test", supplied_definitions=supplied * 2
+            )
+
+    def test_loads_a_definitions_package_directory(self) -> None:
+        documents = validate.load_definitions_directory(
+            validate.ROOT / "examples/template-library"
+        )
+        self.assertEqual(
+            [document["package"]["id"] for document, _ in documents], [self.LIBRARY]
+        )
+        ruleset, carried, _ = self.documents()
+        validate.bind_ruleset(ruleset, carried, "test", supplied_definitions=documents)
+
+    def test_refuses_a_rule_set_directory_as_supplied_definitions(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "must be a definitions package"):
+            validate.load_definitions_directory(validate.ROOT / "examples/minimal")
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(SystemExit, "no axioval.json"):
+                validate.load_definitions_directory(Path(tmp))
+
+
 class SelectorTests(unittest.TestCase):
     def test_rejects_exists_with_value_and_comparison_without_value(self) -> None:
         from scripts.contracts import validate_selector

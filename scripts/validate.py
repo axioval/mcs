@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
+import contextlib
 import json
 import re
 import shutil
@@ -210,7 +212,85 @@ def bind_definitions_package(
         )
 
 
-def main() -> None:
+def repository_root(package: Path) -> Path:
+    """Return the nearest directory at or above a package holding a PklProject.
+
+    A package directory's modules amend the schema of the repository it lives
+    in, so they evaluate with that repository as the Pkl root.
+    """
+    for candidate in (package, *package.parents):
+        if (candidate / "PklProject").is_file():
+            return candidate
+    fail(f"{package}: no PklProject at or above the package directory")
+
+
+def load_definitions_directory(package_dir: Path) -> list[tuple[dict, Path]]:
+    """Evaluate and bind a supplied definitions package directory.
+
+    The directory must hold a definitions-kind `axioval.json`. Its definition
+    modules are evaluated, validated and bound on their own, as for any
+    definitions package; the documents are returned with the package
+    directory as their asset root, for a rule set to resolve from.
+    """
+    if package_dir.is_symlink() or not package_dir.is_dir():
+        fail(f"{package_dir}: supplied definitions must be a package directory")
+    package = package_dir.resolve()
+    manifest_path = package / "axioval.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        fail(f"{package_dir}: supplied definitions package has no axioval.json")
+    try:
+        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        fail(f"{manifest_path}: invalid JSON: {exc}")
+    manifest = validate_manifest(raw, manifest_path)
+    if manifest["kind"] != "definitions":
+        fail(f"{manifest_path}: a supplied package must be a definitions package")
+    root = repository_root(package)
+    values = []
+    for entry in manifest["definitionEntrypoints"]:
+        module = local_module(package, entry)
+        value = evaluate(module, root)
+        if type(value) is not dict or value.get("schemaVersion") != manifest[
+            "schemaVersion"
+        ]:
+            fail(f"{module}: schema version disagrees with manifest")
+        validate_definition_document(value, str(module), asset_root=package)
+        values.append(value)
+    bind_definitions_package(manifest, values, str(manifest_path), asset_root=package)
+    return [(value, package) for value in values]
+
+
+def main(arguments: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        prog="validate.py", description="Validate the example packages."
+    )
+    parser.add_argument(
+        "--definitions",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="PATH",
+        help=(
+            "a definitions package (.mcs archive or package directory) a rule "
+            "set may resolve its uncarried definitionPackages from; repeatable"
+        ),
+    )
+    args = parser.parse_args(arguments)
+    if __package__:
+        from . import mcs_archive
+    else:
+        import mcs_archive
+    with contextlib.ExitStack() as stack:
+        try:
+            supplied = stack.enter_context(
+                mcs_archive.supplied_definitions(args.definitions)
+            )
+        except mcs_archive.MCSError as exc:
+            fail(str(exc))
+        validate_examples(supplied)
+
+
+def validate_examples(supplied: list[tuple[dict, Path | None]]) -> None:
     expected_version = (ROOT / ".pkl-version").read_text().strip()
     version = subprocess.run(
         [pkl_executable(), "--version"], text=True, capture_output=True, check=True
@@ -274,6 +354,7 @@ def main() -> None:
             definition_values,
             str(module.relative_to(ROOT)),
             asset_root=manifest_path.parent,
+            supplied_definitions=supplied,
         )
         check_snapshot(module, value)
     for module in ROOT.glob("**/*.pkl"):

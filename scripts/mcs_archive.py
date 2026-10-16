@@ -19,6 +19,8 @@ import subprocess  # nosec B404
 import tempfile
 import unicodedata
 import zipfile
+from collections.abc import Iterator, Sequence
+from contextlib import ExitStack, contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -421,8 +423,19 @@ def _zipinfo(name: str, compression: int = zipfile.ZIP_DEFLATED) -> zipfile.ZipI
 
 
 def pack(
-    package_dir: Path, output: Path, repository_root: Path, force: bool = False
+    package_dir: Path,
+    output: Path,
+    repository_root: Path,
+    force: bool = False,
+    supplied_paths: Sequence[Path] = (),
 ) -> dict[str, Any]:
+    """Evaluate, bind and write a package's MCS container.
+
+    `supplied_paths` are the definitions packages (archives or directories) a
+    rule set resolves the declared definition packages it does not carry
+    from. They are bound, never archived: the container's bytes depend only
+    on the package's own sources.
+    """
     if output.suffix != ".mcs":
         _fail("output must use the .mcs extension")
     if output.exists() and not force:
@@ -486,12 +499,14 @@ def pack(
                 asset_root=package,
             )
         else:
-            bind_ruleset(
-                ruleset,
-                definitions,
-                str(ruleset_module.relative_to(root)),
-                asset_root=package,
-            )
+            with supplied_definitions(supplied_paths) as supplied:
+                bind_ruleset(
+                    ruleset,
+                    definitions,
+                    str(ruleset_module.relative_to(root)),
+                    asset_root=package,
+                    supplied_definitions=supplied,
+                )
     except SystemExit as exc:
         _fail(str(exc))
     normalized_values = [ruleset] if ruleset is not None else []
@@ -948,7 +963,98 @@ def _read_verified(path: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
             if expected_ruleset_mappings
             else "a definitions package must not carry a normalized rule set"
         )
+    _check_normalized_entrypoints(archived_manifest, mapping, declared)
+    _check_normalized_identity(metadata["package"], archived_manifest, mapping, data)
     return metadata, data
+
+
+def _check_normalized_entrypoints(
+    manifest: dict[str, Any],
+    mapping: dict[str, str],
+    declared: dict[str, dict[str, Any]],
+) -> None:
+    """Require the normalized mapping to cover exactly the manifest's entrypoints.
+
+    A rule-set entrypoint maps to the normalized rule set and every definition
+    entrypoint to a normalized definition document.
+    """
+    entrypoint = validate.ruleset_entrypoint(manifest)
+    definition_entrypoints = manifest["definitionEntrypoints"]
+    expected = {
+        *([entrypoint] if entrypoint is not None else []),
+        *definition_entrypoints,
+    }
+    if set(mapping) != expected:
+        _fail("normalized mapping disagrees with manifest entrypoints")
+    if entrypoint is not None and mapping[entrypoint] != RULESET_MEMBER:
+        _fail("manifest entrypoint does not map to the normalized rule set")
+    if any(
+        declared[mapping[module]]["role"] != "definition"
+        for module in definition_entrypoints
+    ):
+        _fail("a definition entrypoint does not map to a normalized definition")
+
+
+def _normalized_identity(value: Any, context: str) -> tuple[Any, Any, Any]:
+    if type(value) is not dict or type(value.get("package")) is not dict:
+        _fail(f"{context}: normalized document must be an object with a package")
+    return (
+        value["package"].get("id"),
+        value["package"].get("version"),
+        value.get("schemaVersion"),
+    )
+
+
+def _check_normalized_identity(
+    package: dict[str, str],
+    manifest: dict[str, Any],
+    mapping: dict[str, str],
+    data: dict[str, bytes],
+) -> None:
+    """Check the normalized documents' identity against the metadata, offline.
+
+    A rule set's package identity and schema version are the metadata's, and
+    it declares every definition package the archive carries. Every
+    definition document has the metadata's schema version; in a definitions
+    package exactly one of them carries the metadata's package identity.
+    """
+    schema_version = package["schemaVersion"]
+    documents = []
+    ruleset = None
+    for module, name in mapping.items():
+        value = _strict_json(data[name], name)
+        identity = _normalized_identity(value, name)
+        if name == RULESET_MEMBER:
+            ruleset = value
+            if identity != (package["id"], package["version"], schema_version):
+                _fail("normalized rule set identity disagrees with metadata")
+            continue
+        if identity[2] != schema_version:
+            _fail(f"normalized definition schema version disagrees: {module}")
+        documents.append(identity)
+    if ruleset is not None:
+        declared = ruleset.get("definitionPackages")
+        if type(declared) is not list:
+            _fail("normalized rule set must list its definitionPackages")
+        undeclared = sorted(
+            str(identity[0]) for identity in documents if identity[0] not in declared
+        )
+        if undeclared:
+            _fail(
+                f"archive carries definition packages {undeclared} the rule set "
+                "does not declare"
+            )
+    elif manifest["kind"] == "definitions" and (
+        sum(
+            identity[:2] == (package["id"], package["version"])
+            for identity in documents
+        )
+        != 1
+    ):
+        _fail(
+            "metadata package identity is not the identity of exactly one "
+            "normalized definition document"
+        )
 
 
 def inspect(path: Path) -> dict[str, Any]:
@@ -956,132 +1062,186 @@ def inspect(path: Path) -> dict[str, Any]:
     return metadata
 
 
-def verify(path: Path) -> dict[str, Any]:
+def verify(path: Path, supplied_paths: Sequence[Path] = ()) -> dict[str, Any]:
+    """Certify an archive: re-evaluate its source, compare and bind it.
+
+    A rule set resolves the declared definition packages it does not carry
+    from `supplied_paths`: definitions packages given as archives, verified
+    first, or as package directories.
+    """
+    with tempfile.TemporaryDirectory(prefix="axioval-mcs-", dir=path.parent) as temp:
+        metadata, _ = _verify_into(path, Path(temp), supplied_paths)
+    return metadata
+
+
+@contextmanager
+def supplied_definitions(
+    paths: Sequence[Path],
+) -> Iterator[list[tuple[dict[str, Any], Path]]]:
+    """Load the definitions packages a caller supplies to a rule set.
+
+    Each path is a `.mcs` archive, verified before use and refused unless it
+    is a definitions package, or a package directory with a definitions-kind
+    `axioval.json`, evaluated and bound on its own. Yields every definition
+    document with its package asset root, which stays on disk until the
+    context exits.
+    """
+    with ExitStack() as stack:
+        supplied: list[tuple[dict[str, Any], Path]] = []
+        for path in paths:
+            if path.suffix == ".mcs" and not path.is_dir():
+                _, data = _read_verified(path)
+                if RULESET_MEMBER in data:
+                    _fail(f"supplied archive {path} is not a definitions package")
+                directory = Path(
+                    stack.enter_context(
+                        tempfile.TemporaryDirectory(
+                            prefix="axioval-mcs-definitions-", dir=path.parent
+                        )
+                    )
+                )
+                metadata, data = _verify_into(path, directory)
+                asset_root = directory / metadata["packageRoot"]
+                supplied.extend(
+                    (_strict_json(data[name], name), asset_root)
+                    for name in metadata["normalized"].values()
+                )
+            elif path.is_dir() and not path.is_symlink():
+                try:
+                    supplied.extend(validate.load_definitions_directory(path))
+                except SystemExit as exc:
+                    _fail(str(exc))
+            else:
+                _fail(
+                    f"supplied definitions {path} is neither an .mcs archive nor "
+                    "a package directory"
+                )
+        yield supplied
+
+
+def _verify_into(
+    path: Path, root: Path, supplied_paths: Sequence[Path] = ()
+) -> tuple[dict[str, Any], dict[str, bytes]]:
+    """Verify an archive, materializing its payload into the empty `root`."""
     metadata, data = _read_verified(path)
     _check_pkl_version(metadata["pklVersion"])
-    with tempfile.TemporaryDirectory(prefix="axioval-mcs-", dir=path.parent) as temp:
-        root = Path(temp)
-        for entry in metadata["inventory"]:
-            target = root / entry["path"]
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with target.open("xb") as output:
-                output.write(data[entry["path"]])
-        source_root = root / "source"
-        if (source_root / ".pkl-version").read_text().strip() != metadata["pklVersion"]:
-            _fail("source .pkl-version disagrees with metadata")
-        dependencies = _project_dependencies(source_root)
-        declared_aliases = _validate_dependency_lock(source_root, dependencies)
-        manifest_path = root / metadata["manifest"]
-        manifest = _strict_json(manifest_path.read_bytes(), "manifest")
-        try:
-            manifest = validate.validate_manifest(manifest, manifest_path)
-            package_root = root / metadata["packageRoot"]
-            entrypoint = validate.ruleset_entrypoint(manifest)
-            ruleset_module = (
-                None
-                if entrypoint is None
-                else validate.local_module(package_root, entrypoint)
-            )
-            entry_modules = [ruleset_module] if ruleset_module is not None else []
-            defs = [
-                validate.local_module(package_root, x)
-                for x in manifest["definitionEntrypoints"]
-            ]
-            declared_modules = {
-                *([entrypoint] if entrypoint is not None else []),
-                *manifest["definitionEntrypoints"],
-            }
-            if set(metadata["normalized"]) != declared_modules:
-                _fail("normalized mapping disagrees with manifest entrypoints")
-            schema_reference = manifest.get("$schema")
+    for entry in metadata["inventory"]:
+        target = root / entry["path"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("xb") as output:
+            output.write(data[entry["path"]])
+    source_root = root / "source"
+    if (source_root / ".pkl-version").read_text().strip() != metadata["pklVersion"]:
+        _fail("source .pkl-version disagrees with metadata")
+    dependencies = _project_dependencies(source_root)
+    declared_aliases = _validate_dependency_lock(source_root, dependencies)
+    manifest_path = root / metadata["manifest"]
+    manifest = _strict_json(manifest_path.read_bytes(), "manifest")
+    try:
+        manifest = validate.validate_manifest(manifest, manifest_path)
+        package_root = root / metadata["packageRoot"]
+        entrypoint = validate.ruleset_entrypoint(manifest)
+        ruleset_module = (
+            None
+            if entrypoint is None
+            else validate.local_module(package_root, entrypoint)
+        )
+        entry_modules = [ruleset_module] if ruleset_module is not None else []
+        defs = [
+            validate.local_module(package_root, x)
+            for x in manifest["definitionEntrypoints"]
+        ]
+        schema_reference = manifest.get("$schema")
+        if (
+            type(schema_reference) is not str
+            or ":" in schema_reference
+            or schema_reference.startswith(("/", "\\"))
+        ):
+            _fail("manifest schema must be a relative archive member")
+        schema_file = _inside(
+            source_root,
+            manifest_path.parent / schema_reference,
+            "manifest schema",
+        )
+        ruleset = (
+            None
+            if ruleset_module is None
+            else validate.evaluate(ruleset_module, source_root)
+        )
+        definition_values = [validate.evaluate(x, source_root) for x in defs]
+        mapping = metadata["normalized"]
+        if ruleset is None:
+            if RULESET_MEMBER in data:
+                _fail("a definitions package must not carry a normalized rule set")
+        else:
             if (
-                type(schema_reference) is not str
-                or ":" in schema_reference
-                or schema_reference.startswith(("/", "\\"))
+                ruleset.get("package", {}).get("id") != metadata["package"]["id"]
+                or ruleset.get("package", {}).get("version")
+                != metadata["package"]["version"]
+                or ruleset.get("schemaVersion")
+                != metadata["package"]["schemaVersion"]
             ):
-                _fail("manifest schema must be a relative archive member")
-            schema_file = _inside(
-                source_root,
-                manifest_path.parent / schema_reference,
-                "manifest schema",
-            )
-            ruleset = (
-                None
-                if ruleset_module is None
-                else validate.evaluate(ruleset_module, source_root)
-            )
-            definition_values = [validate.evaluate(x, source_root) for x in defs]
-            mapping = metadata["normalized"]
-            if ruleset is None:
-                if RULESET_MEMBER in data:
-                    _fail("a definitions package must not carry a normalized rule set")
-            else:
-                if (
-                    ruleset.get("package", {}).get("id") != metadata["package"]["id"]
-                    or ruleset.get("package", {}).get("version")
-                    != metadata["package"]["version"]
-                    or ruleset.get("schemaVersion")
-                    != metadata["package"]["schemaVersion"]
-                ):
-                    _fail("evaluated package identity disagrees with metadata")
-                if mapping.get(entrypoint) != RULESET_MEMBER:
-                    _fail("invalid normalized ruleset mapping")
-                if _json_bytes(ruleset) != data[RULESET_MEMBER]:
-                    _fail("normalized ruleset does not exactly match evaluated source")
-            for module, value in zip(defs, definition_values, strict=True):
-                if value.get("schemaVersion") != metadata["package"]["schemaVersion"]:
-                    _fail(f"definition schema version disagrees: {module.name}")
-                mapped = mapping.get(module.relative_to(package_root).as_posix())
-                if (
-                    not isinstance(mapped, str)
-                    or mapped not in data
-                    or _json_bytes(value) != data[mapped]
-                ):
-                    _fail(
-                        "normalized definition does not exactly match evaluated source"
-                    )
-                validate_definition_document(
-                    value,
-                    str(module.relative_to(source_root)),
-                    asset_root=package_root,
+                _fail("evaluated package identity disagrees with metadata")
+            if mapping.get(entrypoint) != RULESET_MEMBER:
+                _fail("invalid normalized ruleset mapping")
+            if _json_bytes(ruleset) != data[RULESET_MEMBER]:
+                _fail("normalized ruleset does not exactly match evaluated source")
+        for module, value in zip(defs, definition_values, strict=True):
+            if value.get("schemaVersion") != metadata["package"]["schemaVersion"]:
+                _fail(f"definition schema version disagrees: {module.name}")
+            mapped = mapping.get(module.relative_to(package_root).as_posix())
+            if (
+                not isinstance(mapped, str)
+                or mapped not in data
+                or _json_bytes(value) != data[mapped]
+            ):
+                _fail(
+                    "normalized definition does not exactly match evaluated source"
                 )
-            if ruleset_module is None:
-                validate.bind_definitions_package(
-                    manifest,
-                    definition_values,
-                    str(manifest_path.relative_to(source_root)),
-                    asset_root=package_root,
-                )
-            else:
+            validate_definition_document(
+                value,
+                str(module.relative_to(source_root)),
+                asset_root=package_root,
+            )
+        if ruleset_module is None:
+            validate.bind_definitions_package(
+                manifest,
+                definition_values,
+                str(manifest_path.relative_to(source_root)),
+                asset_root=package_root,
+            )
+        else:
+            with supplied_definitions(supplied_paths) as supplied:
                 bind_ruleset(
                     ruleset,
                     definition_values,
                     str(ruleset_module.relative_to(source_root)),
                     asset_root=package_root,
+                    supplied_definitions=supplied,
                 )
-            normalized_values = [ruleset] if ruleset is not None else []
-            expected_source_files = (
-                _pkl_closure(source_root, [*entry_modules, *defs], declared_aliases)
-                | {manifest_path, schema_file}
-                | _asset_paths(
-                    [*normalized_values, *definition_values], package_root, source_root
-                )
-                | _support_files(
-                    source_root, package_root, require_lock=bool(dependencies)
-                )
+        normalized_values = [ruleset] if ruleset is not None else []
+        expected_source_files = (
+            _pkl_closure(source_root, [*entry_modules, *defs], declared_aliases)
+            | {manifest_path, schema_file}
+            | _asset_paths(
+                [*normalized_values, *definition_values], package_root, source_root
             )
-            expected_source_names = {
-                _source_name(source_root, file) for file in expected_source_files
-            }
-            declared_source_names = {
-                entry["path"]
-                for entry in metadata["inventory"]
-                if entry["role"] == "source"
-            }
-            if declared_source_names != expected_source_names:
-                _fail(
-                    "archive source payload is not the exact declared dependency closure"
-                )
-        except SystemExit as exc:
-            _fail(str(exc))
-    return metadata
+            | _support_files(
+                source_root, package_root, require_lock=bool(dependencies)
+            )
+        )
+        expected_source_names = {
+            _source_name(source_root, file) for file in expected_source_files
+        }
+        declared_source_names = {
+            entry["path"]
+            for entry in metadata["inventory"]
+            if entry["role"] == "source"
+        }
+        if declared_source_names != expected_source_names:
+            _fail(
+                "archive source payload is not the exact declared dependency closure"
+            )
+    except SystemExit as exc:
+        _fail(str(exc))
+    return metadata, data

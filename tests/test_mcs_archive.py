@@ -659,6 +659,199 @@ class MCSArchiveTests(unittest.TestCase):
         with self.assertRaisesRegex(mcs_archive.MCSError, "archived manifest"):
             mcs_archive.inspect(archive)
 
+    def pack_installed(self) -> tuple[Path, Path, Path]:
+        """Pack the template library and the rule set that relies on it."""
+        directory, library = self.pack("template-library")
+        archive = directory / "installed-library.mcs"
+        mcs_archive.pack(
+            ROOT / "examples/installed-library", archive, ROOT, supplied_paths=[library]
+        )
+        return directory, library, archive
+
+    def test_rule_set_binds_an_installed_library_it_does_not_carry(self) -> None:
+        directory, library, archive = self.pack_installed()
+        again = directory / "again.mcs"
+        mcs_archive.pack(
+            ROOT / "examples/installed-library",
+            again,
+            ROOT,
+            supplied_paths=[ROOT / "examples/template-library"],
+        )
+        self.assertEqual(archive.read_bytes(), again.read_bytes())
+        names = {entry["path"] for entry in mcs_archive.inspect(archive)["inventory"]}
+        self.assertFalse(
+            {name for name in names if "template-library" in name},
+            "the library is resolved, never archived",
+        )
+        for supplied in (library, ROOT / "examples/template-library"):
+            with self.subTest(supplied=supplied):
+                metadata = mcs_archive.verify(archive, [supplied])
+                self.assertEqual(
+                    metadata["package"]["id"], "axioval:example.installed-library"
+                )
+
+    def test_unsupplied_library_fails_with_the_unresolved_id(self) -> None:
+        directory, _, archive = self.pack_installed()
+        unresolved = "'axioval:example.template-library' is neither"
+        with self.assertRaisesRegex(mcs_archive.MCSError, unresolved):
+            mcs_archive.pack(
+                ROOT / "examples/installed-library", directory / "bare.mcs", ROOT
+            )
+        with self.assertRaisesRegex(mcs_archive.MCSError, unresolved):
+            mcs_archive.verify(archive)
+        # Structure and identity need no definitions: inspect still passes.
+        mcs_archive.inspect(archive)
+
+    def test_supplied_definitions_must_be_definitions_packages(self) -> None:
+        directory, _, archive = self.pack_installed()
+        _, ruleset_archive = self.pack()
+        with self.assertRaisesRegex(mcs_archive.MCSError, "not a definitions package"):
+            mcs_archive.verify(archive, [ruleset_archive])
+        with self.assertRaisesRegex(
+            mcs_archive.MCSError, "must be a definitions package"
+        ):
+            mcs_archive.verify(archive, [ROOT / "examples/minimal"])
+        with self.assertRaisesRegex(mcs_archive.MCSError, "neither an .mcs archive"):
+            mcs_archive.verify(archive, [directory / "missing.zip"])
+
+    def test_supplied_definitions_archive_is_verified_first(self) -> None:
+        _, library, archive = self.pack_installed()
+        definition = next(
+            entry["path"]
+            for entry in mcs_archive.inspect(library)["inventory"]
+            if entry["role"] == "definition"
+        )
+        with zipfile.ZipFile(library) as source:
+            value = json.loads(source.read(definition))
+        value["definitions"].popitem()
+        self.rewrite(
+            library,
+            lambda items: self.replace_declared_payload(
+                items, definition, mcs_archive._json_bytes(value)
+            ),
+        )
+        with self.assertRaisesRegex(mcs_archive.MCSError, "exactly match"):
+            mcs_archive.verify(archive, [library])
+
+    def tamper_normalized(self, archive: Path, name: str, mutate) -> None:
+        with zipfile.ZipFile(archive) as source:
+            value = json.loads(source.read(name))
+        mutate(value)
+        self.rewrite(
+            archive,
+            lambda items: self.replace_declared_payload(
+                items, name, mcs_archive._json_bytes(value)
+            ),
+        )
+
+    def test_inspect_refuses_tampered_normalized_identity(self) -> None:
+        def field(path: tuple[str, ...], value):
+            def mutate(document):
+                target = document
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = value
+
+            return mutate
+
+        def definition_member(archive: Path) -> str:
+            return next(
+                entry["path"]
+                for entry in mcs_archive.inspect(archive)["inventory"]
+                if entry["role"] == "definition"
+            )
+
+        cases = [
+            (
+                "minimal",
+                lambda _: mcs_archive.RULESET_MEMBER,
+                field(("package", "id"), "axioval:example.tampered"),
+                "normalized rule set identity",
+            ),
+            (
+                "minimal",
+                lambda _: mcs_archive.RULESET_MEMBER,
+                field(("package", "version"), "9.9.9"),
+                "normalized rule set identity",
+            ),
+            (
+                "minimal",
+                lambda _: mcs_archive.RULESET_MEMBER,
+                field(("schemaVersion",), "9.9.9"),
+                "normalized rule set identity",
+            ),
+            (
+                "minimal",
+                lambda _: mcs_archive.RULESET_MEMBER,
+                field(("definitionPackages",), ["axioval:example.other"]),
+                "does not declare",
+            ),
+            (
+                "minimal",
+                definition_member,
+                field(("schemaVersion",), "9.9.9"),
+                "definition schema version",
+            ),
+            (
+                "template-library",
+                definition_member,
+                field(("package", "id"), "axioval:example.tampered"),
+                "exactly one normalized definition",
+            ),
+            (
+                "template-library",
+                definition_member,
+                field(("package", "version"), "9.9.9"),
+                "exactly one normalized definition",
+            ),
+        ]
+        for package, member, mutate, message in cases:
+            with self.subTest(package=package, message=message):
+                _, archive = self.pack(package)
+                self.tamper_normalized(archive, member(archive), mutate)
+                with self.assertRaisesRegex(mcs_archive.MCSError, message):
+                    mcs_archive.inspect(archive)
+
+    def test_inspect_requires_mapping_to_cover_exactly_the_entrypoints(self) -> None:
+        manifest_name = "source/examples/minimal/axioval.json"
+        manifest = json.loads((ROOT / "examples/minimal/axioval.json").read_text())
+        _, archive = self.pack()
+        swapped = dict(
+            manifest,
+            entrypoint="definitions.pkl",
+            definitionEntrypoints=["ruleset.pkl"],
+        )
+        self.rewrite(
+            archive,
+            lambda items: self.replace_declared_payload(
+                items, manifest_name, json.dumps(swapped).encode()
+            ),
+        )
+        with self.assertRaisesRegex(mcs_archive.MCSError, "does not map"):
+            mcs_archive.inspect(archive)
+
+        _, archive = self.pack()
+
+        def unmapped_definition(items):
+            module = b'amends "../../schema/Definitions.pkl"\n'
+            items = self.add_declared_payload(
+                items, "source/examples/minimal/extra.pkl", module, "source"
+            )
+            extended = dict(
+                manifest,
+                definitionEntrypoints=[*manifest["definitionEntrypoints"], "extra.pkl"],
+            )
+            items = self.replace_declared_payload(
+                items, manifest_name, json.dumps(extended).encode()
+            )
+            fixed = {"mimetype", mcs_archive.METADATA}
+            head = [item for item in items if item[0] in fixed]
+            return head + sorted(item for item in items if item[0] not in fixed)
+
+        self.rewrite(archive, unmapped_definition)
+        with self.assertRaisesRegex(mcs_archive.MCSError, "manifest entrypoints"):
+            mcs_archive.inspect(archive)
+
     def test_wrong_extension_and_overwrite_are_refused(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "wrong.zip"

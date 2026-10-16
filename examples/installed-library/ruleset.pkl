@@ -1,0 +1,69 @@
+amends "../../schema/RuleSets.pkl"
+
+import "../../schema/Types.pkl"
+import "../../schema/Values.pkl"
+import "../../schema/Selectors.pkl"
+import "../../schema/RuleSets.pkl"
+
+package = new Types.PackageMetadata {
+  id = "axioval:example.installed-library"
+  name = new Types.LocalizedText {
+    default = "Example rule set using an installed template library"
+    translations { ["de"] = "Beispielregelwerk mit installierter Vorlagenbibliothek" }
+  }
+  version = "0.1.0"
+  description = new Types.LocalizedText {
+    default = "Non-production rule set that instantiates a template library it does not carry."
+    translations { ["de"] = "Nicht produktives Regelwerk, das eine nicht mitgelieferte Vorlagenbibliothek instanziiert." }
+  }
+  repository = "https://github.com/axioval/mcs"
+}
+
+// The package carries its terms but not the template library: a host
+// resolves `axioval:example.template-library` from the definitions packages
+// it has installed.
+definitionPackages {
+  "axioval:example.installed-library.terms"
+  "axioval:example.template-library"
+}
+
+root = new RuleSets.RuleFolder {
+  id = "root"
+  name = new Types.LocalizedText {
+    default = "External walls"
+    translations { ["de"] = "Außenwände" }
+  }
+  rules {
+    new RuleSets.RuleInstance {
+      id = "walls-are-external"
+      definitionId = "axioval:example.template.boolean-property-equals"
+      name = new Types.LocalizedText {
+        default = "Walls are marked external"
+        translations { ["de"] = "Wände sind als Außenbauteil markiert" }
+      }
+      severity = "warning"
+      parameters {
+        ["property"] = new Values.PropertyReferenceValue {
+          property = "axioval:example.installed-library.is-external"
+          propertySet = "axioval:example.installed-library.pset-wall-common"
+        }
+        ["expected"] = new Values.BooleanValue { value = true }
+      }
+      applicability = new RuleSets.Applicability {
+        groups {
+          ["walls"] = new RuleSets.TargetGroup {
+            id = "walls"
+            name = new Types.LocalizedText {
+              default = "Walls"
+              translations { ["de"] = "Wände" }
+            }
+            selector = new Selectors.EntityTypeSelector {
+              objectType = "axioval:example.installed-library.wall"
+            }
+          }
+        }
+      }
+      tags { "example" }
+    }
+  }
+}

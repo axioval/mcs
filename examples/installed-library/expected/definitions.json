@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "0.1.0",
+  "package": {
+    "id": "axioval:example.installed-library.terms",
+    "name": {
+      "default": "Example wall terms",
+      "translations": {
+        "de": "Beispielbegriffe für Wände"
+      }
+    },
+    "version": "0.1.0",
+    "description": {
+      "default": "Non-production terminology the installed-library example carries.",
+      "translations": {
+        "de": "Nicht produktive Terminologie, die das Beispiel mitliefert."
+      }
+    },
+    "repository": "https://github.com/axioval/mcs",
+    "authors": []
+  },
+  "sources": {},
+  "objectTypes": {
+    "axioval:example.installed-library.wall": {
+      "id": "axioval:example.installed-library.wall",
+      "name": {
+        "default": "Wall",
+        "translations": {
+          "de": "Wand"
+        }
+      },
+      "externalNames": [
+        {
+          "typeSystem": "https://github.com/axioval/mcs/tree/main/examples",
+          "name": "IfcWall"
+        }
+      ],
+      "citations": []
+    }
+  },
+  "properties": {
+    "axioval:example.installed-library.is-external": {
+      "id": "axioval:example.installed-library.is-external",
+      "name": {
+        "default": "Is external",
+        "translations": {
+          "de": "Außenbauteil"
+        }
+      },
+      "valueKind": "boolean",
+      "externalNames": [
+        {
+          "typeSystem": "https://github.com/axioval/mcs/tree/main/examples",
+          "name": "IsExternal"
+        }
+      ],
+      "citations": []
+    }
+  },
+  "propertySets": {
+    "axioval:example.installed-library.pset-wall-common": {
+      "id": "axioval:example.installed-library.pset-wall-common",
+      "name": {
+        "default": "Pset_WallCommon",
+        "translations": {}
+      },
+      "externalNames": [
+        {
+          "typeSystem": "https://github.com/axioval/mcs/tree/main/examples",
+          "name": "Pset_WallCommon"
+        }
+      ],
+      "citations": []
+    }
+  },
+  "definitions": {}
+}

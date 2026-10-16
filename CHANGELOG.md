@@ -10,6 +10,38 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Added
 
+- A rule set may rely on installed definitions packages (#13). The
+  definition documents a rule-set package carries must be declared in
+  `definitionPackages` rather than equal them; each declared ID the package
+  does not carry resolves from definitions packages supplied to the binder,
+  by the package ID of their documents, and binds with the carried ones
+  under the same uniqueness and kind checks, each with its own package's
+  assets. An ID that resolves to no supplied document, or to more than one,
+  fails closed and names the ID; a carried package wins over a supplied one
+  of the same ID, and a supplied package the rule set does not declare is
+  ignored. `validate.py`, `mcs.py pack` and `mcs.py verify` take supplied
+  packages with the repeatable `--definitions PATH`: a `.mcs` archive,
+  verified first and refused unless it is a definitions package, or a
+  package directory with a definitions-kind `axioval.json`. Supplied
+  packages are never archived, and archives of existing packages keep their
+  bytes. `examples/installed-library` declares
+  `axioval:example.template-library` without carrying it; `check.sh` packs it
+  twice, once with the library's archive and once with its directory,
+  compares the bytes, verifies it with either, and requires `verify` without
+  the library to fail naming the unresolved ID. The engine mirrors the rule
+  (axioval/engine#395).
+
+- `inspect` checks the normalized documents against the metadata offline
+  (#13): the normalized mapping covers exactly the archived manifest's
+  entrypoints, a rule set's entrypoint maps to the normalized rule set and
+  every definition entrypoint to a normalized definition; the normalized
+  rule set's package identity and schema version are the metadata's and its
+  `definitionPackages` declare every carried definition package; every
+  normalized definition has the metadata's schema version, and in a
+  definitions archive exactly one carries the metadata's identity. The docs
+  advise hosts to run `verify` on an archive from an untrusted registry
+  before installing it.
+
 - `Definitions.ParameterDefinition.fixed` lets a rule definition fix a
   parameter its instances may not override (#11): every instance takes the
   parameter's `defaultValue`, so a template can carry its logic, such as an

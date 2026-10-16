@@ -10,7 +10,8 @@ export PATH="$HOME/.local/bin:$PATH"
 python3 -c 'from pathlib import Path; from scripts.mcs_archive import _fresh_resolve_dependency_lock; _fresh_resolve_dependency_lock(Path.cwd())'
 
 python3 -m unittest discover -s tests -v
-python3 scripts/validate.py
+# The installed-library example resolves the template library it does not carry.
+python3 scripts/validate.py --definitions examples/template-library
 pkl test \
   --root-dir "$repo_root" \
   --allowed-modules 'file:,pkl:,package:,projectpackage:' \
@@ -35,3 +36,18 @@ python3 scripts/mcs.py pack examples/template-library "$mcs_tmp/library-two.mcs"
 cmp "$mcs_tmp/library-one.mcs" "$mcs_tmp/library-two.mcs"
 sha256sum "$mcs_tmp/library-one.mcs" "$mcs_tmp/library-two.mcs"
 python3 scripts/mcs.py verify "$mcs_tmp/library-one.mcs"
+
+# A rule set relying on a definitions package it does not carry packs and
+# verifies only with that package supplied, as an archive or a directory, and
+# fails closed naming the unresolved ID without it.
+python3 scripts/mcs.py pack examples/installed-library "$mcs_tmp/installed-one.mcs" --repository-root "$repo_root" --definitions "$mcs_tmp/library-one.mcs"
+python3 scripts/mcs.py pack examples/installed-library "$mcs_tmp/installed-two.mcs" --repository-root "$repo_root" --definitions examples/template-library
+cmp "$mcs_tmp/installed-one.mcs" "$mcs_tmp/installed-two.mcs"
+sha256sum "$mcs_tmp/installed-one.mcs" "$mcs_tmp/installed-two.mcs"
+python3 scripts/mcs.py verify "$mcs_tmp/installed-one.mcs" --definitions "$mcs_tmp/library-one.mcs"
+python3 scripts/mcs.py verify "$mcs_tmp/installed-one.mcs" --definitions examples/template-library
+if python3 scripts/mcs.py verify "$mcs_tmp/installed-one.mcs" 2>"$mcs_tmp/unresolved.log"; then
+  echo "verify accepted a rule set whose template library was not supplied" >&2
+  exit 1
+fi
+grep -q "'axioval:example.template-library' is neither" "$mcs_tmp/unresolved.log"

@@ -43,10 +43,32 @@ The manifest's `kind` says what a package publishes:
   of exactly one of its definition documents.
 
 A rule set names every definition package it binds by ID in
-`definitionPackages`. A host resolves those IDs from the definitions packages
-it has installed, or from the definition modules the rule-set package carries,
-and binds the rule set against exactly the declared packages. An ID it cannot
-resolve fails closed; the rule set never fetches definitions on its own.
+`definitionPackages`, and binds against exactly the declared packages:
+
+- every definition document the rule-set package carries **must** be declared;
+  a carried package the rule set does not declare is refused;
+- each declared ID the package does not carry resolves from the definitions
+  packages the host has installed, or the caller supplies, by the package ID
+  of their definition documents. An ID that resolves to no document, or to
+  more than one, fails closed and names the ID;
+- a carried package wins over a supplied one of the same ID, and a supplied
+  package the rule set does not declare is ignored, not bound;
+- resolved documents bind together with the carried ones under the same
+  uniqueness and kind checks, each with its own package's assets.
+
+The rule set never fetches definitions on its own, and its archive never
+carries the packages it resolves. `validate.py`, `mcs.py pack` and
+`mcs.py verify` take supplied definitions packages with `--definitions PATH`,
+repeatable: a `.mcs` archive, verified first and refused unless its kind is
+`definitions`, or a package directory with a definitions-kind `axioval.json`.
+`examples/installed-library` declares `axioval:example.template-library`
+without carrying it and binds only when `examples/template-library` is
+supplied.
+
+!!! warning
+    A host **should** run `verify` on an archive from an untrusted registry
+    before installing it. `inspect` checks structure, hashes and identity
+    only; it does not re-evaluate the source.
 
 ## Ordered trust boundary
 

@@ -114,7 +114,10 @@ definitions package, with `kind: "definitions"`, its modules in
 The manifest's `id` and `version` are the package identity of one of its
 definition documents. A rule set that instantiates the templates names that ID
 in its `definitionPackages`; a host resolves it from the definitions packages
-it has installed. `examples/template-library` shows a complete package.
+it has installed. `examples/template-library` shows a complete package, and
+`examples/installed-library` a rule set that uses it without carrying it; pass
+the library to `validate.py`, `mcs.py pack` and `mcs.py verify` with
+`--definitions PATH`.
 
 ## 7. Validate and version
 

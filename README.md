@@ -97,6 +97,8 @@ examples/minimal/       smallest complete non-production package
 examples/din-276-331/   vocabulary → template → instance tutorial fixture
 examples/geometry-clearance/ IFC4X3 + geometry package integration
 examples/expressions/   expression rule and derived value
+examples/template-library/ definitions package without a rule set
+examples/installed-library/ rule set resolving an uncarried template library
 docs/                   GitHub Pages source
 scripts/                fail-closed evaluator and normalized binder
 tests/                  positive and negative contract tests

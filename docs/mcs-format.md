@@ -48,7 +48,43 @@ both kinds, and rule-set archives are written exactly as before.
 
 `inspect` already refuses a definitions archive that carries a rule set, a
 rule-set archive without one, and metadata whose package identity is not the
-archived manifest's.
+archived manifest's. It also requires, offline:
+
+- the normalized mapping to cover exactly the archived manifest's entrypoints:
+  a rule set's `entrypoint` maps to `normalized/ruleset.json` and every
+  `definitionEntrypoints` module to a normalized definition document;
+- the normalized rule set's package `id`, `version` and `schemaVersion` to be
+  the metadata's, and its `definitionPackages` to declare every definition
+  package the archive carries;
+- every normalized definition document to have the metadata's
+  `schemaVersion`, and, in a definitions archive, exactly one of them to carry
+  the metadata's package identity.
+
+## Supplied definitions packages
+
+A rule set may declare a definition package it does not carry, such as an
+installed template library. `pack` and `verify` then take the definitions
+packages to resolve it from with `--definitions PATH`, repeatable:
+
+??? example "Show commands for a rule set with an installed library"
+    ```bash
+    python3 scripts/mcs.py pack examples/template-library /tmp/library.mcs
+    python3 scripts/mcs.py pack examples/installed-library /tmp/rules.mcs \
+      --definitions /tmp/library.mcs
+    python3 scripts/mcs.py verify /tmp/rules.mcs --definitions /tmp/library.mcs
+    ```
+
+A supplied `.mcs` archive is verified before use and refused unless it is a
+definitions package; a supplied directory needs a definitions-kind
+`axioval.json` and is evaluated and bound on its own. The resolution rules are
+the [package contract's](package-contract.md#package-kinds). A supplied
+package is never archived, so the rule set's archive bytes do not depend on
+which form supplied it; without it, `pack` and `verify` fail closed and name
+the unresolved ID, while `inspect` still checks the archive's structure.
+
+!!! warning
+    Run `verify` on an archive from an untrusted registry before installing
+    it. `inspect` makes no claim about the source's evaluation or binding.
 
 ## Acceptance boundary
 

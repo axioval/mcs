@@ -33,7 +33,17 @@ Das Feld `kind` des Manifests sagt, was ein Paket veröffentlicht:
 - `ruleset` nennt sein Regelwerk in `entrypoint` und die mitgelieferten Definitionsmodule in `definitionEntrypoints`. Beide Felder sind Pflicht.
 - `definitions` veröffentlicht eine Bibliothek von Definitionen, etwa Regelvorlagen, ohne Regelwerk. Es nennt seine Module in `definitionEntrypoints` und **darf kein** `entrypoint` haben. Seine Dokumente müssen sich so zusammen binden lassen, wie ein Regelwerk sie laden würde: Paket-, Vorlagen- und Begriffs-IDs sind über alle Dokumente eindeutig. `id` und `version` des Manifests müssen die Paketidentität genau eines seiner Definitionsdokumente sein.
 
-Ein Regelwerk nennt jedes Definitionspaket, das es bindet, per ID in `definitionPackages`. Ein Host löst diese IDs aus den installierten Definitionspaketen oder aus den Definitionsmodulen auf, die das Regelwerkpaket mitliefert, und bindet das Regelwerk gegen genau die deklarierten Pakete. Eine ID, die er nicht auflösen kann, schlägt geschlossen fehl; das Regelwerk lädt nie selbst Definitionen nach.
+Ein Regelwerk nennt jedes Definitionspaket, das es bindet, per ID in `definitionPackages` und bindet gegen genau die deklarierten Pakete:
+
+- jedes Definitionsdokument, das das Regelwerkpaket mitliefert, **muss** deklariert sein; ein mitgeliefertes, nicht deklariertes Paket wird abgelehnt;
+- jede deklarierte ID, die das Paket nicht mitliefert, wird aus den Definitionspaketen aufgelöst, die der Host installiert hat oder der Aufrufer bereitstellt, und zwar über die Paket-ID ihrer Definitionsdokumente. Eine ID, die auf kein Dokument oder auf mehr als eines führt, schlägt geschlossen fehl und nennt die ID;
+- ein mitgeliefertes Paket hat Vorrang vor einem bereitgestellten Paket derselben ID, und ein bereitgestelltes Paket, das das Regelwerk nicht deklariert, wird ignoriert, nicht gebunden;
+- aufgelöste Dokumente werden mit den mitgelieferten unter denselben Eindeutigkeits- und Artprüfungen gebunden, jedes mit den Ressourcen seines eigenen Pakets.
+
+Das Regelwerk lädt nie selbst Definitionen nach, und sein Archiv enthält die aufgelösten Pakete nie. `validate.py`, `mcs.py pack` und `mcs.py verify` nehmen bereitgestellte Definitionspakete mit `--definitions PATH` entgegen, wiederholbar: ein `.mcs`-Archiv, das zuerst verifiziert und abgelehnt wird, wenn seine Art nicht `definitions` ist, oder ein Paketverzeichnis mit einem `axioval.json` der Art `definitions`. `examples/installed-library` deklariert `axioval:example.template-library`, ohne es mitzuliefern, und bindet nur, wenn `examples/template-library` bereitgestellt wird.
+
+!!! warning
+    Ein Host **sollte** ein Archiv aus einer nicht vertrauenswürdigen Registry mit `verify` prüfen, bevor er es installiert. `inspect` prüft nur Struktur, Hashes und Identität; es wertet die Quelle nicht erneut aus.
 
 ## Geordnete Vertrauensgrenze
 

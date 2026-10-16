@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "0.1.0",
+  "package": {
+    "id": "axioval:example.installed-library",
+    "name": {
+      "default": "Example rule set using an installed template library",
+      "translations": {
+        "de": "Beispielregelwerk mit installierter Vorlagenbibliothek"
+      }
+    },
+    "version": "0.1.0",
+    "description": {
+      "default": "Non-production rule set that instantiates a template library it does not carry.",
+      "translations": {
+        "de": "Nicht produktives Regelwerk, das eine nicht mitgelieferte Vorlagenbibliothek instanziiert."
+      }
+    },
+    "repository": "https://github.com/axioval/mcs",
+    "authors": []
+  },
+  "sources": {},
+  "definitionPackages": [
+    "axioval:example.installed-library.terms",
+    "axioval:example.template-library"
+  ],
+  "root": {
+    "id": "root",
+    "name": {
+      "default": "External walls",
+      "translations": {
+        "de": "Außenwände"
+      }
+    },
+    "rules": [
+      {
+        "id": "walls-are-external",
+        "definitionId": "axioval:example.template.boolean-property-equals",
+        "name": {
+          "default": "Walls are marked external",
+          "translations": {
+            "de": "Wände sind als Außenbauteil markiert"
+          }
+        },
+        "enabled": true,
+        "severity": "warning",
+        "parameters": {
+          "property": {
+            "type": "propertyReference",
+            "property": "axioval:example.installed-library.is-external",
+            "propertySet": "axioval:example.installed-library.pset-wall-common"
+          },
+          "expected": {
+            "type": "boolean",
+            "value": true
+          }
+        },
+        "applicability": {
+          "groups": {
+            "walls": {
+              "id": "walls",
+              "name": {
+                "default": "Walls",
+                "translations": {
+                  "de": "Wände"
+                }
+              },
+              "selector": {
+                "kind": "entityType",
+                "objectType": "axioval:example.installed-library.wall",
+                "includeSubtypes": true
+              }
+            }
+          }
+        },
+        "requirements": [],
+        "citations": [],
+        "parameterCitations": [],
+        "explanatoryImages": [],
+        "tags": [
+          "example"
+        ]
+      }
+    ],
+    "folders": []
+  }
+}

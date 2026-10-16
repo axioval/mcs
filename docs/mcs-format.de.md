@@ -50,7 +50,48 @@ Arten gleich aufgebaut, und Regelwerkarchive werden genau wie bisher geschrieben
 
 Schon `inspect` lehnt ein Definitionsarchiv mit Regelwerk, ein Regelwerkarchiv
 ohne Regelwerk und Metadaten ab, deren Paketidentität nicht der des
-archivierten Manifests entspricht.
+archivierten Manifests entspricht. Außerdem verlangt es offline:
+
+- dass die normalisierte Zuordnung genau die Einstiegspunkte des archivierten
+  Manifests abdeckt: der `entrypoint` eines Regelwerks verweist auf
+  `normalized/ruleset.json` und jedes Modul aus `definitionEntrypoints` auf ein
+  normalisiertes Definitionsdokument;
+- dass `id`, `version` und `schemaVersion` des normalisierten Regelwerks denen
+  der Metadaten entsprechen und seine `definitionPackages` jedes mitgelieferte
+  Definitionspaket deklarieren;
+- dass jedes normalisierte Definitionsdokument die `schemaVersion` der
+  Metadaten hat und in einem Definitionsarchiv genau eines von ihnen die
+  Paketidentität der Metadaten trägt.
+
+## Bereitgestellte Definitionspakete
+
+Ein Regelwerk kann ein Definitionspaket deklarieren, das es nicht mitliefert,
+etwa eine installierte Vorlagenbibliothek. `pack` und `verify` nehmen dann die
+Definitionspakete, aus denen es aufgelöst wird, mit `--definitions PATH`
+entgegen, wiederholbar:
+
+??? example "Befehle für ein Regelwerk mit installierter Bibliothek anzeigen"
+    ```bash
+    python3 scripts/mcs.py pack examples/template-library /tmp/library.mcs
+    python3 scripts/mcs.py pack examples/installed-library /tmp/rules.mcs \
+      --definitions /tmp/library.mcs
+    python3 scripts/mcs.py verify /tmp/rules.mcs --definitions /tmp/library.mcs
+    ```
+
+Ein bereitgestelltes `.mcs`-Archiv wird vor der Verwendung verifiziert und
+abgelehnt, wenn es kein Definitionspaket ist; ein bereitgestelltes Verzeichnis
+braucht ein `axioval.json` der Art `definitions` und wird für sich ausgewertet
+und gebunden. Die Auflösungsregeln sind die des
+[Paketvertrags](package-contract.md#paketarten). Ein bereitgestelltes Paket
+wird nie archiviert, die Bytes des Regelwerkarchivs hängen also nicht davon ab,
+in welcher Form es bereitgestellt wurde. Fehlt es, schlagen `pack` und `verify`
+geschlossen fehl und nennen die nicht aufgelöste ID; `inspect` prüft weiterhin
+die Struktur des Archivs.
+
+!!! warning
+    Prüfen Sie ein Archiv aus einer nicht vertrauenswürdigen Registry mit
+    `verify`, bevor Sie es installieren. `inspect` trifft keine Aussage über
+    Auswertung oder Bindung der Quelle.
 
 ## Annahmegrenze
 

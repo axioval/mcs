@@ -9,7 +9,7 @@ import zipfile
 from datetime import date
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Sequence
 from urllib.parse import urlsplit
 from xml.parsers import expat
 
@@ -4858,6 +4858,7 @@ def bind_definition_documents(
     context: str,
     *,
     asset_root: Path | None = None,
+    asset_roots: list[Path | None] | None = None,
 ) -> tuple[
     set[str],
     dict[str, dict[str, Any]],
@@ -4870,7 +4871,12 @@ def bind_definition_documents(
     Package IDs, rule-definition IDs and concept IDs must be unique across the
     documents, and no ID may name components of two kinds.  A rule set binds
     against the result; a definitions package is bound by this step alone.
+    `asset_roots`, when given, holds each document's own package asset root,
+    for documents taken from several packages; otherwise every document's
+    assets resolve against `asset_root`.
     """
+    if asset_roots is not None and len(asset_roots) != len(definition_documents):
+        fail(context, "one asset root is required per definition document")
     definitions: dict[str, dict[str, Any]] = {}
     object_types: dict[str, dict[str, Any]] = {}
     properties: dict[str, dict[str, Any]] = {}
@@ -4884,7 +4890,9 @@ def bind_definition_documents(
             package_properties,
             package_property_sets,
         ) = validate_definition_document(
-            document, f"{context}.definitionDocuments[{index}]", asset_root=asset_root
+            document,
+            f"{context}.definitionDocuments[{index}]",
+            asset_root=asset_root if asset_roots is None else asset_roots[index],
         )
         if package_id in loaded_packages:
             fail(context, f"duplicate definition package {package_id!r}")
@@ -4926,13 +4934,69 @@ def bind_definition_documents(
     return loaded_packages, definitions, object_types, properties, property_sets
 
 
+def document_package_id(document: Any) -> str | None:
+    """The package ID a candidate definition document names, if it names one.
+
+    Only resolution reads it before the document is validated; a malformed
+    document is refused when it is bound.
+    """
+    package = document.get("package") if type(document) is dict else None
+    package_id = package.get("id") if type(package) is dict else None
+    return package_id if type(package_id) is str else None
+
+
+def resolve_definition_packages(
+    declared: list[str],
+    carried: list[dict[str, Any]],
+    supplied: Sequence[tuple[dict[str, Any], Path | None]],
+    context: str,
+) -> list[tuple[dict[str, Any], Path | None]]:
+    """Resolve the declared definition packages a rule set does not carry.
+
+    Each declared ID the package does not carry resolves to exactly one
+    supplied definition document of that package ID, with its own asset root.
+    A supplied document whose ID the rule set does not declare, or carries
+    itself, is ignored. An ID that resolves to none fails closed.
+    """
+    carried_ids = {document_package_id(document) for document in carried}
+    resolved: list[tuple[dict[str, Any], Path | None]] = []
+    for package_id in declared:
+        if package_id in carried_ids:
+            continue
+        candidates = [
+            (document, root)
+            for document, root in supplied
+            if document_package_id(document) == package_id
+        ]
+        if not candidates:
+            fail(
+                context,
+                f"definition package {package_id!r} is neither carried by the "
+                "package nor supplied",
+            )
+        if len(candidates) > 1:
+            fail(context, f"definition package {package_id!r} is supplied more than once")
+        resolved.append(candidates[0])
+    return resolved
+
+
 def bind_ruleset(
     value: Any,
     definition_documents: list[dict[str, Any]],
     context: str,
     *,
     asset_root: Path | None = None,
+    supplied_definitions: Sequence[tuple[dict[str, Any], Path | None]] = (),
 ) -> None:
+    """Bind a rule set against the definition packages it declares.
+
+    The documents the package carries (`definition_documents`, whose assets
+    resolve against `asset_root`) must each be declared. Every declared ID the
+    package does not carry resolves from `supplied_definitions`, the
+    documents of the definitions packages the caller supplies, each with its
+    own package asset root. Supplied documents bind with the carried ones
+    under the same uniqueness and kind checks.
+    """
     value = object_value(value, context)
     exact_keys(
         value,
@@ -4951,13 +5015,32 @@ def bind_ruleset(
         or len(set(declared_list)) != len(declared_list)
     ):
         fail(context, "definitionPackages must be non-empty, qualified, and unique")
+    resolved = resolve_definition_packages(
+        declared_list, definition_documents, supplied_definitions, context
+    )
     (
         loaded_packages,
         definitions,
         object_types,
         properties,
         property_sets,
-    ) = bind_definition_documents(definition_documents, context, asset_root=asset_root)
+    ) = bind_definition_documents(
+        [*definition_documents, *(document for document, _ in resolved)],
+        context,
+        asset_roots=[
+            *(asset_root for _ in definition_documents),
+            *(root for _, root in resolved),
+        ],
+    )
+    # Carried packages are a subset of the declared ones; the declared ones
+    # the package does not carry were resolved above.
+    undeclared = loaded_packages - set(declared_list)
+    if undeclared:
+        fail(
+            context,
+            f"carries definition packages {sorted(undeclared)} that "
+            "definitionPackages does not declare",
+        )
     # The groupings' IDs, which classification rows may not read and every
     # other selector binds against; the groupings themselves are checked once
     # the classifications their selectors may read are.
@@ -5071,11 +5154,6 @@ def bind_ruleset(
                     parameter.get("referencedValueKind"),
                     classifications,
                 )
-    if set(declared_list) != loaded_packages:
-        fail(
-            context,
-            f"declared definition packages {sorted(declared_list)} do not match loaded packages {sorted(loaded_packages)}",
-        )
     seen_ids: set[str] = set()
     # The rules each rule's gates and rule-outcome selectors read, checked
     # once every rule of the ruleset is known.

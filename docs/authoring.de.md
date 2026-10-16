@@ -88,7 +88,7 @@ Eine Bibliothek von Regelvorlagen ist auch ohne Regelwerk nützlich: Eine Person
     }
     ```
 
-`id` und `version` des Manifests sind die Paketidentität eines seiner Definitionsdokumente. Ein Regelwerk, das die Vorlagen instanziiert, nennt diese ID in `definitionPackages`; ein Host löst sie aus den installierten Definitionspaketen auf. `examples/template-library` zeigt ein vollständiges Paket.
+`id` und `version` des Manifests sind die Paketidentität eines seiner Definitionsdokumente. Ein Regelwerk, das die Vorlagen instanziiert, nennt diese ID in `definitionPackages`; ein Host löst sie aus den installierten Definitionspaketen auf. `examples/template-library` zeigt ein vollständiges Paket und `examples/installed-library` ein Regelwerk, das es nutzt, ohne es mitzuliefern; übergeben Sie die Bibliothek an `validate.py`, `mcs.py pack` und `mcs.py verify` mit `--definitions PATH`.
 
 ## 7. Validieren und versionieren
 

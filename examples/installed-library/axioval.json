@@ -1,0 +1,11 @@
+{
+  "$schema": "../../schema/registry-manifest.schema.json",
+  "manifestVersion": "0.1.0",
+  "kind": "ruleset",
+  "id": "axioval:example.installed-library",
+  "version": "0.1.0",
+  "schemaVersion": "0.1.0",
+  "entrypoint": "ruleset.pkl",
+  "definitionEntrypoints": ["definitions.pkl"],
+  "description": "Non-production rule set that relies on an installed template library."
+}

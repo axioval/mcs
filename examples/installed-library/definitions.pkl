@@ -1,0 +1,64 @@
+amends "../../schema/Definitions.pkl"
+
+import "../../schema/Definitions.pkl"
+import "../../schema/Types.pkl"
+
+package = new Types.PackageMetadata {
+  id = "axioval:example.installed-library.terms"
+  name = new Types.LocalizedText {
+    default = "Example wall terms"
+    translations { ["de"] = "Beispielbegriffe für Wände" }
+  }
+  version = "0.1.0"
+  description = new Types.LocalizedText {
+    default = "Non-production terminology the installed-library example carries."
+    translations { ["de"] = "Nicht produktive Terminologie, die das Beispiel mitliefert." }
+  }
+  repository = "https://github.com/axioval/mcs"
+}
+
+objectTypes {
+  ["axioval:example.installed-library.wall"] = new Definitions.ObjectTypeDefinition {
+    id = "axioval:example.installed-library.wall"
+    name = new Types.LocalizedText {
+      default = "Wall"
+      translations { ["de"] = "Wand" }
+    }
+    externalNames {
+      new Definitions.ExternalName {
+        typeSystem = "https://github.com/axioval/mcs/tree/main/examples"
+        name = "IfcWall"
+      }
+    }
+  }
+}
+
+properties {
+  ["axioval:example.installed-library.is-external"] = new Definitions.PropertyDefinition {
+    id = "axioval:example.installed-library.is-external"
+    name = new Types.LocalizedText {
+      default = "Is external"
+      translations { ["de"] = "Außenbauteil" }
+    }
+    valueKind = "boolean"
+    externalNames {
+      new Definitions.ExternalName {
+        typeSystem = "https://github.com/axioval/mcs/tree/main/examples"
+        name = "IsExternal"
+      }
+    }
+  }
+}
+
+propertySets {
+  ["axioval:example.installed-library.pset-wall-common"] = new Definitions.PropertySetDefinition {
+    id = "axioval:example.installed-library.pset-wall-common"
+    name = new Types.LocalizedText { default = "Pset_WallCommon" }
+    externalNames {
+      new Definitions.ExternalName {
+        typeSystem = "https://github.com/axioval/mcs/tree/main/examples"
+        name = "Pset_WallCommon"
+      }
+    }
+  }
+}
