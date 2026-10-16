@@ -79,12 +79,27 @@ Declares a capability and typed parameter map. `referencedValueKind` is valid
 only on a `propertyReference` parameter and constrains the referenced property's
 catalogued type.
 
+A rule definition declares its capability's whole parameter signature: every
+parameter the capability takes, optional ones such as an expression rule's
+`deviation` and `message` included, each with the capability's `kind` and
+`required` flag. An application refuses a definition that leaves one out or
+declares it differently. A capability that takes authored parameters, such as
+`axioval:capability.expression`, also accepts further scalar, string-list,
+selector or table parameters that its expressions name. The binder does not
+check signatures; the application that compiles the definition does.
+
+A `required` parameter, the default, must have a value in every rule instance.
+Its definition's `defaultValue` provides one, so an instance may leave a
+required parameter with a default unstated; only a required parameter without
+a default must be stated. `required = false` lets an instance leave a parameter
+without a default unstated, so the rule runs without it.
+
 A parameter with `fixed = true` is part of the template, not of its instances:
 every rule instance takes its `defaultValue` and may not state its own. A
 template can carry its logic this way, such as an `expression` requirement
 whose default reads the template's other parameters, while instances state only
-values. A fixed parameter requires a `defaultValue`, which binds it whatever
-`required` says. A rule instance that states a fixed parameter is refused when
+values. A fixed parameter requires a `defaultValue`, which binds it and so
+satisfies `required`. A rule instance that states a fixed parameter is refused when
 the ruleset is bound; changing it means forking the definition. `fixed` is a
 Pkl keyword, so authors write it in backticks. Normalized JSON omits it when
 `false`.
@@ -109,6 +124,18 @@ Pkl keyword, so authors write it in backticks. Normalized JSON omits it when
         id = "minimum"
         name = new Types.LocalizedText { default = "Minimum" }
         kind = "number"
+      }
+      ["deviation"] = new Definitions.ParameterDefinition {
+        id = "deviation"
+        name = new Types.LocalizedText { default = "Deviation" }
+        kind = "expression"
+        required = false
+      }
+      ["message"] = new Definitions.ParameterDefinition {
+        id = "message"
+        name = new Types.LocalizedText { default = "Message" }
+        kind = "string"
+        required = false
       }
     }
     ```

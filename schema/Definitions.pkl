@@ -73,12 +73,17 @@ class ParameterDefinition {
   kind: ParameterKind
   /// For `propertyReference`, optionally constrain the referenced property's value kind.
   referencedValueKind: PropertyValueKind?
+  /// Whether every rule instance needs a value for this parameter. A
+  /// `defaultValue` provides one, so an instance may leave a required parameter
+  /// with a default unstated; only a required parameter without one must be
+  /// stated. A rule definition declares its capability's whole parameter
+  /// signature, each parameter with the capability's `required` flag.
   required: Boolean = true
   defaultValue: Values.ParameterValue?
   /// The template fixes this parameter: instances take `defaultValue` and may
   /// not state their own. Changing it means forking the definition. A fixed
-  /// parameter requires a `defaultValue`, which binds it whatever `required`
-  /// says. Normalized JSON omits it when `false`.
+  /// parameter requires a `defaultValue`, which binds it and so satisfies
+  /// `required`. Normalized JSON omits it when `false`.
   `fixed`: Boolean(implies(defaultValue != null)) = false
   allowedValues: Listing<Values.ParameterValue> = new {}
   unitDimension: String?

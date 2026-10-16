@@ -71,7 +71,11 @@ Ordnet eine stabile Qualifizierer-ID externen Containernamen zu. Sie enthält ke
 
 Deklariert eine Fähigkeit und eine typisierte Parameter-Map. `referencedValueKind` ist nur für einen `propertyReference`-Parameter gültig und beschränkt den katalogisierten Typ der referenzierten Eigenschaft.
 
-Ein Parameter mit `fixed = true` gehört zur Vorlage, nicht zu ihren Instanzen: Jede Regelinstanz übernimmt seinen `defaultValue` und darf keinen eigenen Wert angeben. So kann eine Vorlage ihre Logik selbst tragen, etwa eine `expression`-Anforderung, deren Vorgabe die übrigen Parameter der Vorlage liest, während Instanzen nur Werte angeben. Ein festgelegter Parameter verlangt einen `defaultValue`, der ihn unabhängig von `required` bindet. Eine Regelinstanz, die einen festgelegten Parameter angibt, wird beim Binden des Regelwerks abgewiesen; wer ihn ändern will, forkt die Definition. `fixed` ist ein Pkl-Schlüsselwort und wird deshalb in Backticks geschrieben. Normalisiertes JSON lässt es weg, wenn es `false` ist.
+Eine Regeldefinition deklariert die vollständige Parametersignatur ihrer Fähigkeit: jeden Parameter, den die Fähigkeit annimmt, auch optionale wie `deviation` und `message` einer Ausdrucksregel, jeweils mit der `kind` und dem `required`-Kennzeichen der Fähigkeit. Eine Anwendung weist eine Definition ab, die einen davon auslässt oder abweichend deklariert. Eine Fähigkeit, die eigene Parameter annimmt, etwa `axioval:capability.expression`, akzeptiert zusätzlich skalare, Zeichenkettenlisten-, Selektor- und Tabellenparameter, die ihre Ausdrücke nennen. Der Binder prüft keine Signaturen; das übernimmt die Anwendung, die die Definition kompiliert.
+
+Ein `required`-Parameter, die Vorgabe, braucht in jeder Regelinstanz einen Wert. Der `defaultValue` seiner Definition liefert einen, daher darf eine Instanz einen Pflichtparameter mit Vorgabewert weglassen; nur ein Pflichtparameter ohne Vorgabewert muss angegeben werden. Mit `required = false` darf eine Instanz einen Parameter ohne Vorgabewert weglassen, und die Regel läuft ohne ihn.
+
+Ein Parameter mit `fixed = true` gehört zur Vorlage, nicht zu ihren Instanzen: Jede Regelinstanz übernimmt seinen `defaultValue` und darf keinen eigenen Wert angeben. So kann eine Vorlage ihre Logik selbst tragen, etwa eine `expression`-Anforderung, deren Vorgabe die übrigen Parameter der Vorlage liest, während Instanzen nur Werte angeben. Ein festgelegter Parameter verlangt einen `defaultValue`, der ihn bindet und damit `required` erfüllt. Eine Regelinstanz, die einen festgelegten Parameter angibt, wird beim Binden des Regelwerks abgewiesen; wer ihn ändern will, forkt die Definition. `fixed` ist ein Pkl-Schlüsselwort und wird deshalb in Backticks geschrieben. Normalisiertes JSON lässt es weg, wenn es `false` ist.
 
 ??? example "Vorlage mit festgelegter Anforderung anzeigen"
     ```pkl
@@ -93,6 +97,18 @@ Ein Parameter mit `fixed = true` gehört zur Vorlage, nicht zu ihren Instanzen: 
         id = "minimum"
         name = new Types.LocalizedText { default = "Minimum" }
         kind = "number"
+      }
+      ["deviation"] = new Definitions.ParameterDefinition {
+        id = "deviation"
+        name = new Types.LocalizedText { default = "Deviation" }
+        kind = "expression"
+        required = false
+      }
+      ["message"] = new Definitions.ParameterDefinition {
+        id = "message"
+        name = new Types.LocalizedText { default = "Message" }
+        kind = "string"
+        required = false
       }
     }
     ```

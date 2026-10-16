@@ -27,6 +27,7 @@ Das Format folgt [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Paket
 
 ### Geändert
 
+- Der `defaultValue` eines Parameters erfüllt `required` (#14), wie in der Engine: Eine Regelinstanz darf einen Pflichtparameter mit Vorgabewert weglassen, nur ein Pflichtparameter ohne Vorgabewert muss angegeben werden. Bestehende Pakete binden unverändert. Die Schemareferenz dokumentiert außerdem, dass eine Regeldefinition die vollständige Parametersignatur ihrer Fähigkeit deklariert.
 - Selektoren für Entitätstypen referenzieren nun wiederverwendbare Objekttypkonzepte, statt rohe externe Typ-System-/Namenspaare zu wiederholen.
 - Das minimale Eigenschaftsbeispiel verwendet eine kanonische Eigenschaftsreferenz statt `propertySet` und `property` als gleichrangige Zeichenkettenparameter zu behandeln.
 - Die normalisierte Ausgabe eines Definitionspakets enthält nun Objekt-, Eigenschafts- und Property-Set-Kataloge.
@@ -36,6 +37,7 @@ Das Format folgt [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Paket
 
 ### Behoben
 
+- Die `axioval:capability.expression`-Definitionen in `tests/fixtures/fixed-parameter.pkl` und `examples/expressions` deklarieren die vollständige Parametersignatur der Fähigkeit einschließlich der optionalen Parameter `deviation` und `message` (#14).
 - Apple-Pkl-Codeblöcke verwenden nun einen dedizierten serverseitigen Lexer, einschließlich benutzerdefinierter Zeichenkettenbegrenzer beliebiger Länge, und der Dokumentationsbuild schlägt fehl, wenn sie wieder als unformatierter Text erscheinen.
 - Die Validierung von Definitionsvorgaben überschattet beim Binden nicht mehr das aktive Regelwerkdokument.
 

@@ -458,6 +458,14 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Changed
 
+- A parameter's `defaultValue` satisfies `required` (#14), as in the engine
+  (axioval/engine#387): a rule instance may leave a required parameter with a
+  default unstated, and only a required parameter without one must be stated.
+  The binder accepts strictly more, so existing packages bind unchanged; a
+  fixed parameter is no longer a special case. `ParameterDefinition.required`
+  and the schema reference document the rule, and that a rule definition
+  declares its capability's whole parameter signature.
+
 - The shared expression fixtures are re-copied from the engine at 0e1a0f61
   with `catalogue-at` and `zone`.
 
@@ -515,6 +523,10 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
 
 ### Fixed
 
+- The `axioval:capability.expression` definitions of
+  `tests/fixtures/fixed-parameter.pkl` and `examples/expressions` declare the
+  capability's whole parameter signature, its optional `deviation` and
+  `message` included, so the engine compiles them (#14).
 - Apple Pkl code fences now use a dedicated server-side lexer, including
   arbitrary-length custom string delimiters, and fail the docs build if they
   regress to unhighlighted plain text.

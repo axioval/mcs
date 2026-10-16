@@ -5199,9 +5199,13 @@ def bind_ruleset(
                     f"definition {definition_id!r}; instances may not state them, "
                     "and changing them means forking the definition",
                 )
+            # A default satisfies `required`: only a required parameter
+            # without one must be stated. A fixed parameter always has one.
             missing = {
-                key for key, parameter in parameters.items() if parameter["required"]
-            } - fixed - bindings.keys()
+                key
+                for key, parameter in parameters.items()
+                if parameter["required"] and "defaultValue" not in parameter
+            } - bindings.keys()
             if unknown or missing:
                 fail(
                     rule_context,

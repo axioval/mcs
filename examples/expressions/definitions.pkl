@@ -95,6 +95,24 @@ definitions {
         }
         kind = "number"
       }
+      ["deviation"] = new Definitions.ParameterDefinition {
+        id = "deviation"
+        name = new Types.LocalizedText {
+          default = "Deviation"
+          translations { ["de"] = "Abweichung" }
+        }
+        kind = "expression"
+        required = false
+      }
+      ["message"] = new Definitions.ParameterDefinition {
+        id = "message"
+        name = new Types.LocalizedText {
+          default = "Message"
+          translations { ["de"] = "Meldung" }
+        }
+        kind = "string"
+        required = false
+      }
     }
     tags {
       "example"

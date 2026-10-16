@@ -45,6 +45,18 @@ definitions {
         name { default = "Minimum" }
         kind = "number"
       }
+      ["deviation"] {
+        id = "deviation"
+        name { default = "Deviation" }
+        kind = "expression"
+        required = false
+      }
+      ["message"] {
+        id = "message"
+        name { default = "Message" }
+        kind = "string"
+        required = false
+      }
     }
   }
 }

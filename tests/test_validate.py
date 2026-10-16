@@ -255,15 +255,17 @@ class BindingTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             validate.bind_ruleset(ruleset, [definitions], "test")
         ruleset, definitions = self.copies()
+        del ruleset["root"]["rules"][0]["parameters"]["property"]
+        with self.assertRaises(SystemExit):
+            validate.bind_ruleset(ruleset, [definitions], "test")
+        # A default satisfies `required`.
         definitions["definitions"]["axioval:example.property-exists"]["parameters"][
             "property"
         ]["defaultValue"] = {
             "type": "propertyReference",
             "property": "axioval:example.ifc.reference",
         }
-        del ruleset["root"]["rules"][0]["parameters"]["property"]
-        with self.assertRaises(SystemExit):
-            validate.bind_ruleset(ruleset, [definitions], "test")
+        validate.bind_ruleset(ruleset, [definitions], "test")
 
     def test_rejects_wrong_value_variant(self) -> None:
         ruleset, definitions = self.copies()
@@ -624,6 +626,22 @@ class FixedParameterTests(unittest.TestCase):
         ruleset, definitions = self.documents()
         self.assertIs(self.parameters(definitions[1])["requirement"]["required"], True)
         validate.bind_ruleset(ruleset, definitions, "test")
+
+    def test_a_default_satisfies_a_required_parameter(self) -> None:
+        ruleset, definitions = self.documents()
+        minimum = self.parameters(definitions[1])["minimum"]
+        self.assertIs(minimum["required"], True)
+        minimum["defaultValue"] = {"type": "number", "value": 0.9}
+        del ruleset["root"]["rules"][0]["parameters"]["minimum"]
+        validate.bind_ruleset(ruleset, definitions, "test")
+
+    def test_rejects_an_unstated_required_parameter_without_default(self) -> None:
+        ruleset, definitions = self.documents()
+        self.assertNotIn("defaultValue", self.parameters(definitions[1])["minimum"])
+        del ruleset["root"]["rules"][0]["parameters"]["minimum"]
+        with self.assertRaises(SystemExit) as failure:
+            validate.bind_ruleset(ruleset, definitions, "test")
+        self.assertIn("missing required parameters=['minimum']", str(failure.exception))
 
     def test_rejects_a_fixed_parameter_without_default(self) -> None:
         for flag in (True, False, None, "true"):
