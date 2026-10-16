@@ -3,6 +3,7 @@ amends "../../schema/RuleSets.pkl"
 import "../../schema/Types.pkl"
 import "../../schema/Values.pkl"
 import "../../schema/Selectors.pkl"
+import "../../schema/SelectorValues.pkl"
 import "../../schema/RuleSets.pkl"
 import "../../schema/Citations.pkl"
 
@@ -70,7 +71,7 @@ root = new RuleSets.RuleFolder {
   rules {
     new RuleSets.RuleInstance {
       id = "kg331-is-wall"
-      definitionId = "axioval:example.entity-type-equals"
+      definitionId = "axioval:example.selector-conformance"
       name = text(
         "Project profile maps KG 331 objects to walls",
         "Projektprofil ordnet KG-331-Objekte Wänden zu"
@@ -81,9 +82,11 @@ root = new RuleSets.RuleFolder {
       )
       severity = "error"
       parameters {
-        ["objectType"] = new Values.ObjectTypeReferenceValue {
-          objectType = "axioval:example.ifc.wall"
-          includeSubtypes = true
+        ["requirement"] = new SelectorValues.SelectorValue {
+          value = new Selectors.EntityTypeSelector {
+            objectType = "axioval:example.ifc.wall"
+            includeSubtypes = true
+          }
         }
       }
       applicability = kg331Objects

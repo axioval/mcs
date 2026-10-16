@@ -2,7 +2,6 @@ amends "../../schema/Definitions.pkl"
 
 import "@ifc/versions/Ifc4x3.pkl" as ifc4x3
 
-import "../../schema/adapters/Geometry.pkl" as geometryAdapter
 import "../../schema/adapters/Ifc.pkl" as ifcAdapter
 import "../../schema/Definitions.pkl"
 import "../../schema/Types.pkl"
@@ -12,7 +11,7 @@ package = new Types.PackageMetadata {
   name = new Types.LocalizedText { default = "IFC geometry clearance definitions" }
   version = "0.1.0"
   description = new Types.LocalizedText {
-    default = "Demonstrates package-owned IFC references and geometry capability IDs."
+    default = "Demonstrates package-owned IFC references and an engine clearance capability."
   }
   repository = "https://github.com/axioval/mcs"
 }
@@ -34,21 +33,91 @@ objectTypes {
   }
 }
 
+/// One parameter of the capability's signature, under the capability's name
+/// and with its `required` flag.
+local function parameter(
+  id_: String,
+  label: String,
+  kind_: Definitions.ParameterKind,
+  required_: Boolean
+): Definitions.ParameterDefinition = new {
+  id = id_
+  name = new Types.LocalizedText { default = label }
+  kind = kind_
+  required = required_
+}
+
+/// An optional length parameter of the signature.
+local function length(id_: String, label: String): Definitions.ParameterDefinition =
+  (parameter(id_, label, "quantity", false)) {
+    unitDimension = "https://qudt.org/vocab/quantitykind/Length"
+  }
+
+local function optional(
+  id_: String,
+  label: String,
+  kind_: Definitions.ParameterKind
+): Definitions.ParameterDefinition = parameter(id_, label, kind_, false)
+
 definitions {
-  ["axioval:example.geometry.directional-clearance"] = new Definitions.RuleDefinition {
-    id = "axioval:example.geometry.directional-clearance"
-    name = new Types.LocalizedText { default = "Directional clearance" }
+  // The engine compiles a definition only when it declares the capability's
+  // whole signature: every parameter, with its kind and `required` flag.
+  ["axioval:example.geometry.component-clearance"] = new Definitions.RuleDefinition {
+    id = "axioval:example.geometry.component-clearance"
+    name = new Types.LocalizedText { default = "Component clearance" }
     description = new Types.LocalizedText {
-      default = "Requires a directional clearance operation over selected IFC entities."
+      default = "Requires a free volume on a stated side of each selected component."
     }
-    capability = geometryAdapter.capability("openbim.geometry:clearance.directional")
+    capability = "axioval:capability.component-clearance"
     parameters {
-      ["clearance"] = new Definitions.ParameterDefinition {
-        id = "clearance"
-        name = new Types.LocalizedText { default = "Minimum clearance" }
-        kind = "quantity"
-        unitDimension = "https://qudt.org/vocab/quantitykind/Length"
-      }
+      ["side"] = optional("side", "Side", "string")
+      ["sides"] = optional("sides", "Sides", "stringList")
+      ["quantifier"] = optional("quantifier", "Side quantifier", "string")
+      ["front_axis"] = parameter("front_axis", "Front axis", "string", true)
+      ["both_sides"] = optional("both_sides", "Both sides", "boolean")
+      ["width"] = length("width", "Width")
+      ["width_mode"] = optional("width_mode", "Width mode", "string")
+      ["width_minimum"] = length("width_minimum", "Minimum width")
+      ["width_maximum"] = length("width_maximum", "Maximum width")
+      ["depth"] = length("depth", "Depth")
+      ["depth_mode"] = optional("depth_mode", "Depth mode", "string")
+      ["depth_minimum"] = length("depth_minimum", "Minimum depth")
+      ["depth_maximum"] = length("depth_maximum", "Maximum depth")
+      ["depth_from"] = optional("depth_from", "Depth measured from", "string")
+      ["radius"] = length("radius", "Radius")
+      ["height"] = length("height", "Height")
+      ["height_mode"] = optional("height_mode", "Height mode", "string")
+      ["height_minimum"] = length("height_minimum", "Minimum height")
+      ["height_maximum"] = length("height_maximum", "Maximum height")
+      ["size_mode"] = optional("size_mode", "Size mode", "string")
+      ["size_tolerance"] = length("size_tolerance", "Size tolerance")
+      ["offset"] = length("offset", "Offset")
+      ["lateral_offset"] = length("lateral_offset", "Lateral offset")
+      ["align"] = optional("align", "Alignment", "string")
+      ["slide_from"] = length("slide_from", "Slide from")
+      ["slide_to"] = length("slide_to", "Slide to")
+      ["depth_slide_from"] = length("depth_slide_from", "Depth slide from")
+      ["depth_slide_to"] = length("depth_slide_to", "Depth slide to")
+      ["height_reference"] = parameter("height_reference", "Height reference", "string", true)
+      ["vertical_offset"] = length("vertical_offset", "Vertical offset")
+      ["top_datum"] = optional("top_datum", "Top datum", "string")
+      ["top_offset"] = length("top_offset", "Top offset")
+      ["obstacles"] = parameter("obstacles", "Obstacles", "selector", true)
+      ["allowed_intruders"] = optional("allowed_intruders", "Allowed intruders", "selector")
+      ["protrusion"] = length("protrusion", "Allowed protrusion")
+      ["within_space"] = optional("within_space", "Within space", "boolean")
+      ["space_path"] = optional("space_path", "Space path", "stringList")
+      ["wall_selector"] = optional("wall_selector", "Walls", "selector")
+      ["wall_reach"] = length("wall_reach", "Wall reach")
+      ["wall_inset"] = length("wall_inset", "Wall inset")
+      ["support_selector"] = optional("support_selector", "Supports", "selector")
+      ["support_tolerance"] = length("support_tolerance", "Support tolerance")
+      ["clear_width_property"] =
+        optional("clear_width_property", "Clear width property", "propertyReference")
+      ["clear_width_from_leaves"] =
+        optional("clear_width_from_leaves", "Clear width from leaves", "string")
+      ["overall_width"] = optional("overall_width", "Overall width", "propertyReference")
+      ["width_deduction"] = length("width_deduction", "Width deduction")
     }
     tags { "example"; "geometry"; "ifc" }
   }

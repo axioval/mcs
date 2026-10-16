@@ -113,9 +113,12 @@ only their stable identifiers into normalized MCS data. The project imports the
 published packages as `@ifc` and `@geometry`; `PklProject.deps.json` locks the
 resolved metadata checksums for
 `package://openbimrs.github.io/pkl/openbim.ifc@0.2.1` and
-`package://openbimrs.github.io/pkl/openbim.geometry@0.1.0`. See
+`package://openbimrs.github.io/pkl/openbim.geometry@0.1.0`. No engine executes
+`openbim.geometry` capability IDs today; a definition meant for the Axioval
+engine names the engine's own capability. See
 [`examples/geometry-clearance`](examples/geometry-clearance/) for an IFC4X3
-rule that does not duplicate either package's domain catalog.
+rule that takes its entity names from `openbim.ifc` without duplicating its
+catalog and runs on the engine's `axioval:capability.component-clearance`.
 
 <details>
 <summary><strong>Run the complete local gate</strong></summary>

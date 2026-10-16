@@ -559,6 +559,23 @@ once a release is tagged. The current `0.1.0` contract is pre-stable.
   `tests/fixtures/fixed-parameter.pkl` and `examples/expressions` declare the
   capability's whole parameter signature, its optional `deviation` and
   `message` included, so the engine compiles them (#14).
+- The examples and the expression conformance package compile in the engine
+  (#15). `examples/din-276-331` checks that its KG 331 objects are walls with
+  `axioval:capability.selector-conformance` (a `requirement` selector and an
+  optional `message`) instead of the nonexistent
+  `axioval:capability.entity-type-equals`; its tutorial follows in both
+  languages. `examples/geometry-clearance` targets
+  `axioval:capability.component-clearance` with its whole signature instead
+  of the `openbim.geometry:clearance.directional` adapter ID, which no engine
+  executes: pipe segments keep a 200 mm volume on their left and right free
+  of walls. The conformance package `tests/test_expressions.py` generates
+  declares the `expression` capability's `requirement`, `deviation` and
+  `message`, binds each shared fixture as the operand of an `isDefined`
+  requirement, types the fixture properties it combines, computes or
+  compares, and states `slope_angle` as a plane angle; the shared fixtures
+  keep their bytes. The nine `tests/fixtures` packages with invented
+  `axioval:example.*` capabilities say that they are rendering and binding
+  fixtures no engine compiles.
 - Apple Pkl code fences now use a dedicated server-side lexer, including
   arbitrary-length custom string delimiters, and fail the docs build if they
   regress to unhighlighted plain text.

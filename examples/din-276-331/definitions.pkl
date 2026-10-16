@@ -92,19 +92,25 @@ propertySets {
 }
 
 definitions {
-  ["axioval:example.entity-type-equals"] = new Definitions.RuleDefinition {
-    id = "axioval:example.entity-type-equals"
-    name = new Types.LocalizedText { default = "Entity type equals" }
+  ["axioval:example.selector-conformance"] = new Definitions.RuleDefinition {
+    id = "axioval:example.selector-conformance"
+    name = new Types.LocalizedText { default = "Selector conformance" }
     description = new Types.LocalizedText {
-      default = "Require the selected object to have a canonical object type."
+      default = "Require every selected object to also match a requirement selector."
     }
-    capability = "axioval:capability.entity-type-equals"
+    capability = "axioval:capability.selector-conformance"
     tags { "object-type" }
     parameters {
-      ["objectType"] = new Definitions.ParameterDefinition {
-        id = "objectType"
-        name = new Types.LocalizedText { default = "Required object type" }
-        kind = "objectTypeReference"
+      ["requirement"] = new Definitions.ParameterDefinition {
+        id = "requirement"
+        name = new Types.LocalizedText { default = "Required selection" }
+        kind = "selector"
+      }
+      ["message"] = new Definitions.ParameterDefinition {
+        id = "message"
+        name = new Types.LocalizedText { default = "Message" }
+        kind = "string"
+        required = false
       }
     }
   }

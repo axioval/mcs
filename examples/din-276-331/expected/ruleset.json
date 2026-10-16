@@ -57,7 +57,7 @@
     "rules": [
       {
         "id": "kg331-is-wall",
-        "definitionId": "axioval:example.entity-type-equals",
+        "definitionId": "axioval:example.selector-conformance",
         "name": {
           "default": "Project profile maps KG 331 objects to walls",
           "translations": {
@@ -73,10 +73,13 @@
           }
         },
         "parameters": {
-          "objectType": {
-            "type": "objectTypeReference",
-            "objectType": "axioval:example.ifc.wall",
-            "includeSubtypes": true
+          "requirement": {
+            "type": "selector",
+            "value": {
+              "kind": "entityType",
+              "objectType": "axioval:example.ifc.wall",
+              "includeSubtypes": true
+            }
           }
         },
         "applicability": {

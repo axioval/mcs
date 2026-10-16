@@ -8,7 +8,10 @@ declarative normalized representation.
   does not define IFC names, releases, or manufacture PSD/QTO references while
   the source package marks that catalog `not-bundled`.
 - `Geometry.pkl` accepts only the closed `openbim.geometry` capability union and
-  preserves the package-owned qualified ID.
+  preserves the package-owned qualified ID. No engine executes these IDs yet:
+  the Axioval engine's counterpart of `openbim.geometry:clearance.directional`
+  is `axioval:capability.component-clearance`, which `examples/geometry-clearance`
+  targets directly.
 
 Adapters must not copy domain catalogs, add runtime checking behavior, or hide
 version/exactness information required by the source package.

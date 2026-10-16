@@ -108,26 +108,37 @@
     }
   },
   "definitions": {
-    "axioval:example.entity-type-equals": {
-      "id": "axioval:example.entity-type-equals",
+    "axioval:example.selector-conformance": {
+      "id": "axioval:example.selector-conformance",
       "name": {
-        "default": "Entity type equals",
+        "default": "Selector conformance",
         "translations": {}
       },
       "description": {
-        "default": "Require the selected object to have a canonical object type.",
+        "default": "Require every selected object to also match a requirement selector.",
         "translations": {}
       },
-      "capability": "axioval:capability.entity-type-equals",
+      "capability": "axioval:capability.selector-conformance",
       "parameters": {
-        "objectType": {
-          "id": "objectType",
+        "requirement": {
+          "id": "requirement",
           "name": {
-            "default": "Required object type",
+            "default": "Required selection",
             "translations": {}
           },
-          "kind": "objectTypeReference",
+          "kind": "selector",
           "required": true,
+          "allowedValues": [],
+          "citations": []
+        },
+        "message": {
+          "id": "message",
+          "name": {
+            "default": "Message",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
           "allowedValues": [],
           "citations": []
         }

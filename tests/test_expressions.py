@@ -81,6 +81,32 @@ def fixture_concepts() -> dict[str, set[str]]:
     return concepts
 
 
+# The value kind of each fixture property the fixtures use as other than
+# text, so a checking application types every fixture as the fixture means it:
+# a truth where one is combined, a number where one is computed or ordered, a
+# length where one is coalesced with a measured length or compared with a
+# length. Every other property is text.
+PROPERTY_VALUE_KINDS = {
+    "ex:elevation": "number",
+    "ex:fixture-units": "number",
+    "ex:is-external": "boolean",
+    "ex:length": "number",
+    "ex:load-bearing": "boolean",
+    "ex:nominal-width": "quantity",
+    "ex:riser-height": "quantity",
+    "ex:riser-sequence": "number",
+    "ex:slope": "number",
+    "ex:span": "number",
+}
+LENGTH = "https://qudt.org/vocab/quantitykind/Length"
+
+
+def property_kind(concept: str) -> str:
+    kind = PROPERTY_VALUE_KINDS.get(concept, "string")
+    dimension = f'\n    unitDimension = "{LENGTH}"' if kind == "quantity" else ""
+    return f'\n    valueKind = "{kind}"{dimension}'
+
+
 def conformance_definitions() -> str:
     """A definitions package declaring every concept the fixtures name and a
     rule template whose parameters the fixtures read."""
@@ -88,7 +114,7 @@ def conformance_definitions() -> str:
     for catalog, concepts in sorted(fixture_concepts().items()):
         entries = []
         for concept in sorted(concepts):
-            kind = '\n    valueKind = "string"' if catalog == "properties" else ""
+            kind = property_kind(concept) if catalog == "properties" else ""
             entries.append(
                 f"""  ["{concept}"] {{
     id = "{concept}"
@@ -119,17 +145,30 @@ package {
     name { default = "Expression" }
     capability = "axioval:capability.expression"
     parameters {
-      ["expression"] {
-        id = "expression"
-        name { default = "Expression" }
+      ["requirement"] {
+        id = "requirement"
+        name { default = "Requirement" }
         kind = "expression"
+      }
+      ["deviation"] {
+        id = "deviation"
+        name { default = "Deviation" }
+        kind = "expression"
+        required = false
+      }
+      ["message"] {
+        id = "message"
+        name { default = "Message" }
+        kind = "string"
+        required = false
       }
       ["slope_angle"] {
         id = "slope_angle"
         name { default = "Slope angle" }
-        kind = "number"
+        kind = "quantity"
+        unitDimension = "https://qudt.org/vocab/quantitykind/PlaneAngle"
         required = false
-        defaultValue = new Values.NumberValue { value = 0.1 }
+        defaultValue = new Values.QuantityValue { value = 0.1; unit = "rad" }
       }
       ["minimum_width"] {
         id = "minimum_width"
@@ -195,13 +234,21 @@ package {
 
 def conformance_ruleset(stems: list[str]) -> str:
     """A ruleset binding each fixture, imported from its shared Pkl module,
-    as one rule's expression parameter."""
+    into one rule's boolean `requirement`: a fixture of any type as the
+    operand of `isDefined`, the `expression` capability's contract."""
     imports = "".join(
         f'import "../tests/fixtures/expression/{stem}.pkl" as {alias(stem)}\n'
         for stem in stems
     )
-    rules = "".join(rule(f"fixture-{stem}", alias(stem)) for stem in stems) + "".join(
-        rule(rule_id, alias("literal-boolean")) for rule_id in OUTCOME_RULES
+    rules = "".join(
+        rule(
+            f"fixture-{stem}",
+            f"new Expressions.IsDefinedExpression {{ operand = {alias(stem)}.expression }}",
+        )
+        for stem in stems
+    ) + "".join(
+        rule(rule_id, f"{alias('literal-boolean')}.expression")
+        for rule_id in OUTCOME_RULES
     )
     return f"""\
 amends "../schema/RuleSets.pkl"
@@ -275,14 +322,14 @@ def alias(stem: str) -> str:
     return "fixture_" + stem.replace("-", "_")
 
 
-def rule(rule_id: str, module: str) -> str:
+def rule(rule_id: str, requirement: str) -> str:
     return f"""\
     new {{
       id = "{rule_id}"
       definitionId = "axioval:conformance.expression"
       name {{ default = "{rule_id}" }}
       parameters {{
-        ["expression"] = new Expressions.ExpressionValue {{ value = {module}.expression }}
+        ["requirement"] = new Expressions.ExpressionValue {{ value = {requirement} }}
       }}
     }}
 """
@@ -373,7 +420,8 @@ class ExpressionFixtureTests(unittest.TestCase):
                 contracts.validate_expression(json.loads(data), stem)
 
     def test_every_fixture_round_trips_through_mcs_byte_for_byte(self) -> None:
-        """Every fixture binds as a rule's expression parameter in a package
+        """Every fixture binds, as the operand of a rule's boolean
+        `requirement`, the `expression` capability's contract, in a package
         declaring the `ex:` concepts it names, packs deterministically,
         verifies, and comes back with the same bytes in the transport's
         canonical form (sorted keys, compact separators), the form `.mcs`
@@ -413,7 +461,7 @@ class ExpressionFixtureTests(unittest.TestCase):
                         ).hexdigest(),
                     )
             bound = {
-                rule["id"].removeprefix("fixture-"): rule["parameters"]["expression"]
+                rule["id"].removeprefix("fixture-"): rule["parameters"]["requirement"]
                 for rule in ruleset["root"]["rules"]
                 if rule["id"].startswith("fixture-")
             }
@@ -421,8 +469,9 @@ class ExpressionFixtureTests(unittest.TestCase):
             for stem in stems:
                 with self.subTest(fixture=stem):
                     self.assertEqual(bound[stem]["type"], "expression")
+                    self.assertEqual(bound[stem]["value"]["kind"], "isDefined")
                     self.assertEqual(
-                        mcs_archive._json_bytes(bound[stem]["value"]),
+                        mcs_archive._json_bytes(bound[stem]["value"]["operand"]),
                         mcs_archive._json_bytes(json.loads(fixtures()[stem])),
                     )
 

@@ -14,8 +14,10 @@ proves that:
 - the fixtures cover every expression kind the binder knows and every scalar
   literal kind;
 - evaluating each module yields exactly the bytes of its fixture;
-- every fixture binds as a rule's `expression` parameter in a package whose
-  definitions declare the `ex:` concepts the fixtures name, packs into `.mcs`
+- every fixture binds as the operand of an `isDefined` rule `requirement` of
+  `axioval:capability.expression` in a package whose definitions declare the
+  capability's signature and the `ex:` concepts the fixtures name, each
+  property of the value kind its fixtures use it as, packs into `.mcs`
   deterministically, verifies, and comes back byte for byte in the
   transport's canonical form (sorted keys, compact separators), the form
   `.mcs` stores normalized JSON in.

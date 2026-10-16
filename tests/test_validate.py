@@ -306,8 +306,15 @@ class BindingTests(unittest.TestCase):
         )
         self.assertTrue(all(rule["applicability"]["code"] == "331" for rule in rules))
         self.assertEqual(
-            rules[0]["parameters"]["objectType"]["objectType"],
-            "axioval:example.ifc.wall",
+            rules[0]["parameters"]["requirement"],
+            {
+                "type": "selector",
+                "value": {
+                    "kind": "entityType",
+                    "objectType": "axioval:example.ifc.wall",
+                    "includeSubtypes": True,
+                },
+            },
         )
         strict = rules[1]["parameters"]["property"]
         loose = rules[2]["parameters"]["property"]
@@ -320,9 +327,35 @@ class BindingTests(unittest.TestCase):
     def test_rejects_unknown_object_type_reference(self) -> None:
         ruleset = copy.deepcopy(self.din_ruleset)
         definitions = copy.deepcopy(self.din_definitions)
-        ruleset["root"]["rules"][0]["parameters"]["objectType"]["objectType"] = (
-            "axioval:unknown.object-type"
-        )
+        # An objectTypeReference parameter of a binding-only template.
+        definitions["definitions"]["axioval:test.object-type"] = {
+            "id": "axioval:test.object-type",
+            "name": {"default": "Object type", "translations": {}},
+            "capability": "axioval:test.object-type",
+            "parameters": {
+                "objectType": {
+                    "id": "objectType",
+                    "name": {"default": "Object type", "translations": {}},
+                    "kind": "objectTypeReference",
+                    "required": True,
+                    "allowedValues": [],
+                    "citations": [],
+                }
+            },
+            "citations": [],
+            "tags": [],
+        }
+        rule = ruleset["root"]["rules"][0]
+        rule["definitionId"] = "axioval:test.object-type"
+        rule["parameters"] = {
+            "objectType": {
+                "type": "objectTypeReference",
+                "objectType": "axioval:example.ifc.wall",
+                "includeSubtypes": True,
+            }
+        }
+        validate.bind_ruleset(copy.deepcopy(ruleset), [definitions], "test")
+        rule["parameters"]["objectType"]["objectType"] = "axioval:unknown.object-type"
         with self.assertRaises(SystemExit):
             validate.bind_ruleset(ruleset, [definitions], "test")
 

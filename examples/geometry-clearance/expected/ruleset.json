@@ -8,7 +8,7 @@
     },
     "version": "0.1.0",
     "description": {
-      "default": "Instructional rule using openbim.ifc and openbim.geometry contracts.",
+      "default": "Instructional rule using openbim.ifc names and the engine's clearance capability.",
       "translations": {}
     },
     "repository": "https://github.com/axioval/mcs",
@@ -27,42 +27,73 @@
     "rules": [
       {
         "id": "wall-to-pipe-clearance",
-        "definitionId": "axioval:example.geometry.directional-clearance",
+        "definitionId": "axioval:example.geometry.component-clearance",
         "name": {
-          "default": "Walls and pipes keep 200 mm clearance",
+          "default": "Pipe segments keep 200 mm clear of walls",
           "translations": {}
         },
         "enabled": true,
         "severity": "error",
         "parameters": {
-          "clearance": {
+          "sides": {
+            "type": "stringList",
+            "value": [
+              "left",
+              "right"
+            ]
+          },
+          "front_axis": {
+            "type": "string",
+            "value": "forward"
+          },
+          "width_mode": {
+            "type": "string",
+            "value": "component_plus"
+          },
+          "width": {
+            "type": "quantity",
+            "value": 0,
+            "unit": "mm"
+          },
+          "depth": {
             "type": "quantity",
             "value": 200,
             "unit": "mm"
+          },
+          "height_mode": {
+            "type": "string",
+            "value": "component_plus"
+          },
+          "height": {
+            "type": "quantity",
+            "value": 0,
+            "unit": "mm"
+          },
+          "height_reference": {
+            "type": "string",
+            "value": "bottom"
+          },
+          "obstacles": {
+            "type": "selector",
+            "value": {
+              "kind": "entityType",
+              "objectType": "axioval:example.ifc.wall",
+              "includeSubtypes": true
+            }
           }
         },
         "applicability": {
           "groups": {
-            "elements": {
-              "id": "elements",
+            "pipes": {
+              "id": "pipes",
               "name": {
-                "default": "Walls and pipe segments",
+                "default": "Pipe segments",
                 "translations": {}
               },
               "selector": {
-                "kind": "anyOf",
-                "operands": [
-                  {
-                    "kind": "entityType",
-                    "objectType": "axioval:example.ifc.wall",
-                    "includeSubtypes": true
-                  },
-                  {
-                    "kind": "entityType",
-                    "objectType": "axioval:example.ifc.pipe-segment",
-                    "includeSubtypes": true
-                  }
-                ]
+                "kind": "entityType",
+                "objectType": "axioval:example.ifc.pipe-segment",
+                "includeSubtypes": true
               }
             }
           }
@@ -71,11 +102,11 @@
           {
             "id": "minimum-clearance",
             "statement": {
-              "default": "Selected walls and pipe segments maintain at least 200 mm directional clearance.",
+              "default": "On its left and right, a volume 200 mm deep and as wide and high as the segment is free of walls.",
               "translations": {}
             },
             "targetGroups": [
-              "elements"
+              "pipes"
             ],
             "citations": []
           }

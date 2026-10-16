@@ -8,7 +8,7 @@
     },
     "version": "0.1.0",
     "description": {
-      "default": "Demonstrates package-owned IFC references and geometry capability IDs.",
+      "default": "Demonstrates package-owned IFC references and an engine clearance capability.",
       "translations": {}
     },
     "repository": "https://github.com/axioval/mcs",
@@ -48,26 +48,544 @@
   "properties": {},
   "propertySets": {},
   "definitions": {
-    "axioval:example.geometry.directional-clearance": {
-      "id": "axioval:example.geometry.directional-clearance",
+    "axioval:example.geometry.component-clearance": {
+      "id": "axioval:example.geometry.component-clearance",
       "name": {
-        "default": "Directional clearance",
+        "default": "Component clearance",
         "translations": {}
       },
       "description": {
-        "default": "Requires a directional clearance operation over selected IFC entities.",
+        "default": "Requires a free volume on a stated side of each selected component.",
         "translations": {}
       },
-      "capability": "openbim.geometry:clearance.directional",
+      "capability": "axioval:capability.component-clearance",
       "parameters": {
-        "clearance": {
-          "id": "clearance",
+        "side": {
+          "id": "side",
           "name": {
-            "default": "Minimum clearance",
+            "default": "Side",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "sides": {
+          "id": "sides",
+          "name": {
+            "default": "Sides",
+            "translations": {}
+          },
+          "kind": "stringList",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "quantifier": {
+          "id": "quantifier",
+          "name": {
+            "default": "Side quantifier",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "front_axis": {
+          "id": "front_axis",
+          "name": {
+            "default": "Front axis",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": true,
+          "allowedValues": [],
+          "citations": []
+        },
+        "both_sides": {
+          "id": "both_sides",
+          "name": {
+            "default": "Both sides",
+            "translations": {}
+          },
+          "kind": "boolean",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "width": {
+          "id": "width",
+          "name": {
+            "default": "Width",
             "translations": {}
           },
           "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "width_mode": {
+          "id": "width_mode",
+          "name": {
+            "default": "Width mode",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "width_minimum": {
+          "id": "width_minimum",
+          "name": {
+            "default": "Minimum width",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "width_maximum": {
+          "id": "width_maximum",
+          "name": {
+            "default": "Maximum width",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "depth": {
+          "id": "depth",
+          "name": {
+            "default": "Depth",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "depth_mode": {
+          "id": "depth_mode",
+          "name": {
+            "default": "Depth mode",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "depth_minimum": {
+          "id": "depth_minimum",
+          "name": {
+            "default": "Minimum depth",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "depth_maximum": {
+          "id": "depth_maximum",
+          "name": {
+            "default": "Maximum depth",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "depth_from": {
+          "id": "depth_from",
+          "name": {
+            "default": "Depth measured from",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "radius": {
+          "id": "radius",
+          "name": {
+            "default": "Radius",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "height": {
+          "id": "height",
+          "name": {
+            "default": "Height",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "height_mode": {
+          "id": "height_mode",
+          "name": {
+            "default": "Height mode",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "height_minimum": {
+          "id": "height_minimum",
+          "name": {
+            "default": "Minimum height",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "height_maximum": {
+          "id": "height_maximum",
+          "name": {
+            "default": "Maximum height",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "size_mode": {
+          "id": "size_mode",
+          "name": {
+            "default": "Size mode",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "size_tolerance": {
+          "id": "size_tolerance",
+          "name": {
+            "default": "Size tolerance",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "offset": {
+          "id": "offset",
+          "name": {
+            "default": "Offset",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "lateral_offset": {
+          "id": "lateral_offset",
+          "name": {
+            "default": "Lateral offset",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "align": {
+          "id": "align",
+          "name": {
+            "default": "Alignment",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "slide_from": {
+          "id": "slide_from",
+          "name": {
+            "default": "Slide from",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "slide_to": {
+          "id": "slide_to",
+          "name": {
+            "default": "Slide to",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "depth_slide_from": {
+          "id": "depth_slide_from",
+          "name": {
+            "default": "Depth slide from",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "depth_slide_to": {
+          "id": "depth_slide_to",
+          "name": {
+            "default": "Depth slide to",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "height_reference": {
+          "id": "height_reference",
+          "name": {
+            "default": "Height reference",
+            "translations": {}
+          },
+          "kind": "string",
           "required": true,
+          "allowedValues": [],
+          "citations": []
+        },
+        "vertical_offset": {
+          "id": "vertical_offset",
+          "name": {
+            "default": "Vertical offset",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "top_datum": {
+          "id": "top_datum",
+          "name": {
+            "default": "Top datum",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "top_offset": {
+          "id": "top_offset",
+          "name": {
+            "default": "Top offset",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "obstacles": {
+          "id": "obstacles",
+          "name": {
+            "default": "Obstacles",
+            "translations": {}
+          },
+          "kind": "selector",
+          "required": true,
+          "allowedValues": [],
+          "citations": []
+        },
+        "allowed_intruders": {
+          "id": "allowed_intruders",
+          "name": {
+            "default": "Allowed intruders",
+            "translations": {}
+          },
+          "kind": "selector",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "protrusion": {
+          "id": "protrusion",
+          "name": {
+            "default": "Allowed protrusion",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "within_space": {
+          "id": "within_space",
+          "name": {
+            "default": "Within space",
+            "translations": {}
+          },
+          "kind": "boolean",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "space_path": {
+          "id": "space_path",
+          "name": {
+            "default": "Space path",
+            "translations": {}
+          },
+          "kind": "stringList",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "wall_selector": {
+          "id": "wall_selector",
+          "name": {
+            "default": "Walls",
+            "translations": {}
+          },
+          "kind": "selector",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "wall_reach": {
+          "id": "wall_reach",
+          "name": {
+            "default": "Wall reach",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "wall_inset": {
+          "id": "wall_inset",
+          "name": {
+            "default": "Wall inset",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "support_selector": {
+          "id": "support_selector",
+          "name": {
+            "default": "Supports",
+            "translations": {}
+          },
+          "kind": "selector",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "support_tolerance": {
+          "id": "support_tolerance",
+          "name": {
+            "default": "Support tolerance",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
+          "allowedValues": [],
+          "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
+          "citations": []
+        },
+        "clear_width_property": {
+          "id": "clear_width_property",
+          "name": {
+            "default": "Clear width property",
+            "translations": {}
+          },
+          "kind": "propertyReference",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "clear_width_from_leaves": {
+          "id": "clear_width_from_leaves",
+          "name": {
+            "default": "Clear width from leaves",
+            "translations": {}
+          },
+          "kind": "string",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "overall_width": {
+          "id": "overall_width",
+          "name": {
+            "default": "Overall width",
+            "translations": {}
+          },
+          "kind": "propertyReference",
+          "required": false,
+          "allowedValues": [],
+          "citations": []
+        },
+        "width_deduction": {
+          "id": "width_deduction",
+          "name": {
+            "default": "Width deduction",
+            "translations": {}
+          },
+          "kind": "quantity",
+          "required": false,
           "allowedValues": [],
           "unitDimension": "https://qudt.org/vocab/quantitykind/Length",
           "citations": []

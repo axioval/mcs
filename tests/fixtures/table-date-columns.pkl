@@ -1,3 +1,6 @@
+// Rendering and binding fixture only: its `axioval:example.*` capability is
+// invented for the MCS binder tests, and no engine compiles this package.
+
 amends "../../schema/Definitions.pkl"
 
 import "../../schema/Values.pkl"

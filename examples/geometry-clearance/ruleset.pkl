@@ -2,6 +2,7 @@ amends "../../schema/RuleSets.pkl"
 
 import "../../schema/RuleSets.pkl"
 import "../../schema/Selectors.pkl"
+import "../../schema/SelectorValues.pkl"
 import "../../schema/Types.pkl"
 import "../../schema/Values.pkl"
 
@@ -10,7 +11,7 @@ package = new Types.PackageMetadata {
   name = new Types.LocalizedText { default = "IFC wall-to-pipe clearance" }
   version = "0.1.0"
   description = new Types.LocalizedText {
-    default = "Instructional rule using openbim.ifc and openbim.geometry contracts."
+    default = "Instructional rule using openbim.ifc names and the engine's clearance capability."
   }
   repository = "https://github.com/axioval/mcs"
 }
@@ -25,29 +26,31 @@ root = new RuleSets.RuleFolder {
   rules {
     new RuleSets.RuleInstance {
       id = "wall-to-pipe-clearance"
-      definitionId = "axioval:example.geometry.directional-clearance"
-      name = new Types.LocalizedText { default = "Walls and pipes keep 200 mm clearance" }
+      definitionId = "axioval:example.geometry.component-clearance"
+      name = new Types.LocalizedText { default = "Pipe segments keep 200 mm clear of walls" }
       severity = "error"
       parameters {
-        ["clearance"] = new Values.QuantityValue {
-          value = 200
-          unit = "mm"
+        ["sides"] = new Values.StringListValue { value { "left"; "right" } }
+        ["front_axis"] = new Values.StringValue { value = "forward" }
+        ["width_mode"] = new Values.StringValue { value = "component_plus" }
+        ["width"] = new Values.QuantityValue { value = 0; unit = "mm" }
+        ["depth"] = new Values.QuantityValue { value = 200; unit = "mm" }
+        ["height_mode"] = new Values.StringValue { value = "component_plus" }
+        ["height"] = new Values.QuantityValue { value = 0; unit = "mm" }
+        ["height_reference"] = new Values.StringValue { value = "bottom" }
+        ["obstacles"] = new SelectorValues.SelectorValue {
+          value = new Selectors.EntityTypeSelector {
+            objectType = "axioval:example.ifc.wall"
+          }
         }
       }
       applicability = new RuleSets.Applicability {
         groups {
-          ["elements"] = new RuleSets.TargetGroup {
-            id = "elements"
-            name = new Types.LocalizedText { default = "Walls and pipe segments" }
-            selector = new Selectors.AnyOfSelector {
-              operands {
-                new Selectors.EntityTypeSelector {
-                  objectType = "axioval:example.ifc.wall"
-                }
-                new Selectors.EntityTypeSelector {
-                  objectType = "axioval:example.ifc.pipe-segment"
-                }
-              }
+          ["pipes"] = new RuleSets.TargetGroup {
+            id = "pipes"
+            name = new Types.LocalizedText { default = "Pipe segments" }
+            selector = new Selectors.EntityTypeSelector {
+              objectType = "axioval:example.ifc.pipe-segment"
             }
           }
         }
@@ -57,9 +60,9 @@ root = new RuleSets.RuleFolder {
           id = "minimum-clearance"
           statement = new Types.LocalizedText {
             default =
-              "Selected walls and pipe segments maintain at least 200 mm directional clearance."
+              "On its left and right, a volume 200 mm deep and as wide and high as the segment is free of walls."
           }
-          targetGroups { "elements" }
+          targetGroups { "pipes" }
         }
       }
       tags { "example"; "geometry"; "ifc" }
