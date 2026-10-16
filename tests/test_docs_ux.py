@@ -62,8 +62,8 @@ class DocumentationUxTests(unittest.TestCase):
         requirements = (ROOT / "requirements-docs.txt").read_text(encoding="utf-8")
         for contract in (
             "mkdocs-static-i18n==1.3.1",
-            "mkdocs-material==9.6.20",
-            "Pygments==2.19.2",
+            "mkdocs-material==9.7.7",
+            "Pygments==2.20.0",
         ):
             self.assertIn(contract, requirements)
         for contract in (
